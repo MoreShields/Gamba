@@ -1,0 +1,263 @@
+package repository
+
+import (
+	"context"
+	"fmt"
+
+	"gambler/database"
+	"gambler/models"
+	"gambler/service"
+	"github.com/jackc/pgx/v5"
+)
+
+// GroupWagerRepository implements group wager data access
+type GroupWagerRepository struct {
+	q queryable
+}
+
+// NewGroupWagerRepository creates a new group wager repository
+func NewGroupWagerRepository(db *database.DB) *GroupWagerRepository {
+	return &GroupWagerRepository{q: db.Pool}
+}
+
+// newGroupWagerRepositoryWithTx creates a new group wager repository with a transaction
+func newGroupWagerRepositoryWithTx(tx queryable) service.GroupWagerRepository {
+	return &GroupWagerRepository{q: tx}
+}
+
+// Create creates a new group wager
+func (r *GroupWagerRepository) Create(ctx context.Context, wager *models.GroupWager) error {
+	query := `
+		INSERT INTO group_wagers (
+			creator_discord_id, condition, state, total_pot, 
+			min_participants, message_id, channel_id
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, created_at
+	`
+
+	err := r.q.QueryRow(ctx, query,
+		wager.CreatorDiscordID,
+		wager.Condition,
+		wager.State,
+		wager.TotalPot,
+		wager.MinParticipants,
+		wager.MessageID,
+		wager.ChannelID,
+	).Scan(&wager.ID, &wager.CreatedAt)
+
+	if err != nil {
+		return fmt.Errorf("failed to create group wager: %w", err)
+	}
+
+	return nil
+}
+
+// GetByID retrieves a group wager by its ID
+func (r *GroupWagerRepository) GetByID(ctx context.Context, id int64) (*models.GroupWager, error) {
+	query := `
+		SELECT 
+			id, creator_discord_id, condition, state, resolver_discord_id,
+			winning_option_id, total_pot, min_participants, message_id, 
+			channel_id, created_at, resolved_at
+		FROM group_wagers
+		WHERE id = $1
+	`
+
+	var wager models.GroupWager
+	err := r.q.QueryRow(ctx, query, id).Scan(
+		&wager.ID,
+		&wager.CreatorDiscordID,
+		&wager.Condition,
+		&wager.State,
+		&wager.ResolverDiscordID,
+		&wager.WinningOptionID,
+		&wager.TotalPot,
+		&wager.MinParticipants,
+		&wager.MessageID,
+		&wager.ChannelID,
+		&wager.CreatedAt,
+		&wager.ResolvedAt,
+	)
+
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get group wager: %w", err)
+	}
+
+	return &wager, nil
+}
+
+// GetByMessageID retrieves a group wager by its Discord message ID
+func (r *GroupWagerRepository) GetByMessageID(ctx context.Context, messageID int64) (*models.GroupWager, error) {
+	query := `
+		SELECT 
+			id, creator_discord_id, condition, state, resolver_discord_id,
+			winning_option_id, total_pot, min_participants, message_id, 
+			channel_id, created_at, resolved_at
+		FROM group_wagers
+		WHERE message_id = $1
+	`
+
+	var wager models.GroupWager
+	err := r.q.QueryRow(ctx, query, messageID).Scan(
+		&wager.ID,
+		&wager.CreatorDiscordID,
+		&wager.Condition,
+		&wager.State,
+		&wager.ResolverDiscordID,
+		&wager.WinningOptionID,
+		&wager.TotalPot,
+		&wager.MinParticipants,
+		&wager.MessageID,
+		&wager.ChannelID,
+		&wager.CreatedAt,
+		&wager.ResolvedAt,
+	)
+
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get group wager by message ID: %w", err)
+	}
+
+	return &wager, nil
+}
+
+// Update updates a group wager's state and related fields
+func (r *GroupWagerRepository) Update(ctx context.Context, wager *models.GroupWager) error {
+	query := `
+		UPDATE group_wagers
+		SET state = $2, resolver_discord_id = $3, winning_option_id = $4,
+		    total_pot = $5, resolved_at = $6, message_id = $7, channel_id = $8
+		WHERE id = $1
+	`
+
+	result, err := r.q.Exec(ctx, query,
+		wager.ID,
+		wager.State,
+		wager.ResolverDiscordID,
+		wager.WinningOptionID,
+		wager.TotalPot,
+		wager.ResolvedAt,
+		wager.MessageID,
+		wager.ChannelID,
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to update group wager: %w", err)
+	}
+
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("group wager not found")
+	}
+
+	return nil
+}
+
+// GetActiveByUser returns all active group wagers where the user is participating
+func (r *GroupWagerRepository) GetActiveByUser(ctx context.Context, discordID int64) ([]*models.GroupWager, error) {
+	query := `
+		SELECT DISTINCT
+			gw.id, gw.creator_discord_id, gw.condition, gw.state, gw.resolver_discord_id,
+			gw.winning_option_id, gw.total_pot, gw.min_participants, gw.message_id, 
+			gw.channel_id, gw.created_at, gw.resolved_at
+		FROM group_wagers gw
+		JOIN group_wager_participants gwp ON gwp.group_wager_id = gw.id
+		WHERE gwp.discord_id = $1 AND gw.state = 'active'
+		ORDER BY gw.created_at DESC
+	`
+
+	rows, err := r.q.Query(ctx, query, discordID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query active group wagers: %w", err)
+	}
+	defer rows.Close()
+
+	var wagers []*models.GroupWager
+	for rows.Next() {
+		var wager models.GroupWager
+		err := rows.Scan(
+			&wager.ID,
+			&wager.CreatorDiscordID,
+			&wager.Condition,
+			&wager.State,
+			&wager.ResolverDiscordID,
+			&wager.WinningOptionID,
+			&wager.TotalPot,
+			&wager.MinParticipants,
+			&wager.MessageID,
+			&wager.ChannelID,
+			&wager.CreatedAt,
+			&wager.ResolvedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan group wager: %w", err)
+		}
+		wagers = append(wagers, &wager)
+	}
+
+	return wagers, nil
+}
+
+// GetAll returns all group wagers with optional state filter
+func (r *GroupWagerRepository) GetAll(ctx context.Context, state *models.GroupWagerState) ([]*models.GroupWager, error) {
+	var query string
+	var args []interface{}
+
+	if state != nil {
+		query = `
+			SELECT 
+				id, creator_discord_id, condition, state, resolver_discord_id,
+				winning_option_id, total_pot, min_participants, message_id, 
+				channel_id, created_at, resolved_at
+			FROM group_wagers
+			WHERE state = $1
+			ORDER BY created_at DESC
+		`
+		args = append(args, *state)
+	} else {
+		query = `
+			SELECT 
+				id, creator_discord_id, condition, state, resolver_discord_id,
+				winning_option_id, total_pot, min_participants, message_id, 
+				channel_id, created_at, resolved_at
+			FROM group_wagers
+			ORDER BY created_at DESC
+		`
+	}
+
+	rows, err := r.q.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query group wagers: %w", err)
+	}
+	defer rows.Close()
+
+	var wagers []*models.GroupWager
+	for rows.Next() {
+		var wager models.GroupWager
+		err := rows.Scan(
+			&wager.ID,
+			&wager.CreatorDiscordID,
+			&wager.Condition,
+			&wager.State,
+			&wager.ResolverDiscordID,
+			&wager.WinningOptionID,
+			&wager.TotalPot,
+			&wager.MinParticipants,
+			&wager.MessageID,
+			&wager.ChannelID,
+			&wager.CreatedAt,
+			&wager.ResolvedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan group wager: %w", err)
+		}
+		wagers = append(wagers, &wager)
+	}
+
+	return wagers, nil
+}

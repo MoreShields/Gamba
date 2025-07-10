@@ -1,0 +1,67 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    hostname: postgres
+    environment:
+      POSTGRES_USER: gambler
+      POSTGRES_PASSWORD: gambler_dev_password
+      POSTGRES_DB: gambler_db
+      POSTGRES_HOST_AUTH_METHOD: trust  # Allow passwordless access in dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gambler -d gambler_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # networks:
+    #   - gambler-network
+
+  bot:
+    container_name: gamba
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Discord configuration
+      DISCORD_TOKEN: ${DISCORD_TOKEN}
+      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID}
+      
+      # Database configuration - use local postgres container
+      DATABASE_URL: ${DATABASE_URL}
+      
+      # Bot configuration
+      INTEREST_RATE: ${INTEREST_RATE:-0.005}
+      INTEREST_SCHEDULE: ${INTEREST_SCHEDULE:-0 0 * * *}
+      STARTING_BALANCE: ${STARTING_BALANCE:-100000}
+      
+      # Environment
+      ENVIRONMENT: development
+      
+      # Development specific
+      LOG_LEVEL: debug
+      
+    volumes:
+      - ./:/app
+      - /app/tmp  # Exclude tmp directory from sync
+    working_dir: /app
+    command: air  # Use air for hot reload
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    # networks:
+    #   - gambler-network
+
+volumes:
+  postgres_data:
+
+networks:
+  gambler-network:
+    driver: bridge
