@@ -38,7 +38,7 @@ func (f *Feature) processBetAndUpdateMessage(ctx context.Context, s *discordgo.S
 	}
 
 	// Create action buttons for next bet
-	components := CreateActionButtons(result.NewBalance)
+	components := CreateActionButtons(betAmount, result.NewBalance)
 
 	// Send the response
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{

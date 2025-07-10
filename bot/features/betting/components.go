@@ -99,9 +99,8 @@ func buildBetAmountModalOld(odds float64, balance int64) discordgo.InteractionRe
 }
 
 // CreateActionButtons creates the post-bet action buttons
-func CreateActionButtons(balance int64) []discordgo.MessageComponent {
-	// For initial call, we don't have a last amount
-	return buildActionButtons(0, balance)
+func CreateActionButtons(lastAmount, balance int64) []discordgo.MessageComponent {
+	return buildActionButtons(lastAmount, balance)
 }
 
 // buildActionButtons creates the post-bet action buttons
