@@ -1,0 +1,72 @@
+name: Deploy to EC2
+
+on:
+  workflow_run:
+    workflows: ["Build and Push Docker Image"]
+    types:
+      - completed
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Configure SSH
+      run: |
+        mkdir -p ~/.ssh/
+        echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+    - name: Deploy to EC2
+      run: |
+        ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+          # Navigate to deployment directory
+          cd /opt/gamba
+          
+          # Pull latest code (for docker-compose file updates)
+          git pull origin main
+          
+          # Login to GitHub Container Registry
+          echo ${{ secrets.GITHUB_TOKEN }} | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+          
+          # Pull latest image
+          docker-compose pull
+          
+          # Stop current containers
+          docker-compose down
+          
+          # Start services (migrations will run first due to depends_on)
+          docker-compose up -d
+          
+          # Clean up old images
+          docker image prune -f
+        EOF
+
+    - name: Verify deployment
+      run: |
+        ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+          cd /opt/gamba
+          
+          # Check if bot container is running
+          if docker-compose ps bot | grep -q "Up"; then
+            echo "Deployment successful - bot container is running"
+            docker-compose ps
+          else
+            echo "Deployment failed - bot container not running"
+            echo "Migration logs:"
+            docker-compose logs migrate
+            echo "Bot logs:"
+            docker-compose logs bot
+            exit 1
+          fi
+        EOF

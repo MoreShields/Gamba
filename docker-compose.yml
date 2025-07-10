@@ -1,4 +1,16 @@
 services:
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: prod
+    environment:
+      # Database configuration - use host's postgres in production
+      DATABASE_URL: ${DATABASE_URL}
+    command: ["./gambler", "migrate", "up"]
+    network_mode: host  # Access host's postgres instance
+    restart: "no"  # Run once and exit
+
   bot:
     build:
       context: .
@@ -20,3 +32,6 @@ services:
       
     restart: unless-stopped
     network_mode: host  # Access host's postgres instance
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
