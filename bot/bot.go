@@ -7,12 +7,17 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
+	"gambler/bot/features/balance"
+	"gambler/bot/features/betting"
+	"gambler/bot/features/groupwagers"
+	"gambler/bot/features/stats"
+	"gambler/bot/features/transfer"
+	"gambler/bot/features/wagers"
 	"gambler/events"
 	"gambler/service"
 
 	"github.com/bwmarrin/discordgo"
+	log "github.com/sirupsen/logrus"
 )
 
 // Config holds bot configuration
@@ -23,44 +28,63 @@ type Config struct {
 	HighRollerEnabled bool
 }
 
+// Bot manages the Discord bot and all feature modules
 type Bot struct {
-	config            Config
-	session           *discordgo.Session
+	// Core components
+	config    Config
+	session   *discordgo.Session
+	eventBus  *events.Bus
+	
+	// Services
 	userService       service.UserService
 	gamblingService   service.GamblingService
 	transferService   service.TransferService
 	wagerService      service.WagerService
 	statsService      service.StatsService
 	groupWagerService service.GroupWagerService
-	eventBus          *events.Bus
+	
+	// Feature modules
+	betting       *betting.Feature
+	wagers        *wagers.Feature
+	groupWagers   *groupwagers.Feature
+	stats         *stats.Feature
+	balance       *balance.Feature
+	transfer      *transfer.Feature
 }
 
-func New(config Config, userService service.UserService, gamblingService service.GamblingService, transferService service.TransferService, wagerService service.WagerService, statsService service.StatsService, groupWagerService service.GroupWagerService, eventBus *events.Bus) (*Bot, error) {
+// New creates a new bot instance with all features
+func New(config Config, gamblingConfig *betting.GamblingConfig, userService service.UserService, gamblingService service.GamblingService, transferService service.TransferService, wagerService service.WagerService, statsService service.StatsService, groupWagerService service.GroupWagerService, eventBus *events.Bus) (*Bot, error) {
+	// Create Discord session
 	dg, err := discordgo.New("Bot " + config.Token)
 	if err != nil {
 		return nil, fmt.Errorf("error creating discord session: %w", err)
 	}
 	dg.Identify.Intents = discordgo.IntentsAll
 
+	// Create bot instance
 	bot := &Bot{
 		config:            config,
 		session:           dg,
+		eventBus:          eventBus,
 		userService:       userService,
 		gamblingService:   gamblingService,
 		transferService:   transferService,
 		wagerService:      wagerService,
 		statsService:      statsService,
 		groupWagerService: groupWagerService,
-		eventBus:          eventBus,
 	}
 
-	// Register slash command handlers
-	dg.AddHandler(bot.handleCommands)
+	// Create feature modules
+	bot.betting = betting.NewFeature(dg, gamblingConfig, userService, gamblingService, config.GuildID)
+	bot.wagers = wagers.NewFeature(dg, wagerService, userService, config.GuildID)
+	bot.groupWagers = groupwagers.NewFeature(dg, groupWagerService, userService, config.GuildID)
+	bot.stats = stats.NewFeature(dg, statsService, userService, config.GuildID)
+	bot.balance = balance.New(userService)
+	bot.transfer = transfer.New(transferService, userService)
 
-	// Register component interaction handlers
-	dg.AddHandler(bot.handleBetInteraction)
-	dg.AddHandler(bot.handleWagerInteractions)
-	dg.AddHandler(bot.handleGroupWagerInteractions)
+	// Register handlers
+	dg.AddHandler(bot.handleCommands)
+	dg.AddHandler(bot.handleInteractions)
 
 	// Open websocket connection
 	if err := dg.Open(); err != nil {
@@ -72,9 +96,6 @@ func New(config Config, userService service.UserService, gamblingService service
 		dg.Close()
 		return nil, fmt.Errorf("error registering commands: %w", err)
 	}
-
-	// Start periodic cleanup of old bet sessions
-	go bot.startSessionCleanup()
 
 	// Subscribe to balance change events for high roller role updates
 	if bot.config.HighRollerEnabled {
@@ -103,19 +124,29 @@ func New(config Config, userService service.UserService, gamblingService service
 	return bot, nil
 }
 
+// Close gracefully shuts down the bot
 func (b *Bot) Close() error {
 	return b.session.Close()
 }
 
-// updateHighRollerRole checks and updates the high roller role assignment
+// GetSession returns the Discord session
+func (b *Bot) GetSession() *discordgo.Session {
+	return b.session
+}
+
+// GetConfig returns the bot configuration
+func (b *Bot) GetConfig() Config {
+	return b.config
+}
+
+// updateHighRollerRole updates the high roller role based on current balances
 func (b *Bot) updateHighRollerRole(ctx context.Context) error {
 	if !b.config.HighRollerEnabled || b.config.HighRollerRoleID == "" {
-		return nil // Feature disabled
+		return nil
 	}
 
-	// Get current high roller from database
+	// Get the current high roller
 	highRoller, err := b.userService.GetCurrentHighRoller(ctx)
-	log.Infof("High Roller: %s", highRoller.Username)
 	if err != nil {
 		return fmt.Errorf("failed to get current high roller: %w", err)
 	}
@@ -127,7 +158,6 @@ func (b *Bot) updateHighRollerRole(ctx context.Context) error {
 
 	// Get all guild members with the high roller role
 	members, err := b.session.GuildMembers(b.config.GuildID, "", 1000)
-	log.Infof("guildmembers: %+v", members)
 	if err != nil {
 		return fmt.Errorf("failed to get guild members: %w", err)
 	}
@@ -176,178 +206,7 @@ func (b *Bot) updateHighRollerRole(ctx context.Context) error {
 	return nil
 }
 
-// handleWagerInteractions handles wager-related component interactions and modals
-func (b *Bot) handleWagerInteractions(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	switch i.Type {
-	case discordgo.InteractionMessageComponent:
-		customID := i.MessageComponentData().CustomID
-		// Check if this is a wager-related interaction
-		if strings.HasPrefix(customID, "wager_") {
-			b.handleWagerInteraction(s, i)
-		}
-
-	case discordgo.InteractionModalSubmit:
-		customID := i.ModalSubmitData().CustomID
-		// Check if this is a wager condition modal
-		if strings.HasPrefix(customID, "wager_condition_modal_") {
-			b.handleWagerConditionModal(s, i)
-		}
-	}
-}
-
-// startSessionCleanup runs periodic cleanup of old bet sessions
-func (b *Bot) startSessionCleanup() {
-	ticker := time.NewTicker(30 * time.Minute)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		cleanupSessions()
-	}
-}
-
-func (b *Bot) registerCommands() error {
-	commands := []*discordgo.ApplicationCommand{
-		{
-			Name:        "balance",
-			Description: "Check your current balance",
-		},
-		{
-			Name:        "gamble",
-			Description: "Open the interactive betting interface",
-		},
-		{
-			Name:        "donate",
-			Description: "Transfer bits to another player",
-			Options: []*discordgo.ApplicationCommandOption{
-				{
-					Type:        discordgo.ApplicationCommandOptionInteger,
-					Name:        "amount",
-					Description: "Amount to donate in bits",
-					Required:    true,
-				},
-				{
-					Type:        discordgo.ApplicationCommandOptionUser,
-					Name:        "user",
-					Description: "User to donate to",
-					Required:    true,
-				},
-			},
-		},
-		{
-			Name:        "wager",
-			Description: "Create and manage wagers",
-			Options: []*discordgo.ApplicationCommandOption{
-				{
-					Type:        discordgo.ApplicationCommandOptionSubCommand,
-					Name:        "propose",
-					Description: "Propose a wager against another player",
-					Options: []*discordgo.ApplicationCommandOption{
-						{
-							Type:        discordgo.ApplicationCommandOptionUser,
-							Name:        "user",
-							Description: "User to wager against",
-							Required:    true,
-						},
-						{
-							Type:        discordgo.ApplicationCommandOptionInteger,
-							Name:        "amount",
-							Description: "Amount to wager in bits",
-							Required:    true,
-						},
-					},
-				},
-				{
-					Type:        discordgo.ApplicationCommandOptionSubCommand,
-					Name:        "list",
-					Description: "List your active wagers",
-				},
-				{
-					Type:        discordgo.ApplicationCommandOptionSubCommand,
-					Name:        "cancel",
-					Description: "Cancel a proposed wager",
-					Options: []*discordgo.ApplicationCommandOption{
-						{
-							Type:        discordgo.ApplicationCommandOptionInteger,
-							Name:        "id",
-							Description: "Wager ID to cancel",
-							Required:    true,
-						},
-					},
-				},
-			},
-		},
-		{
-			Name:        "groupwager",
-			Description: "Create and manage group wagers",
-			Options: []*discordgo.ApplicationCommandOption{
-				{
-					Type:        discordgo.ApplicationCommandOptionSubCommand,
-					Name:        "create",
-					Description: "Create a new group wager (opens modal for details)",
-				},
-				{
-					Type:        discordgo.ApplicationCommandOptionSubCommand,
-					Name:        "resolve",
-					Description: "Resolve a group wager (resolvers only)",
-					Options: []*discordgo.ApplicationCommandOption{
-						{
-							Type:        discordgo.ApplicationCommandOptionInteger,
-							Name:        "id",
-							Description: "Group wager ID to resolve",
-							Required:    true,
-						},
-						{
-							Type:        discordgo.ApplicationCommandOptionInteger,
-							Name:        "winning_option",
-							Description: "ID of the winning option",
-							Required:    true,
-						},
-					},
-				},
-			},
-		},
-		{
-			Name:        "stats",
-			Description: "View player statistics",
-			Options: []*discordgo.ApplicationCommandOption{
-				{
-					Type:        discordgo.ApplicationCommandOptionSubCommand,
-					Name:        "scoreboard",
-					Description: "Display the top players scoreboard",
-				},
-				{
-					Type:        discordgo.ApplicationCommandOptionSubCommand,
-					Name:        "balance",
-					Description: "Display detailed statistics for a player",
-					Options: []*discordgo.ApplicationCommandOption{
-						{
-							Type:        discordgo.ApplicationCommandOptionUser,
-							Name:        "user",
-							Description: "User to check stats for (defaults to you)",
-							Required:    false,
-						},
-					},
-				},
-			},
-		},
-	}
-
-	for _, cmd := range commands {
-		_, err := b.session.ApplicationCommandCreate(b.session.State.User.ID, "", cmd)
-		if err != nil {
-			return fmt.Errorf("cannot create '%s' command: %w", cmd.Name, err)
-		}
-	}
-
-	// Delete a command by ID
-	// err := b.session.ApplicationCommandDelete(b.session.State.User.ID, "", "1391958820778938440")
-	// if err != nil {
-	// 	log.Errorf("%s", err)
-	// }
-
-	return nil
-}
-
+// handleCommands routes slash commands to appropriate handlers
 func (b *Bot) handleCommands(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if i.Type != discordgo.InteractionApplicationCommand {
 		return
@@ -355,165 +214,57 @@ func (b *Bot) handleCommands(s *discordgo.Session, i *discordgo.InteractionCreat
 
 	switch i.ApplicationCommandData().Name {
 	case "balance":
-		b.handleBalance(s, i)
+		b.balance.HandleCommand(s, i)
 	case "gamble":
-		b.handleBetCommand(s, i)
+		b.betting.HandleCommand(s, i)
 	case "donate":
-		b.handleDonate(s, i)
+		b.transfer.HandleCommand(s, i)
 	case "wager":
-		b.handleWagerCommand(s, i)
+		b.wagers.HandleCommand(s, i)
 	case "groupwager":
-		b.handleGroupWagerCommand(s, i)
+		b.groupWagers.HandleCommand(s, i)
 	case "stats":
-		b.handleStatsCommand(s, i)
+		b.stats.HandleCommand(s, i)
 	}
 }
 
-func (b *Bot) handleBalance(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	ctx := context.Background()
-
-	// Convert Discord string ID to int64
-	discordID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
-	if err != nil {
-		log.Printf("Error parsing Discord ID %s: %v", i.Member.User.ID, err)
-		b.respondWithError(s, i, "Unable to process request. Please try again.")
-		return
-	}
-
-	// Get or create user
-	user, err := b.userService.GetOrCreateUser(ctx, discordID, i.Member.User.Username)
-	if err != nil {
-		log.Printf("Error getting user %d: %v", discordID, err)
-		b.respondWithError(s, i, "Unable to retrieve balance. Please try again.")
-		return
-	}
-
-	// Get display name
-	displayName := GetDisplayName(s, i.GuildID, i.Member.User.ID)
-
-	// Format and send response
-	message := fmt.Sprintf("%s, your current balance: **%s bits**", displayName, FormatBalance(user.AvailableBalance))
-	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: message,
-		},
-	})
-	if err != nil {
-		log.Printf("Error responding to balance command: %v", err)
+// handleInteractions routes component interactions to appropriate features
+func (b *Bot) handleInteractions(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	switch i.Type {
+	case discordgo.InteractionMessageComponent:
+		customID := i.MessageComponentData().CustomID
+		b.routeComponentInteraction(s, i, customID)
+		
+	case discordgo.InteractionModalSubmit:
+		customID := i.ModalSubmitData().CustomID
+		b.routeModalInteraction(s, i, customID)
 	}
 }
 
-func (b *Bot) handleDonate(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	ctx := context.Background()
-
-	// Extract command options
-	options := i.ApplicationCommandData().Options
-	if len(options) != 2 {
-		b.respondWithError(s, i, "Invalid command options. Please provide both amount and user.")
-		return
-	}
-
-	// Extract amount
-	var amount int64
-	var recipientUser *discordgo.User
-	for _, opt := range options {
-		switch opt.Name {
-		case "amount":
-			amount = opt.IntValue()
-		case "user":
-			recipientUser = opt.UserValue(s)
-		}
-	}
-
-	if amount <= 0 {
-		b.respondWithError(s, i, "Amount must be positive.")
-		return
-	}
-
-	if recipientUser == nil {
-		b.respondWithError(s, i, "Invalid recipient user.")
-		return
-	}
-
-	// Convert Discord string IDs to int64
-	fromDiscordID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
-	if err != nil {
-		log.Printf("Error parsing sender Discord ID %s: %v", i.Member.User.ID, err)
-		b.respondWithError(s, i, "Unable to process request. Please try again.")
-		return
-	}
-
-	toDiscordID, err := strconv.ParseInt(recipientUser.ID, 10, 64)
-	if err != nil {
-		log.Printf("Error parsing recipient Discord ID %s: %v", recipientUser.ID, err)
-		b.respondWithError(s, i, "Unable to process request. Please try again.")
-		return
-	}
-
-	// Check for self-transfer
-	if fromDiscordID == toDiscordID {
-		b.respondWithError(s, i, "You cannot donate to yourself.")
-		return
-	}
-
-	// Ensure both users exist in the database
-	_, err = b.userService.GetOrCreateUser(ctx, fromDiscordID, i.Member.User.Username)
-	if err != nil {
-		log.Printf("Error getting/creating sender user %d: %v", fromDiscordID, err)
-		b.respondWithError(s, i, "Unable to process request. Please try again.")
-		return
-	}
-
-	_, err = b.userService.GetOrCreateUser(ctx, toDiscordID, recipientUser.Username)
-	if err != nil {
-		log.Printf("Error getting/creating recipient user %d: %v", toDiscordID, err)
-		b.respondWithError(s, i, "Unable to process request. Please try again.")
-		return
-	}
-
-	// Perform the transfer
-	result, err := b.transferService.Transfer(ctx, fromDiscordID, toDiscordID, amount)
-	if err != nil {
-		log.Printf("Error transferring %d bits from %d to %d: %v", amount, fromDiscordID, toDiscordID, err)
-
-		// Check for specific error types to provide better user feedback
-		if err.Error() == fmt.Sprintf("insufficient balance: have %d, need %d", 0, amount) ||
-			err.Error()[:20] == "insufficient balance" {
-			b.respondWithError(s, i, "Insufficient balance for this donation.")
-		} else {
-			b.respondWithError(s, i, "Unable to process donation. Please try again.")
-		}
-		return
-	}
-
-	// Get display names
-	senderName := GetDisplayName(s, i.GuildID, i.Member.User.ID)
-	recipientName := GetDisplayName(s, i.GuildID, recipientUser.ID)
-
-	// Format and send success response
-	message := fmt.Sprintf("✅ **%s** transferred **%s bits** to **%s**",
-		senderName, FormatBalance(result.Amount), recipientName)
-	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: message,
-		},
-	})
-	if err != nil {
-		log.Printf("Error responding to donate command: %v", err)
+// routeComponentInteraction routes button and select menu interactions
+func (b *Bot) routeComponentInteraction(s *discordgo.Session, i *discordgo.InteractionCreate, customID string) {
+	switch {
+	case strings.HasPrefix(customID, "bet_"):
+		b.betting.HandleInteraction(s, i)
+		
+	case strings.HasPrefix(customID, "wager_"):
+		b.wagers.HandleInteraction(s, i)
+		
+	case strings.HasPrefix(customID, "groupwager_"):
+		b.groupWagers.HandleInteraction(s, i)
 	}
 }
 
-func (b *Bot) respondWithError(s *discordgo.Session, i *discordgo.InteractionCreate, message string) {
-	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: message,
-			Flags:   discordgo.MessageFlagsEphemeral,
-		},
-	})
-	if err != nil {
-		log.Printf("Error sending error response: %v", err)
+// routeModalInteraction routes modal submit interactions
+func (b *Bot) routeModalInteraction(s *discordgo.Session, i *discordgo.InteractionCreate, customID string) {
+	switch {
+	case strings.HasPrefix(customID, "wager_condition_modal_"):
+		b.wagers.HandleInteraction(s, i)
+		
+	case strings.HasPrefix(customID, "groupwager_create"):
+		b.groupWagers.HandleInteraction(s, i)
+		
+	case customID == "bet_amount_modal":
+		b.betting.HandleInteraction(s, i)
 	}
 }

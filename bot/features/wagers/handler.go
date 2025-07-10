@@ -1,43 +1,24 @@
-package bot
+package wagers
 
 import (
 	"context"
 	"fmt"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"strconv"
 	"strings"
 
+	"gambler/bot/common"
 	"gambler/models"
 
 	"github.com/bwmarrin/discordgo"
 )
 
-// handleWagerCommand handles the /wager slash command
-func (b *Bot) handleWagerCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	// Get subcommand
-	options := i.ApplicationCommandData().Options
-	if len(options) == 0 {
-		b.respondWithError(s, i, "Invalid command usage")
-		return
-	}
-
-	switch options[0].Name {
-	case "propose":
-		b.handleWagerPropose(s, i)
-	case "list":
-		b.handleWagerList(s, i)
-	case "cancel":
-		b.handleWagerCancel(s, i)
-	default:
-		b.respondWithError(s, i, "Unknown subcommand")
-	}
-}
 
 // handleWagerPropose handles the /wager propose subcommand
-func (b *Bot) handleWagerPropose(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (f *Feature) handleWagerPropose(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	options := i.ApplicationCommandData().Options[0].Options
 	if len(options) < 2 {
-		b.respondWithError(s, i, "Please specify a user and amount")
+		common.RespondWithError(s, i, "Please specify a user and amount")
 		return
 	}
 
@@ -46,26 +27,26 @@ func (b *Bot) handleWagerPropose(s *discordgo.Session, i *discordgo.InteractionC
 	amount := options[1].IntValue()
 
 	if targetUser == nil {
-		b.respondWithError(s, i, "Invalid user specified")
+		common.RespondWithError(s, i, "Invalid user specified")
 		return
 	}
 
 	// Validate amount
 	if amount <= 0 {
-		b.respondWithError(s, i, "Amount must be positive")
+		common.RespondWithError(s, i, "Amount must be positive")
 		return
 	}
 
 	// Convert Discord IDs to int64
 	proposerID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
 	if err != nil {
-		b.respondWithError(s, i, "Invalid user ID")
+		common.RespondWithError(s, i, "Invalid user ID")
 		return
 	}
 
 	targetID, err := strconv.ParseInt(targetUser.ID, 10, 64)
 	if err != nil {
-		b.respondWithError(s, i, "Invalid target user ID")
+		common.RespondWithError(s, i, "Invalid target user ID")
 		return
 	}
 
@@ -81,29 +62,29 @@ func (b *Bot) handleWagerPropose(s *discordgo.Session, i *discordgo.InteractionC
 }
 
 // handleWagerConditionModal handles the modal submission for wager condition
-func (b *Bot) handleWagerConditionModal(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (f *Feature) handleWagerConditionModal(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	// Parse custom ID to get proposer, target, and amount
 	parts := strings.Split(i.ModalSubmitData().CustomID, "_")
 	if len(parts) < 6 {
-		b.respondWithError(s, i, "Invalid modal data")
+		common.RespondWithError(s, i, "Invalid modal data")
 		return
 	}
 
 	proposerID, err := strconv.ParseInt(parts[3], 10, 64)
 	if err != nil {
-		b.respondWithError(s, i, "Invalid proposer ID")
+		common.RespondWithError(s, i, "Invalid proposer ID")
 		return
 	}
 
 	targetID, err := strconv.ParseInt(parts[4], 10, 64)
 	if err != nil {
-		b.respondWithError(s, i, "Invalid target ID")
+		common.RespondWithError(s, i, "Invalid target ID")
 		return
 	}
 
 	amount, err := strconv.ParseInt(parts[5], 10, 64)
 	if err != nil {
-		b.respondWithError(s, i, "Invalid amount")
+		common.RespondWithError(s, i, "Invalid amount")
 		return
 	}
 
@@ -121,7 +102,7 @@ func (b *Bot) handleWagerConditionModal(s *discordgo.Session, i *discordgo.Inter
 
 	// Create the wager (we'll get message ID after posting)
 	channelID, _ := strconv.ParseInt(i.ChannelID, 10, 64)
-	wager, err := b.wagerService.ProposeWager(context.Background(), proposerID, targetID, amount, condition, 0, channelID)
+	wager, err := f.wagerService.ProposeWager(context.Background(), proposerID, targetID, amount, condition, 0, channelID)
 	if err != nil {
 		content := fmt.Sprintf("❌ Failed to create wager: %v", err)
 		_, err = s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
@@ -134,8 +115,8 @@ func (b *Bot) handleWagerConditionModal(s *discordgo.Session, i *discordgo.Inter
 	}
 
 	// Get server-specific display names
-	proposerName := GetDisplayNameInt64(s, i.GuildID, proposerID)
-	targetName := GetDisplayNameInt64(s, i.GuildID, targetID)
+	proposerName := common.GetDisplayNameInt64(s, i.GuildID, proposerID)
+	targetName := common.GetDisplayNameInt64(s, i.GuildID, targetID)
 
 	// Create embed and components
 	embed := BuildWagerProposedEmbed(wager, proposerName, targetName)
@@ -161,22 +142,22 @@ func (b *Bot) handleWagerConditionModal(s *discordgo.Session, i *discordgo.Inter
 }
 
 // handleWagerList handles the /wager list subcommand
-func (b *Bot) handleWagerList(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (f *Feature) handleWagerList(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	userID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
 	if err != nil {
-		b.respondWithError(s, i, "Invalid user ID")
+		common.RespondWithError(s, i, "Invalid user ID")
 		return
 	}
 
 	// Get active wagers
-	wagers, err := b.wagerService.GetActiveWagersByUser(context.Background(), userID)
+	wagers, err := f.wagerService.GetActiveWagersByUser(context.Background(), userID)
 	if err != nil {
-		b.respondWithError(s, i, fmt.Sprintf("Failed to get wagers: %v", err))
+		common.RespondWithError(s, i, fmt.Sprintf("Failed to get wagers: %v", err))
 		return
 	}
 
 	// Get display name
-	displayName := GetDisplayName(s, i.GuildID, i.Member.User.ID)
+	displayName := common.GetDisplayName(s, i.GuildID, i.Member.User.ID)
 
 	// Build and send embed
 	embed := BuildWagerListEmbed(wagers, userID, displayName)
@@ -193,35 +174,35 @@ func (b *Bot) handleWagerList(s *discordgo.Session, i *discordgo.InteractionCrea
 }
 
 // handleWagerCancel handles the /wager cancel subcommand
-func (b *Bot) handleWagerCancel(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (f *Feature) handleWagerCancel(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	options := i.ApplicationCommandData().Options[0].Options
 	if len(options) == 0 {
-		b.respondWithError(s, i, "Please specify a wager ID")
+		common.RespondWithError(s, i, "Please specify a wager ID")
 		return
 	}
 
 	wagerID := options[0].IntValue()
 	userID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
 	if err != nil {
-		b.respondWithError(s, i, "Invalid user ID")
+		common.RespondWithError(s, i, "Invalid user ID")
 		return
 	}
 
 	// Get the wager details first to find the message
-	wager, err := b.wagerService.GetWagerByID(context.Background(), wagerID)
+	wager, err := f.wagerService.GetWagerByID(context.Background(), wagerID)
 	if err != nil {
-		b.respondWithError(s, i, fmt.Sprintf("Failed to get wager: %v", err))
+		common.RespondWithError(s, i, fmt.Sprintf("Failed to get wager: %v", err))
 		return
 	}
 	if wager == nil {
-		b.respondWithError(s, i, "Wager not found")
+		common.RespondWithError(s, i, "Wager not found")
 		return
 	}
 
 	// Cancel the wager
-	err = b.wagerService.CancelWager(context.Background(), wagerID, userID)
+	err = f.wagerService.CancelWager(context.Background(), wagerID, userID)
 	if err != nil {
-		b.respondWithError(s, i, fmt.Sprintf("Failed to cancel wager: %v", err))
+		common.RespondWithError(s, i, fmt.Sprintf("Failed to cancel wager: %v", err))
 		return
 	}
 
@@ -249,43 +230,43 @@ func (b *Bot) handleWagerCancel(s *discordgo.Session, i *discordgo.InteractionCr
 }
 
 // handleWagerInteraction handles button interactions for wagers
-func (b *Bot) handleWagerInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (f *Feature) handleWagerInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	customID := i.MessageComponentData().CustomID
 	parts := strings.Split(customID, "_")
 
 	if len(parts) < 3 {
-		b.respondWithError(s, i, "Invalid interaction data")
+		common.RespondWithError(s, i, "Invalid interaction data")
 		return
 	}
 
 	action := parts[1]
 	switch action {
 	case "accept", "decline":
-		b.handleWagerResponse(s, i, action == "accept")
+		f.handleWagerResponse(s, i, action == "accept")
 	case "vote":
-		b.handleWagerVote(s, i)
+		f.handleWagerVote(s, i)
 	default:
-		b.respondWithError(s, i, "Unknown wager action")
+		common.RespondWithError(s, i, "Unknown wager action")
 	}
 }
 
 // handleWagerResponse handles accept/decline button presses
-func (b *Bot) handleWagerResponse(s *discordgo.Session, i *discordgo.InteractionCreate, accept bool) {
+func (f *Feature) handleWagerResponse(s *discordgo.Session, i *discordgo.InteractionCreate, accept bool) {
 	parts := strings.Split(i.MessageComponentData().CustomID, "_")
 	if len(parts) < 3 {
-		b.respondWithError(s, i, "Invalid button data")
+		common.RespondWithError(s, i, "Invalid button data")
 		return
 	}
 
 	wagerID, err := strconv.ParseInt(parts[2], 10, 64)
 	if err != nil {
-		b.respondWithError(s, i, "Invalid wager ID")
+		common.RespondWithError(s, i, "Invalid wager ID")
 		return
 	}
 
 	userID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
 	if err != nil {
-		b.respondWithError(s, i, "Invalid user ID")
+		common.RespondWithError(s, i, "Invalid user ID")
 		return
 	}
 
@@ -299,7 +280,7 @@ func (b *Bot) handleWagerResponse(s *discordgo.Session, i *discordgo.Interaction
 	}
 
 	// Process the response
-	wager, err := b.wagerService.RespondToWager(context.Background(), wagerID, userID, accept)
+	wager, err := f.wagerService.RespondToWager(context.Background(), wagerID, userID, accept)
 	if err != nil {
 		content := fmt.Sprintf("❌ %v", err)
 		_, err = s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
@@ -313,8 +294,8 @@ func (b *Bot) handleWagerResponse(s *discordgo.Session, i *discordgo.Interaction
 	}
 
 	// Get server-specific display names
-	proposerName := GetDisplayNameInt64(s, i.GuildID, wager.ProposerDiscordID)
-	targetName := GetDisplayNameInt64(s, i.GuildID, wager.TargetDiscordID)
+	proposerName := common.GetDisplayNameInt64(s, i.GuildID, wager.ProposerDiscordID)
+	targetName := common.GetDisplayNameInt64(s, i.GuildID, wager.TargetDiscordID)
 
 	// Update the message based on response
 	var embed *discordgo.MessageEmbed
@@ -342,28 +323,28 @@ func (b *Bot) handleWagerResponse(s *discordgo.Session, i *discordgo.Interaction
 }
 
 // handleWagerVote handles vote button presses
-func (b *Bot) handleWagerVote(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (f *Feature) handleWagerVote(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	parts := strings.Split(i.MessageComponentData().CustomID, "_")
 	if len(parts) < 4 {
-		b.respondWithError(s, i, "Invalid vote button data")
+		common.RespondWithError(s, i, "Invalid vote button data")
 		return
 	}
 
 	wagerID, err := strconv.ParseInt(parts[2], 10, 64)
 	if err != nil {
-		b.respondWithError(s, i, "Invalid wager ID")
+		common.RespondWithError(s, i, "Invalid wager ID")
 		return
 	}
 
 	voteForID, err := strconv.ParseInt(parts[3], 10, 64)
 	if err != nil {
-		b.respondWithError(s, i, "Invalid vote target ID")
+		common.RespondWithError(s, i, "Invalid vote target ID")
 		return
 	}
 
 	voterID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
 	if err != nil {
-		b.respondWithError(s, i, "Invalid voter ID")
+		common.RespondWithError(s, i, "Invalid voter ID")
 		return
 	}
 
@@ -377,7 +358,7 @@ func (b *Bot) handleWagerVote(s *discordgo.Session, i *discordgo.InteractionCrea
 	}
 
 	// Cast the vote
-	_, voteCounts, err := b.wagerService.CastVote(context.Background(), wagerID, voterID, voteForID)
+	_, voteCounts, err := f.wagerService.CastVote(context.Background(), wagerID, voterID, voteForID)
 	if err != nil {
 		content := fmt.Sprintf("❌ %v", err)
 		_, err = s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
@@ -391,15 +372,15 @@ func (b *Bot) handleWagerVote(s *discordgo.Session, i *discordgo.InteractionCrea
 	}
 
 	// Get updated wager state
-	wager, err := b.wagerService.GetWagerByID(context.Background(), wagerID)
+	wager, err := f.wagerService.GetWagerByID(context.Background(), wagerID)
 	if err != nil {
 		log.Printf("Error getting wager after vote: %v", err)
 		return
 	}
 
 	// Get server-specific display names
-	proposerName := GetDisplayNameInt64(s, i.GuildID, wager.ProposerDiscordID)
-	targetName := GetDisplayNameInt64(s, i.GuildID, wager.TargetDiscordID)
+	proposerName := common.GetDisplayNameInt64(s, i.GuildID, wager.ProposerDiscordID)
+	targetName := common.GetDisplayNameInt64(s, i.GuildID, wager.TargetDiscordID)
 
 	// Update the embed based on wager state
 	var embed *discordgo.MessageEmbed

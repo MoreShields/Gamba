@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"gambler/bot"
+	"gambler/bot/features/betting"
 	"gambler/config"
 	"gambler/database"
 	"gambler/events"
@@ -53,12 +54,16 @@ func Run(ctx context.Context) error {
 	// Initialize Discord bot
 	log.Println("Initializing Discord bot...")
 	botConfig := bot.Config{
-		Token:            cfg.DiscordToken,
-		GuildID:          cfg.DiscordGuildID,
-		HighRollerRoleID: cfg.HighRollerRoleID,
+		Token:             cfg.DiscordToken,
+		GuildID:           cfg.DiscordGuildID,
+		HighRollerRoleID:  cfg.HighRollerRoleID,
 		HighRollerEnabled: cfg.HighRollerEnabled,
 	}
-	discordBot, err := bot.New(botConfig, userService, gamblingService, transferService, wagerService, statsService, groupWagerService, eventBus)
+	gamblingConfig := &betting.GamblingConfig{
+		DailyGambleLimit:    cfg.DailyGambleLimit,
+		DailyLimitResetHour: cfg.DailyLimitResetHour,
+	}
+	discordBot, err := bot.New(botConfig, gamblingConfig, userService, gamblingService, transferService, wagerService, statsService, groupWagerService, eventBus)
 	if err != nil {
 		return fmt.Errorf("failed to initialize Discord bot: %w", err)
 	}

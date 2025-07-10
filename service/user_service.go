@@ -71,27 +71,6 @@ func (s *userService) GetOrCreateUser(ctx context.Context, discordID int64, user
 	return user, nil
 }
 
-// GetUser retrieves a user by Discord ID
-func (s *userService) GetUser(ctx context.Context, discordID int64) (*models.User, error) {
-	// Create unit of work for consistency
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback() // No-op if already committed
-
-	user, err := uow.UserRepository().GetByDiscordID(ctx, discordID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user: %w", err)
-	}
-
-	if user == nil {
-		return nil, fmt.Errorf("user with discord ID %d not found", discordID)
-	}
-
-	// No need to commit since we didn't make changes
-	return user, nil
-}
 
 // GetCurrentHighRoller returns the user with the highest balance
 func (s *userService) GetCurrentHighRoller(ctx context.Context) (*models.User, error) {

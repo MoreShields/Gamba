@@ -68,9 +68,6 @@ type UserService interface {
 	// GetOrCreateUser retrieves an existing user or creates a new one with initial balance
 	GetOrCreateUser(ctx context.Context, discordID int64, username string) (*models.User, error)
 
-	// GetUser retrieves a user by Discord ID
-	GetUser(ctx context.Context, discordID int64) (*models.User, error)
-
 	// GetCurrentHighRoller returns the user with the highest balance
 	GetCurrentHighRoller(ctx context.Context) (*models.User, error)
 }

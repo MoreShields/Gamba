@@ -1,6 +1,6 @@
-package bot
-
+package groupwagers
 import (
+	"gambler/bot/common"
 	"context"
 	"fmt"
 	"strconv"
@@ -11,25 +11,25 @@ import (
 )
 
 // handleGroupWagerCommand handles the /groupwager command and its subcommands
-func (b *Bot) handleGroupWagerCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (f *Feature) handleGroupWagerCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	options := i.ApplicationCommandData().Options
 	if len(options) == 0 {
-		b.respondWithError(s, i, "Please specify a subcommand.")
+		common.RespondWithError(s, i, "Please specify a subcommand.")
 		return
 	}
 
 	switch options[0].Name {
 	case "create":
-		b.handleGroupWagerCreate(s, i)
+		f.handleGroupWagerCreate(s, i)
 	case "resolve":
-		b.handleGroupWagerResolve(s, i)
+		f.handleGroupWagerResolve(s, i)
 	default:
-		b.respondWithError(s, i, "Unknown subcommand.")
+		common.RespondWithError(s, i, "Unknown subcommand.")
 	}
 }
 
 // handleGroupWagerCreate handles the /groupwager create subcommand
-func (b *Bot) handleGroupWagerCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (f *Feature) handleGroupWagerCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	// Respond with a modal to collect wager details
 	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseModal,
@@ -82,7 +82,7 @@ func (b *Bot) handleGroupWagerCreate(s *discordgo.Session, i *discordgo.Interact
 }
 
 // handleGroupWagerCreateModal handles the modal submission for creating a group wager
-func (b *Bot) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (f *Feature) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	ctx := context.Background()
 	data := i.ModalSubmitData()
 
@@ -118,11 +118,11 @@ func (b *Bot) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo.Int
 
 	// Validate options count
 	if len(options) < 2 {
-		b.respondWithError(s, i, "Please provide at least 2 options.")
+		common.RespondWithError(s, i, "Please provide at least 2 options.")
 		return
 	}
 	if len(options) > 10 {
-		b.respondWithError(s, i, "Maximum 10 options allowed.")
+		common.RespondWithError(s, i, "Maximum 10 options allowed.")
 		return
 	}
 
@@ -132,11 +132,11 @@ func (b *Bot) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo.Int
 		var err error
 		votingPeriodHours, err = strconv.Atoi(votingPeriodText)
 		if err != nil {
-			b.respondWithError(s, i, "Voting period must be a valid number.")
+			common.RespondWithError(s, i, "Voting period must be a valid number.")
 			return
 		}
 		if votingPeriodHours < 1 || votingPeriodHours > 168 {
-			b.respondWithError(s, i, "Voting period must be between 1 and 168 hours (1 week).")
+			common.RespondWithError(s, i, "Voting period must be between 1 and 168 hours (1 week).")
 			return
 		}
 	}
@@ -154,21 +154,21 @@ func (b *Bot) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo.Int
 	creatorID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
 	if err != nil {
 		log.Printf("Error parsing creator ID: %v", err)
-		b.followUpWithError(s, i, "Unable to process request.")
+		common.FollowUpWithError(s, i, "Unable to process request.")
 		return
 	}
 
 	// Create the group wager (message ID will be updated after posting)
-	groupWagerDetail, err := b.groupWagerService.CreateGroupWager(ctx, creatorID, condition, options, votingPeriodHours, 0, 0)
+	groupWagerDetail, err := f.groupWagerService.CreateGroupWager(ctx, creatorID, condition, options, votingPeriodHours, 0, 0)
 	if err != nil {
 		log.Printf("Error creating group wager: %v", err)
-		b.followUpWithError(s, i, fmt.Sprintf("Failed to create group wager: %v", err))
+		common.FollowUpWithError(s, i, fmt.Sprintf("Failed to create group wager: %v", err))
 		return
 	}
 
 	// Create the embed
-	embed := b.createGroupWagerEmbed(groupWagerDetail)
-	components := b.createGroupWagerComponents(groupWagerDetail)
+	embed := createGroupWagerEmbed(groupWagerDetail)
+	components := createGroupWagerComponents(groupWagerDetail)
 
 	// Send the follow-up message
 	msg, err := s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
@@ -197,7 +197,7 @@ func (b *Bot) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo.Int
 
 	// Update the group wager with the message IDs
 	log.Infof("Updating group wager %d with messageID: %d channelID: %d", groupWagerDetail.Wager.ID, messageID, channelID)
-	if err := b.groupWagerService.UpdateMessageIDs(ctx, groupWagerDetail.Wager.ID, messageID, channelID); err != nil {
+	if err := f.groupWagerService.UpdateMessageIDs(ctx, groupWagerDetail.Wager.ID, messageID, channelID); err != nil {
 		log.Errorf("failed to update group wager message IDs: %s", err)
 
 	}
@@ -205,7 +205,7 @@ func (b *Bot) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo.Int
 }
 
 // handleGroupWagerResolve handles the /groupwager resolve subcommand
-func (b *Bot) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	ctx := context.Background()
 	options := i.ApplicationCommandData().Options[0].Options
 
@@ -225,13 +225,13 @@ func (b *Bot) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Interac
 	resolverID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
 	if err != nil {
 		log.Printf("Error parsing resolver ID: %v", err)
-		b.respondWithError(s, i, "Unable to process request.")
+		common.RespondWithError(s, i, "Unable to process request.")
 		return
 	}
 
 	// Check if user is a resolver
-	if !b.groupWagerService.IsResolver(resolverID) {
-		b.respondWithError(s, i, "You are not authorized to resolve group wagers.")
+	if !f.groupWagerService.IsResolver(resolverID) {
+		common.RespondWithError(s, i, "You are not authorized to resolve group wagers.")
 		return
 	}
 
@@ -245,10 +245,10 @@ func (b *Bot) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Interac
 	}
 
 	// Resolve the wager
-	result, err := b.groupWagerService.ResolveGroupWager(ctx, groupWagerID, resolverID, winningOptionID)
+	result, err := f.groupWagerService.ResolveGroupWager(ctx, groupWagerID, resolverID, winningOptionID)
 	if err != nil {
 		log.Printf("Error resolving group wager: %v", err)
-		b.followUpWithError(s, i, fmt.Sprintf("Failed to resolve wager: %v", err))
+		common.FollowUpWithError(s, i, fmt.Sprintf("Failed to resolve wager: %v", err))
 		return
 	}
 
@@ -256,14 +256,14 @@ func (b *Bot) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Interac
 	var winnerList []string
 	for _, winner := range result.Winners {
 		payout := result.PayoutDetails[winner.DiscordID]
-		winnerList = append(winnerList, fmt.Sprintf("<@%d> won %s bits", winner.DiscordID, FormatBalance(payout)))
+		winnerList = append(winnerList, fmt.Sprintf("<@%d> won %s bits", winner.DiscordID, common.FormatBalance(payout)))
 	}
 
 	message := fmt.Sprintf(
 		"**Group Wager Resolved!**\n\nCondition: %s\nWinning Option: %s\nTotal Pot: %s bits\n\n**Winners:**\n%s",
 		result.GroupWager.Condition,
 		result.WinningOption.OptionText,
-		FormatBalance(result.TotalPot),
+		common.FormatBalance(result.TotalPot),
 		strings.Join(winnerList, "\n"),
 	)
 
@@ -277,15 +277,15 @@ func (b *Bot) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Interac
 	// Update the original wager message to show it's resolved
 	if result.GroupWager.MessageID != 0 && result.GroupWager.ChannelID != 0 {
 		// Get updated wager details
-		updatedDetail, err := b.groupWagerService.GetGroupWagerDetail(ctx, groupWagerID)
+		updatedDetail, err := f.groupWagerService.GetGroupWagerDetail(ctx, groupWagerID)
 		if err != nil {
 			log.Printf("Error getting updated group wager detail: %v", err)
 			return
 		}
 
 		// Create updated embed and components
-		embed := b.createGroupWagerEmbed(updatedDetail)
-		components := b.createGroupWagerComponents(updatedDetail) // Will be empty since wager is resolved
+		embed := createGroupWagerEmbed(updatedDetail)
+		components := createGroupWagerComponents(updatedDetail) // Will be empty since wager is resolved
 
 		// Update the original message
 		_, err = s.ChannelMessageEditComplex(&discordgo.MessageEdit{
@@ -301,27 +301,27 @@ func (b *Bot) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Interac
 }
 
 // handleGroupWagerInteractions handles all group wager interactions (buttons and modals)
-func (b *Bot) handleGroupWagerInteractions(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (f *Feature) handleGroupWagerInteractions(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	switch i.Type {
 	case discordgo.InteractionMessageComponent:
 		customID := i.MessageComponentData().CustomID
 		if strings.HasPrefix(customID, "group_wager_") {
-			b.handleGroupWagerButtonInteraction(s, i)
+			f.handleGroupWagerButtonInteraction(s, i)
 		}
 
 	case discordgo.InteractionModalSubmit:
 		customID := i.ModalSubmitData().CustomID
 		switch {
 		case customID == "group_wager_create_modal":
-			b.handleGroupWagerCreateModal(s, i)
+			f.handleGroupWagerCreateModal(s, i)
 		case strings.HasPrefix(customID, "group_wager_bet_"):
-			b.handleGroupWagerBetModal(s, i)
+			f.handleGroupWagerBetModal(s, i)
 		}
 	}
 }
 
 // handleGroupWagerButtonInteraction handles button clicks on group wager messages
-func (b *Bot) handleGroupWagerButtonInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (f *Feature) handleGroupWagerButtonInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	customID := i.MessageComponentData().CustomID
 	
 	// Parse custom ID: group_wager_option_<wager_id>_<option_id>
@@ -370,7 +370,7 @@ func (b *Bot) handleGroupWagerButtonInteraction(s *discordgo.Session, i *discord
 }
 
 // handleGroupWagerBetModal handles the bet amount modal submission
-func (b *Bot) handleGroupWagerBetModal(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (f *Feature) handleGroupWagerBetModal(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	ctx := context.Background()
 	data := i.ModalSubmitData()
 
@@ -404,21 +404,21 @@ func (b *Bot) handleGroupWagerBetModal(s *discordgo.Session, i *discordgo.Intera
 
 	amount, err := strconv.ParseInt(amountStr, 10, 64)
 	if err != nil || amount <= 0 {
-		b.respondWithError(s, i, "Please enter a valid positive amount.")
+		common.RespondWithError(s, i, "Please enter a valid positive amount.")
 		return
 	}
 
 	// Get user ID
 	userID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
 	if err != nil {
-		b.respondWithError(s, i, "Unable to process request.")
+		common.RespondWithError(s, i, "Unable to process request.")
 		return
 	}
 
 	// Place the bet
-	_, err = b.groupWagerService.PlaceBet(ctx, groupWagerID, userID, optionID, amount)
+	_, err = f.groupWagerService.PlaceBet(ctx, groupWagerID, userID, optionID, amount)
 	if err != nil {
-		b.respondWithError(s, i, fmt.Sprintf("Failed to place bet: %v", err))
+		common.RespondWithError(s, i, fmt.Sprintf("Failed to place bet: %v", err))
 		return
 	}
 
@@ -426,7 +426,7 @@ func (b *Bot) handleGroupWagerBetModal(s *discordgo.Session, i *discordgo.Intera
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: fmt.Sprintf("Successfully placed a bet of %s bits!", FormatBalance(amount)),
+			Content: fmt.Sprintf("Successfully placed a bet of %s bits!", common.FormatBalance(amount)),
 			Flags:   discordgo.MessageFlagsEphemeral,
 		},
 	})
@@ -435,23 +435,23 @@ func (b *Bot) handleGroupWagerBetModal(s *discordgo.Session, i *discordgo.Intera
 	}
 
 	// Update the original message
-	b.updateGroupWagerMessage(s, i.Message, groupWagerID)
+	f.updateGroupWagerMessage(s, i.Message, groupWagerID)
 }
 
 // updateGroupWagerMessage updates a group wager message with current state
-func (b *Bot) updateGroupWagerMessage(s *discordgo.Session, msg *discordgo.Message, groupWagerID int64) {
+func (f *Feature) updateGroupWagerMessage(s *discordgo.Session, msg *discordgo.Message, groupWagerID int64) {
 	ctx := context.Background()
 
 	// Get updated wager details
-	detail, err := b.groupWagerService.GetGroupWagerDetail(ctx, groupWagerID)
+	detail, err := f.groupWagerService.GetGroupWagerDetail(ctx, groupWagerID)
 	if err != nil {
 		log.Printf("Error getting group wager detail: %v", err)
 		return
 	}
 
 	// Update the message
-	embed := b.createGroupWagerEmbed(detail)
-	components := b.createGroupWagerComponents(detail)
+	embed := createGroupWagerEmbed(detail)
+	components := createGroupWagerComponents(detail)
 
 	_, err = s.ChannelMessageEditComplex(&discordgo.MessageEdit{
 		Channel:    msg.ChannelID,

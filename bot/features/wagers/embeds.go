@@ -1,6 +1,6 @@
-package bot
-
+package wagers
 import (
+	"gambler/bot/common"
 	"fmt"
 	"time"
 
@@ -14,11 +14,11 @@ func BuildWagerProposedEmbed(wager *models.Wager, proposerName, targetName strin
 	embed := &discordgo.MessageEmbed{
 		Title:       "⚔️ Wager Proposed",
 		Description: fmt.Sprintf("**%s** challenges **%s**!", proposerName, targetName),
-		Color:       0xFFD700, // Gold
+		Color:       common.ColorWarning,
 		Fields: []*discordgo.MessageEmbedField{
 			{
 				Name:   "💰 Amount",
-				Value:  FormatBalance(wager.Amount),
+				Value:  common.FormatBalance(wager.Amount),
 				Inline: true,
 			},
 			{
@@ -41,11 +41,11 @@ func BuildWagerDeclinedEmbed(wager *models.Wager, proposerName, targetName strin
 	embed := &discordgo.MessageEmbed{
 		Title:       "❌ Wager Declined",
 		Description: fmt.Sprintf("**%s** declined the wager from **%s**", targetName, proposerName),
-		Color:       0xFF0000, // Red
+		Color:       common.ColorDanger,
 		Fields: []*discordgo.MessageEmbedField{
 			{
 				Name:   "💰 Amount",
-				Value:  FormatBalance(wager.Amount),
+				Value:  common.FormatBalance(wager.Amount),
 				Inline: true,
 			},
 			{
@@ -80,11 +80,11 @@ func BuildWagerVotingEmbed(wager *models.Wager, proposerName, targetName string,
 	embed := &discordgo.MessageEmbed{
 		Title:       "🗳️ Wager Voting",
 		Description: fmt.Sprintf("**%s** vs **%s**\nCommunity voting is now open!", proposerName, targetName),
-		Color:       0x00FF00, // Green
+		Color:       common.ColorSuccess,
 		Fields: []*discordgo.MessageEmbedField{
 			{
 				Name:   "💰 Amount",
-				Value:  FormatBalance(wager.Amount),
+				Value:  common.FormatBalance(wager.Amount),
 				Inline: true,
 			},
 			{
@@ -142,11 +142,11 @@ func BuildWagerResolvedEmbed(wager *models.Wager, proposerName, targetName, winn
 	embed := &discordgo.MessageEmbed{
 		Title:       "🏆 Wager Resolved",
 		Description: fmt.Sprintf("**%s** wins the wager against **%s**!", winnerName, loserName),
-		Color:       0x9B59B6, // Purple
+		Color:       common.ColorPrimary,
 		Fields: []*discordgo.MessageEmbedField{
 			{
 				Name:   "💰 Amount Won",
-				Value:  FormatBalance(wager.Amount),
+				Value:  common.FormatBalance(wager.Amount),
 				Inline: true,
 			},
 			{
@@ -190,7 +190,7 @@ func createVoteBar(percentage int) string {
 func BuildWagerListEmbed(wagers []*models.Wager, userID int64, userName string) *discordgo.MessageEmbed {
 	embed := &discordgo.MessageEmbed{
 		Title:       fmt.Sprintf("📋 Active Wagers for %s", userName),
-		Color:       0x3498DB, // Blue
+		Color:       common.ColorPrimary,
 		Description: fmt.Sprintf("You have %d active wager(s)", len(wagers)),
 		Fields:      []*discordgo.MessageEmbedField{},
 		Footer: &discordgo.MessageEmbedFooter{
@@ -227,11 +227,11 @@ func BuildWagerListEmbed(wagers []*models.Wager, userID int64, userName string) 
 		}
 
 		fieldValue := fmt.Sprintf("**Role:** %s\n**Amount:** %s\n**Status:** %s\n**Condition:** %.50s...",
-			role, FormatBalance(wager.Amount), status, wager.Condition)
+			role, common.FormatBalance(wager.Amount), status, wager.Condition)
 
 		if len(wager.Condition) <= 50 {
 			fieldValue = fmt.Sprintf("**Role:** %s\n**Amount:** %s\n**Status:** %s\n**Condition:** %s",
-				role, FormatBalance(wager.Amount), status, wager.Condition)
+				role, common.FormatBalance(wager.Amount), status, wager.Condition)
 		}
 
 		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{

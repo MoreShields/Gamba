@@ -1,12 +1,9 @@
-package bot
+package common
 
 import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/bwmarrin/discordgo"
-	log "github.com/sirupsen/logrus"
 )
 
 // FormatBalance formats a balance amount with thousand separators
@@ -52,15 +49,4 @@ func FormatTransferResult(amount int64, recipientName string, newBalance int64) 
 // "f" = short date/time, "F" = long date/time, "R" = relative time
 func FormatDiscordTimestamp(t time.Time, format string) string {
 	return fmt.Sprintf("<t:%d:%s>", t.Unix(), format)
-}
-
-// followUpWithError sends an error message as a follow-up to a deferred interaction
-func (b *Bot) followUpWithError(s *discordgo.Session, i *discordgo.InteractionCreate, message string) {
-	_, err := s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
-		Content: fmt.Sprintf("❌ %s", message),
-		Flags:   discordgo.MessageFlagsEphemeral,
-	})
-	if err != nil {
-		log.Printf("Error sending follow-up error message: %v", err)
-	}
 }

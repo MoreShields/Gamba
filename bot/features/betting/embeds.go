@@ -1,6 +1,6 @@
-package bot
-
+package betting
 import (
+	"gambler/bot/common"
 	"fmt"
 
 	"gambler/models"
@@ -8,20 +8,13 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-// Discord color constants
-const (
-	ColorPrimary = 0x5865F2 // Discord blurple
-	ColorSuccess = 0x57F287 // Green
-	ColorDanger  = 0xED4245 // Red
-	ColorWarning = 0xFEE75C // Yellow
-)
 
 // buildInitialBetEmbed creates the initial betting interface embed
 func buildInitialBetEmbed(balance int64) *discordgo.MessageEmbed {
 	return &discordgo.MessageEmbed{
 		Title:       "🎰 **Place Your Bet** 🎰",
-		Description: fmt.Sprintf("Current Balance: **%s bits**\n", FormatBalance(balance)),
-		Color:       ColorPrimary,
+		Description: fmt.Sprintf("Current Balance: **%s bits**\n", common.FormatBalance(balance)),
+		Color:       common.ColorPrimary,
 		Footer: &discordgo.MessageEmbedFooter{
 			Text: "Select your win probability",
 		},
@@ -36,9 +29,9 @@ func buildWinEmbed(result *models.BetResult, odds float64, session *BetSession) 
 		{
 			Name: "Bet Details",
 			Value: fmt.Sprintf("• Bet: **%s bits** at %d%% odds\n• Won: **%s bits**",
-				FormatBalance(result.BetAmount),
+				common.FormatBalance(result.BetAmount),
 				percentage,
-				FormatBalance(result.WinAmount),
+				common.FormatBalance(result.WinAmount),
 			),
 			Inline: false,
 		},
@@ -49,9 +42,9 @@ func buildWinEmbed(result *models.BetResult, odds float64, session *BetSession) 
 	var pnlDisplay string
 
 	if session.SessionPnL > 0 {
-		pnlDisplay = fmt.Sprintf("+%s bits (+%.1f%% return, %d bets)", FormatBalance(session.SessionPnL), pnlPercent, session.BetCount)
+		pnlDisplay = fmt.Sprintf("+%s bits (+%.1f%% return, %d bets)", common.FormatBalance(session.SessionPnL), pnlPercent, session.BetCount)
 	} else if session.SessionPnL < 0 {
-		pnlDisplay = fmt.Sprintf("-%s bits (%.1f%% return, %d bets)", FormatBalance(-session.SessionPnL), pnlPercent, session.BetCount)
+		pnlDisplay = fmt.Sprintf("-%s bits (%.1f%% return, %d bets)", common.FormatBalance(-session.SessionPnL), pnlPercent, session.BetCount)
 	} else {
 		pnlDisplay = fmt.Sprintf("0 bits (0.0%% return, %d bets)", session.BetCount)
 	}
@@ -63,8 +56,8 @@ func buildWinEmbed(result *models.BetResult, odds float64, session *BetSession) 
 	})
 
 	return &discordgo.MessageEmbed{
-		Description: fmt.Sprintf("🎉 **WINNER!** 🎉\nBalance: **%s bits**", FormatBalance(result.NewBalance)),
-		Color:       ColorSuccess,
+		Description: fmt.Sprintf("🎉 **WINNER!** 🎉\nBalance: **%s bits**", common.FormatBalance(result.NewBalance)),
+		Color:       common.ColorSuccess,
 		Fields:      fields,
 	}
 }
@@ -77,9 +70,9 @@ func buildLossEmbed(result *models.BetResult, odds float64, session *BetSession)
 		{
 			Name: "Bet Details",
 			Value: fmt.Sprintf("• Bet: **%s bits** at %d%% odds\n• Lost: **%s bits**",
-				FormatBalance(result.BetAmount),
+				common.FormatBalance(result.BetAmount),
 				percentage,
-				FormatBalance(result.BetAmount),
+				common.FormatBalance(result.BetAmount),
 			),
 			Inline: false,
 		},
@@ -89,9 +82,9 @@ func buildLossEmbed(result *models.BetResult, odds float64, session *BetSession)
 	var pnlDisplay string
 
 	if session.SessionPnL > 0 {
-		pnlDisplay = fmt.Sprintf("+%s bits (+%.1f%% return, %d bets)", FormatBalance(session.SessionPnL), pnlPercent, session.BetCount)
+		pnlDisplay = fmt.Sprintf("+%s bits (+%.1f%% return, %d bets)", common.FormatBalance(session.SessionPnL), pnlPercent, session.BetCount)
 	} else if session.SessionPnL < 0 {
-		pnlDisplay = fmt.Sprintf("-%s bits (%.1f%% return, %d bets)", FormatBalance(-session.SessionPnL), pnlPercent, session.BetCount)
+		pnlDisplay = fmt.Sprintf("-%s bits (%.1f%% return, %d bets)", common.FormatBalance(-session.SessionPnL), pnlPercent, session.BetCount)
 	} else {
 		pnlDisplay = fmt.Sprintf("0 bits (0.0%% return, %d bets)", session.BetCount)
 	}
@@ -113,8 +106,8 @@ func buildLossEmbed(result *models.BetResult, odds float64, session *BetSession)
 	}
 
 	return &discordgo.MessageEmbed{
-		Description: fmt.Sprintf("**LOSE**\nBalance: %s", FormatBalance(result.NewBalance)),
-		Color:       ColorDanger,
+		Description: fmt.Sprintf("**LOSE**\nBalance: %s", common.FormatBalance(result.NewBalance)),
+		Color:       common.ColorDanger,
 		Fields:      fields,
 		Footer: &discordgo.MessageEmbedFooter{
 			Text: footerText,

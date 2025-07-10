@@ -1,4 +1,4 @@
-package bot
+package stats
 
 import (
 	"context"
@@ -6,37 +6,39 @@ import (
 	"strconv"
 	"strings"
 
+	"gambler/bot/common"
+
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
 )
 
 // handleStatsCommand handles the /stats command with subcommands
-func (b *Bot) handleStatsCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (f *Feature) handleStatsCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	options := i.ApplicationCommandData().Options
 	if len(options) == 0 {
-		b.respondWithError(s, i, "Please specify a subcommand: scoreboard or balance")
+		common.RespondWithError(s, i, "Please specify a subcommand: scoreboard or balance")
 		return
 	}
 
 	switch options[0].Name {
 	case "scoreboard":
-		b.handleStatsScoreboard(s, i)
+		f.handleStatsScoreboard(s, i)
 	case "balance":
-		b.handleStatsBalance(s, i, options[0].Options)
+		f.handleStatsBalance(s, i, options[0].Options)
 	default:
-		b.respondWithError(s, i, "Unknown subcommand")
+		common.RespondWithError(s, i, "Unknown subcommand")
 	}
 }
 
 // handleStatsScoreboard displays the global scoreboard
-func (b *Bot) handleStatsScoreboard(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	ctx := context.Background()
 
 	// Get scoreboard entries (top 10)
-	entries, err := b.statsService.GetScoreboard(ctx, 10)
+	entries, err := f.statsService.GetScoreboard(ctx, 10)
 	if err != nil {
 		log.Printf("Error getting scoreboard: %v", err)
-		b.respondWithError(s, i, "Unable to retrieve scoreboard. Please try again.")
+		common.RespondWithError(s, i, "Unable to retrieve scoreboard. Please try again.")
 		return
 	}
 
@@ -69,14 +71,14 @@ func (b *Bot) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Interacti
 			}
 
 			// Get display name for the user
-			displayName := GetDisplayNameInt64(s, i.GuildID, entry.DiscordID)
+			displayName := common.GetDisplayNameInt64(s, i.GuildID, entry.DiscordID)
 			// Truncate name if too long
 			if len(displayName) > 18 {
 				displayName = displayName[:15] + "..."
 			}
 
 			// Format balance
-			balanceStr := FormatBalance(entry.TotalBalance)
+			balanceStr := common.FormatBalance(entry.TotalBalance)
 			
 			// Format wager stats
 			var wagerStr string
@@ -108,7 +110,7 @@ func (b *Bot) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Interacti
 }
 
 // handleStatsBalance displays individual user statistics
-func (b *Bot) handleStatsBalance(s *discordgo.Session, i *discordgo.InteractionCreate, options []*discordgo.ApplicationCommandInteractionDataOption) {
+func (f *Feature) handleStatsBalance(s *discordgo.Session, i *discordgo.InteractionCreate, options []*discordgo.ApplicationCommandInteractionDataOption) {
 	ctx := context.Background()
 
 	// Get target user (default to command issuer)
@@ -120,7 +122,7 @@ func (b *Bot) handleStatsBalance(s *discordgo.Session, i *discordgo.InteractionC
 		parsedID, err := strconv.ParseInt(targetUser.ID, 10, 64)
 		if err != nil {
 			log.Printf("Error parsing Discord ID %s: %v", targetUser.ID, err)
-			b.respondWithError(s, i, "Unable to process request. Please try again.")
+			common.RespondWithError(s, i, "Unable to process request. Please try again.")
 			return
 		}
 		targetID = parsedID
@@ -129,7 +131,7 @@ func (b *Bot) handleStatsBalance(s *discordgo.Session, i *discordgo.InteractionC
 		parsedID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
 		if err != nil {
 			log.Printf("Error parsing Discord ID %s: %v", i.Member.User.ID, err)
-			b.respondWithError(s, i, "Unable to process request. Please try again.")
+			common.RespondWithError(s, i, "Unable to process request. Please try again.")
 			return
 		}
 		targetID = parsedID
@@ -137,15 +139,15 @@ func (b *Bot) handleStatsBalance(s *discordgo.Session, i *discordgo.InteractionC
 	}
 
 	// Get user stats
-	stats, err := b.statsService.GetUserStats(ctx, targetID)
+	stats, err := f.statsService.GetUserStats(ctx, targetID)
 	if err != nil {
 		log.Printf("Error getting user stats for %d: %v", targetID, err)
-		b.respondWithError(s, i, "Unable to retrieve user statistics. Please try again.")
+		common.RespondWithError(s, i, "Unable to retrieve user statistics. Please try again.")
 		return
 	}
 
 	// Get display name
-	displayName := GetDisplayNameInt64(s, i.GuildID, targetID)
+	displayName := common.GetDisplayNameInt64(s, i.GuildID, targetID)
 
 	// Create embed
 	embed := &discordgo.MessageEmbed{
@@ -155,9 +157,9 @@ func (b *Bot) handleStatsBalance(s *discordgo.Session, i *discordgo.InteractionC
 			{
 				Name: "💰 Balance",
 				Value: fmt.Sprintf("Total: **%s bits**\nAvailable: **%s bits**\nReserved: %s bits",
-					FormatBalance(stats.User.Balance),
-					FormatBalance(stats.User.AvailableBalance),
-					FormatBalance(stats.ReservedInWagers)),
+					common.FormatBalance(stats.User.Balance),
+					common.FormatBalance(stats.User.AvailableBalance),
+					common.FormatBalance(stats.ReservedInWagers)),
 				Inline: false,
 			},
 		},
@@ -171,8 +173,8 @@ func (b *Bot) handleStatsBalance(s *discordgo.Session, i *discordgo.InteractionC
 				stats.BetStats.WinPercentage,
 				stats.BetStats.TotalWins,
 				stats.BetStats.TotalBets,
-				FormatBalance(stats.BetStats.TotalWagered),
-				FormatBalance(stats.BetStats.NetProfit)),
+				common.FormatBalance(stats.BetStats.TotalWagered),
+				common.FormatBalance(stats.BetStats.NetProfit)),
 			Inline: true,
 		})
 	}
@@ -186,7 +188,7 @@ func (b *Bot) handleStatsBalance(s *discordgo.Session, i *discordgo.InteractionC
 				stats.WagerStats.WinPercentage,
 				stats.WagerStats.TotalWon,
 				stats.WagerStats.TotalResolved,
-				FormatBalance(stats.WagerStats.TotalWonAmount))
+				common.FormatBalance(stats.WagerStats.TotalWonAmount))
 		} else {
 			wagerStatsStr = fmt.Sprintf("Total Wagers: %d\nNo resolved wagers yet",
 				stats.WagerStats.TotalWagers)

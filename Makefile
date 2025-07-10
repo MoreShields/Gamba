@@ -36,6 +36,10 @@ clean: ## Clean build artifacts
 db-shell: ## Connect to the development database shell
 	docker-compose -f docker-compose.dev.yml exec postgres psql -U gambler -d gambler_db
 
+db-drop: ## Drop the development database
+	docker-compose -f docker-compose.dev.yml exec postgres dropdb -U gambler gambler_db
+	docker-compose -f docker-compose.dev.yml exec postgres createdb -U gambler gambler_db
+
 logs: ## View bot logs (dev)
 	docker-compose -f docker-compose.dev.yml logs -f bot
 

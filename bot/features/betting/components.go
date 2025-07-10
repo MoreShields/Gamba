@@ -1,7 +1,9 @@
-package bot
+package betting
 
 import (
 	"fmt"
+
+	"gambler/bot/common"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -20,6 +22,11 @@ var oddsOptions = []struct {
 	{80, "80%"},
 	{90, "90%"},
 	{95, "95%"},
+}
+
+// CreateInitialComponents creates the initial betting interface components
+func CreateInitialComponents() []discordgo.MessageComponent {
+	return buildOddsButtons()
 }
 
 // buildOddsButtons creates the odds selection button grid
@@ -55,7 +62,8 @@ func buildOddsButtons() []discordgo.MessageComponent {
 }
 
 // buildBetAmountModal creates the modal for entering bet amount
-func buildBetAmountModal(odds float64, balance int64) discordgo.InteractionResponseData {
+// Note: This is duplicated in modal.go, remove from here
+func buildBetAmountModalOld(odds float64, balance int64) discordgo.InteractionResponseData {
 	percentage := int(odds * 100)
 	payout := calculatePayoutRatio(odds)
 	
@@ -77,7 +85,7 @@ func buildBetAmountModal(odds float64, balance int64) discordgo.InteractionRespo
 				Components: []discordgo.MessageComponent{
 					discordgo.TextInput{
 						CustomID:    "bet_amount_input",
-						Label:       fmt.Sprintf("Bet Amount (Balance: %s bits)", FormatBalance(balance)),
+						Label:       fmt.Sprintf("Bet Amount (Balance: %s bits)", common.FormatBalance(balance)),
 						Style:       discordgo.TextInputShort,
 						Placeholder: fmt.Sprintf("%d", suggestedAmount),
 						Required:    true,
@@ -88,6 +96,12 @@ func buildBetAmountModal(odds float64, balance int64) discordgo.InteractionRespo
 			},
 		},
 	}
+}
+
+// CreateActionButtons creates the post-bet action buttons
+func CreateActionButtons(balance int64) []discordgo.MessageComponent {
+	// For initial call, we don't have a last amount
+	return buildActionButtons(0, balance)
 }
 
 // buildActionButtons creates the post-bet action buttons
@@ -111,7 +125,7 @@ func buildActionButtons(lastAmount, balance int64) []discordgo.MessageComponent 
 	// Add repeat same button if balance allows
 	if lastAmount <= balance {
 		buttons = append(buttons, discordgo.Button{
-			Label:    fmt.Sprintf("🔄 Repeat (%s)", FormatBalance(lastAmount)),
+			Label:    fmt.Sprintf("🔄 Repeat (%s)", common.FormatBalance(lastAmount)),
 			Style:    discordgo.PrimaryButton,
 			CustomID: "bet_repeat",
 		})
@@ -127,7 +141,7 @@ func buildActionButtons(lastAmount, balance int64) []discordgo.MessageComponent 
 	// Add double button if balance allows
 	if doubleAmount <= balance {
 		buttons = append(buttons, discordgo.Button{
-			Label:    fmt.Sprintf("⬆️ Double (%s)", FormatBalance(doubleAmount)),
+			Label:    fmt.Sprintf("⬆️ Double (%s)", common.FormatBalance(doubleAmount)),
 			Style:    discordgo.SuccessButton,
 			CustomID: "bet_double",
 		})
@@ -142,7 +156,7 @@ func buildActionButtons(lastAmount, balance int64) []discordgo.MessageComponent 
 	
 	// Add halve button
 	buttons = append(buttons, discordgo.Button{
-		Label:    fmt.Sprintf("⬇️ Halve (%s)", FormatBalance(halveAmount)),
+		Label:    fmt.Sprintf("⬇️ Halve (%s)", common.FormatBalance(halveAmount)),
 		Style:    discordgo.SecondaryButton,
 		CustomID: "bet_halve",
 	})
