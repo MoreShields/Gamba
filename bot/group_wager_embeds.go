@@ -11,9 +11,21 @@ import (
 
 // createGroupWagerEmbed creates an embed for a group wager
 func (b *Bot) createGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEmbed {
+	// Build description with pot info and voting period
+	description := fmt.Sprintf("**Total Pot: %s bits**", FormatBalance(detail.Wager.TotalPot))
+	
+	// Add voting period information for active wagers
+	if detail.Wager.State == models.GroupWagerStateActive && detail.Wager.VotingEndsAt != nil {
+		if detail.Wager.IsVotingPeriodActive() {
+			description += fmt.Sprintf("\n**Voting ends: <t:%d:R>**", detail.Wager.VotingEndsAt.Unix())
+		} else {
+			description += fmt.Sprintf("\n**Voting ended: <t:%d:R>**", detail.Wager.VotingEndsAt.Unix())
+		}
+	}
+
 	embed := &discordgo.MessageEmbed{
 		Title:       detail.Wager.Condition,
-		Description: fmt.Sprintf("**Total Pot: %s bits**", FormatBalance(detail.Wager.TotalPot)),
+		Description: description,
 		Color:       0xFFD700, // Gold color
 		Footer: &discordgo.MessageEmbedFooter{
 			Text: fmt.Sprintf("Group Wager ID: %d", detail.Wager.ID),
@@ -72,6 +84,11 @@ func (b *Bot) createGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.
 	case models.GroupWagerStateCancelled:
 		embed.Color = 0xE74C3C // Red
 		embed.Description += "\n**CANCELLED**"
+	case models.GroupWagerStateActive:
+		// For active wagers, change color based on voting period status
+		if detail.Wager.IsVotingPeriodExpired() {
+			embed.Color = 0x3498DB // Blue - voting ended, waiting for resolution
+		}
 	}
 
 	// Add minimum participants info if not met
@@ -105,10 +122,17 @@ func truncateButtonLabel(text string, maxLength int) string {
 
 // createGroupWagerComponents creates the button components for a group wager
 func (b *Bot) createGroupWagerComponents(detail *models.GroupWagerDetail) []discordgo.MessageComponent {
-	if !detail.Wager.IsActive() {
-		return []discordgo.MessageComponent{}
+	// Only show components for active wagers that haven't expired
+	if detail.Wager.IsActive() && detail.Wager.IsVotingPeriodActive() {
+		return b.createActiveWagerComponents(detail)
 	}
+	
+	// No components for resolved, cancelled, or expired wagers
+	return []discordgo.MessageComponent{}
+}
 
+// createActiveWagerComponents creates betting option buttons for active wagers
+func (b *Bot) createActiveWagerComponents(detail *models.GroupWagerDetail) []discordgo.MessageComponent {
 	var rows []discordgo.MessageComponent
 	var currentRow []discordgo.MessageComponent
 

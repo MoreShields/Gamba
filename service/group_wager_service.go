@@ -21,13 +21,16 @@ func NewGroupWagerService(uowFactory UnitOfWorkFactory, resolverIDs []int64) Gro
 }
 
 // CreateGroupWager creates a new group wager with options
-func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int64, condition string, options []string, messageID, channelID int64) (*models.GroupWagerDetail, error) {
+func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int64, condition string, options []string, votingPeriodHours int, messageID, channelID int64) (*models.GroupWagerDetail, error) {
 	// Validate inputs
 	if condition == "" {
 		return nil, fmt.Errorf("condition cannot be empty")
 	}
 	if len(options) < 2 {
 		return nil, fmt.Errorf("must provide at least 2 options")
+	}
+	if votingPeriodHours < 1 || votingPeriodHours > 168 {
+		return nil, fmt.Errorf("voting period must be between 1 and 168 hours")
 	}
 
 	// Create unit of work
@@ -46,15 +49,22 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int6
 		return nil, fmt.Errorf("creator not found")
 	}
 
+	// Calculate voting period times
+	now := time.Now()
+	votingEndTime := now.Add(time.Duration(votingPeriodHours) * time.Hour)
+	
 	// Create the group wager
 	groupWager := &models.GroupWager{
-		CreatorDiscordID: creatorID,
-		Condition:        condition,
-		State:            models.GroupWagerStateActive,
-		TotalPot:         0,
-		MinParticipants:  3,
-		MessageID:        messageID,
-		ChannelID:        channelID,
+		CreatorDiscordID:  creatorID,
+		Condition:         condition,
+		State:             models.GroupWagerStateActive,
+		TotalPot:          0,
+		MinParticipants:   3,
+		VotingPeriodHours: votingPeriodHours,
+		VotingStartsAt:    &now,
+		VotingEndsAt:      &votingEndTime,
+		MessageID:         messageID,
+		ChannelID:         channelID,
 	}
 
 	// Note: We'll create the wager with options in one atomic operation below
@@ -110,9 +120,12 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 		return nil, fmt.Errorf("group wager not found")
 	}
 
-	// Check if wager is active
-	if !groupWager.IsActive() {
-		return nil, fmt.Errorf("group wager is not active")
+	// Check if betting is allowed
+	if !groupWager.CanAcceptBets() {
+		if groupWager.IsActive() && groupWager.IsVotingPeriodExpired() {
+			return nil, fmt.Errorf("voting period has ended, bets can no longer be placed or changed")
+		}
+		return nil, fmt.Errorf("group wager is not accepting bets (state: %s)", groupWager.State)
 	}
 
 	// Get full detail including options
@@ -537,3 +550,4 @@ func (s *groupWagerService) UpdateMessageIDs(ctx context.Context, groupWagerID i
 
 	return nil
 }
+

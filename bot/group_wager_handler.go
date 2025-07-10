@@ -61,6 +61,18 @@ func (b *Bot) handleGroupWagerCreate(s *discordgo.Session, i *discordgo.Interact
 						},
 					},
 				},
+				discordgo.ActionsRow{
+					Components: []discordgo.MessageComponent{
+						discordgo.TextInput{
+							CustomID:    "voting_period",
+							Label:       "Voting Period (hours, default: 24)",
+							Style:       discordgo.TextInputShort,
+							Placeholder: "24",
+							Required:    false,
+							MaxLength:   3,
+						},
+					},
+				},
 			},
 		},
 	})
@@ -74,9 +86,10 @@ func (b *Bot) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo.Int
 	ctx := context.Background()
 	data := i.ModalSubmitData()
 
-	// Extract condition and options from modal
+	// Extract condition, options, and voting period from modal
 	var condition string
 	var optionsText string
+	var votingPeriodText string
 
 	for _, comp := range data.Components {
 		row := comp.(*discordgo.ActionsRow)
@@ -87,6 +100,8 @@ func (b *Bot) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo.Int
 				condition = strings.TrimSpace(textInput.Value)
 			case "options":
 				optionsText = strings.TrimSpace(textInput.Value)
+			case "voting_period":
+				votingPeriodText = strings.TrimSpace(textInput.Value)
 			}
 		}
 	}
@@ -111,6 +126,21 @@ func (b *Bot) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo.Int
 		return
 	}
 
+	// Parse and validate voting period
+	votingPeriodHours := 24 // Default value
+	if votingPeriodText != "" {
+		var err error
+		votingPeriodHours, err = strconv.Atoi(votingPeriodText)
+		if err != nil {
+			b.respondWithError(s, i, "Voting period must be a valid number.")
+			return
+		}
+		if votingPeriodHours < 1 || votingPeriodHours > 168 {
+			b.respondWithError(s, i, "Voting period must be between 1 and 168 hours (1 week).")
+			return
+		}
+	}
+
 	// Defer response while we process
 	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
@@ -129,7 +159,7 @@ func (b *Bot) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo.Int
 	}
 
 	// Create the group wager (message ID will be updated after posting)
-	groupWagerDetail, err := b.groupWagerService.CreateGroupWager(ctx, creatorID, condition, options, 0, 0)
+	groupWagerDetail, err := b.groupWagerService.CreateGroupWager(ctx, creatorID, condition, options, votingPeriodHours, 0, 0)
 	if err != nil {
 		log.Printf("Error creating group wager: %v", err)
 		b.followUpWithError(s, i, fmt.Sprintf("Failed to create group wager: %v", err))
@@ -292,8 +322,10 @@ func (b *Bot) handleGroupWagerInteractions(s *discordgo.Session, i *discordgo.In
 
 // handleGroupWagerButtonInteraction handles button clicks on group wager messages
 func (b *Bot) handleGroupWagerButtonInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	customID := i.MessageComponentData().CustomID
+	
 	// Parse custom ID: group_wager_option_<wager_id>_<option_id>
-	parts := strings.Split(i.MessageComponentData().CustomID, "_")
+	parts := strings.Split(customID, "_")
 	if len(parts) != 5 || parts[0] != "group" || parts[1] != "wager" || parts[2] != "option" {
 		return
 	}
@@ -431,3 +463,4 @@ func (b *Bot) updateGroupWagerMessage(s *discordgo.Session, msg *discordgo.Messa
 		log.Printf("Error updating group wager message: %v", err)
 	}
 }
+

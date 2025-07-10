@@ -23,6 +23,9 @@ type GroupWager struct {
 	WinningOptionID   *int64          `db:"winning_option_id"`
 	TotalPot          int64           `db:"total_pot"`
 	MinParticipants   int             `db:"min_participants"`
+	VotingPeriodHours int             `db:"voting_period_hours"`
+	VotingStartsAt    *time.Time      `db:"voting_starts_at"`
+	VotingEndsAt      *time.Time      `db:"voting_ends_at"`
 	MessageID         int64           `db:"message_id"`
 	ChannelID         int64           `db:"channel_id"`
 	CreatedAt         time.Time       `db:"created_at"`
@@ -77,6 +80,27 @@ func (gw *GroupWager) IsActive() bool {
 // IsResolved checks if the group wager has been resolved
 func (gw *GroupWager) IsResolved() bool {
 	return gw.State == GroupWagerStateResolved
+}
+
+// IsVotingPeriodActive checks if voting period is currently active
+func (gw *GroupWager) IsVotingPeriodActive() bool {
+	if gw.State != GroupWagerStateActive || gw.VotingEndsAt == nil {
+		return false
+	}
+	return time.Now().Before(*gw.VotingEndsAt)
+}
+
+// IsVotingPeriodExpired checks if voting period has expired
+func (gw *GroupWager) IsVotingPeriodExpired() bool {
+	if gw.State != GroupWagerStateActive || gw.VotingEndsAt == nil {
+		return false
+	}
+	return time.Now().After(*gw.VotingEndsAt)
+}
+
+// CanAcceptBets checks if the group wager can still accept bets
+func (gw *GroupWager) CanAcceptBets() bool {
+	return gw.IsActive() && gw.IsVotingPeriodActive()
 }
 
 // CanResolve checks if the given user can resolve this group wager
