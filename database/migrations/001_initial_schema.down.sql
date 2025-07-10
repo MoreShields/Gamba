@@ -9,6 +9,5 @@ DROP INDEX IF EXISTS idx_users_updated_at;
 DROP INDEX IF EXISTS idx_balance_history_discord_id_created;
 
 -- Drop tables in reverse order of dependencies
-DROP TABLE IF EXISTS interest_runs;
 DROP TABLE IF EXISTS balance_history;
 DROP TABLE IF EXISTS users;

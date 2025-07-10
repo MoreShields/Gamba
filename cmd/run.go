@@ -49,8 +49,6 @@ func Run(ctx context.Context) error {
 	groupWagerService := service.NewGroupWagerService(uowFactory, cfg.ResolverDiscordIDs)
 	log.Println("Services initialized successfully")
 
-	// TODO: Initialize additional services as needed
-	// - InterestService for daily interest calculations
 
 	// Initialize Discord bot
 	log.Println("Initializing Discord bot...")
@@ -66,7 +64,6 @@ func Run(ctx context.Context) error {
 	}
 	log.Println("Discord bot initialized successfully")
 
-	// TODO: Initialize scheduler for daily interest
 
 	// Wait for context cancellation
 	log.Printf("Bot is running in %s mode...", cfg.Environment)

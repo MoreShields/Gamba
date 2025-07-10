@@ -18,8 +18,6 @@ type Config struct {
 	DatabaseURL string
 
 	// Bot configuration
-	InterestRate        float64
-	InterestSchedule    string // Cron schedule
 	StartingBalance     int64
 	DailyGambleLimit    int64 // Daily gambling limit per user
 	DailyLimitResetHour int   // Hour in UTC when daily limit resets (0-23)
@@ -63,8 +61,6 @@ func load() (*Config, error) {
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 
 		// Bot settings with defaults
-		InterestRate:        0.005,       // 0.5% default
-		InterestSchedule:    "0 0 * * *", // Midnight UTC default
 		StartingBalance:     100000,
 		DailyGambleLimit:    10000, // 10k daily limit default
 		DailyLimitResetHour: 12,    // 12:00 PM UTC default
@@ -78,14 +74,6 @@ func load() (*Config, error) {
 	}
 
 	// Override defaults if environment variables are set
-	if rate := os.Getenv("INTEREST_RATE"); rate != "" {
-		if parsedRate, err := strconv.ParseFloat(rate, 64); err == nil {
-			config.InterestRate = parsedRate
-		}
-	}
-	if schedule := os.Getenv("INTEREST_SCHEDULE"); schedule != "" {
-		config.InterestSchedule = schedule
-	}
 	if balance := os.Getenv("STARTING_BALANCE"); balance != "" {
 		if parsedBalance, err := strconv.ParseInt(balance, 10, 64); err == nil {
 			config.StartingBalance = parsedBalance

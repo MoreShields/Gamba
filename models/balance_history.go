@@ -12,7 +12,6 @@ const (
 	TransactionTypeBetLoss        TransactionType = "bet_loss"
 	TransactionTypeTransferIn     TransactionType = "transfer_in"
 	TransactionTypeTransferOut    TransactionType = "transfer_out"
-	TransactionTypeInterest       TransactionType = "interest"
 	TransactionTypeInitial        TransactionType = "initial"
 	TransactionTypeWagerWin       TransactionType = "wager_win"
 	TransactionTypeWagerLoss      TransactionType = "wager_loss"

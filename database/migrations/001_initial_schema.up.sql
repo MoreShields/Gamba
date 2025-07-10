@@ -14,18 +14,8 @@ CREATE TABLE IF NOT EXISTS balance_history (
     balance_before BIGINT NOT NULL,
     balance_after BIGINT NOT NULL,
     change_amount BIGINT NOT NULL,
-    transaction_type VARCHAR(20) NOT NULL CHECK (transaction_type IN ('bet_win', 'bet_loss', 'transfer_in', 'transfer_out', 'interest', 'initial')),
+    transaction_type VARCHAR(20) NOT NULL CHECK (transaction_type IN ('bet_win', 'bet_loss', 'transfer_in', 'transfer_out', 'initial')),
     transaction_metadata JSONB,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Create interest runs table for idempotency
-CREATE TABLE IF NOT EXISTS interest_runs (
-    id SERIAL PRIMARY KEY,
-    run_date DATE NOT NULL UNIQUE,
-    total_interest_distributed BIGINT NOT NULL,
-    users_affected INTEGER NOT NULL,
-    execution_summary JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

@@ -33,8 +33,6 @@ type Bot struct {
 	statsService      service.StatsService
 	groupWagerService service.GroupWagerService
 	eventBus          *events.Bus
-	// TODO: Add when services are implemented
-	// interestService service.InterestService
 }
 
 func New(config Config, userService service.UserService, gamblingService service.GamblingService, transferService service.TransferService, wagerService service.WagerService, statsService service.StatsService, groupWagerService service.GroupWagerService, eventBus *events.Bus) (*Bot, error) {

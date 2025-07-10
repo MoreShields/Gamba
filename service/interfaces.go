@@ -44,17 +44,6 @@ type BalanceHistoryRepository interface {
 	GetByDateRange(ctx context.Context, discordID int64, from, to time.Time) ([]*models.BalanceHistory, error)
 }
 
-// InterestRunRepository defines the interface for interest run tracking
-type InterestRunRepository interface {
-	// GetByDate checks if an interest run exists for a specific date
-	GetByDate(ctx context.Context, date time.Time) (*models.InterestRun, error)
-
-	// Create creates a new interest run record
-	Create(ctx context.Context, run *models.InterestRun) error
-
-	// GetLatest returns the most recent interest run
-	GetLatest(ctx context.Context) (*models.InterestRun, error)
-}
 
 // BetRepository defines the interface for bet data access
 type BetRepository interface {

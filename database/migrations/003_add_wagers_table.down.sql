@@ -16,7 +16,7 @@ DROP CONSTRAINT balance_history_transaction_type_check;
 
 ALTER TABLE balance_history 
 ADD CONSTRAINT balance_history_transaction_type_check 
-CHECK (transaction_type IN ('bet_win', 'bet_loss', 'transfer_in', 'transfer_out', 'interest', 'initial'));
+CHECK (transaction_type IN ('bet_win', 'bet_loss', 'transfer_in', 'transfer_out', 'initial'));
 
 -- Remove related_type column from balance_history
 ALTER TABLE balance_history 

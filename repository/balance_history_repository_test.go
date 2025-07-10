@@ -50,7 +50,7 @@ func TestBalanceHistoryRepository_Record(t *testing.T) {
 	})
 
 	t.Run("record with nil metadata", func(t *testing.T) {
-		history := testutil.CreateTestBalanceHistory(testUser.DiscordID, models.TransactionTypeInterest)
+		history := testutil.CreateTestBalanceHistory(testUser.DiscordID, models.TransactionTypeBetLoss)
 		history.TransactionMetadata = nil
 
 		err := repo.Record(ctx, history)
@@ -220,7 +220,7 @@ func TestBalanceHistoryRepository_GetByDateRange(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create an entry
-		history := testutil.CreateTestBalanceHistory(user2.DiscordID, models.TransactionTypeInterest)
+		history := testutil.CreateTestBalanceHistory(user2.DiscordID, models.TransactionTypeBetWin)
 		err = repo.Record(ctx, history)
 		require.NoError(t, err)
 

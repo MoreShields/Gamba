@@ -1,6 +1,6 @@
 # Gambler Discord Bot
 
-A fun gambling game Discord bot where players can bet with custom odds and earn daily interest.
+A fun gambling game Discord bot where players can bet with custom odds.
 
 ## Quick Start
 

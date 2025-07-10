@@ -53,7 +53,7 @@ DROP CONSTRAINT balance_history_transaction_type_check;
 
 ALTER TABLE balance_history 
 ADD CONSTRAINT balance_history_transaction_type_check 
-CHECK (transaction_type IN ('bet_win', 'bet_loss', 'transfer_in', 'transfer_out', 'interest', 'initial', 'wager_win', 'wager_loss'));
+CHECK (transaction_type IN ('bet_win', 'bet_loss', 'transfer_in', 'transfer_out', 'initial', 'wager_win', 'wager_loss'));
 
 -- Indexes for efficient querying
 CREATE INDEX idx_wagers_proposer ON wagers(proposer_discord_id);

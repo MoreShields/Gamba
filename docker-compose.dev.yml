@@ -38,8 +38,6 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       
       # Bot configuration
-      INTEREST_RATE: ${INTEREST_RATE:-0.005}
-      INTEREST_SCHEDULE: ${INTEREST_SCHEDULE:-0 0 * * *}
       STARTING_BALANCE: ${STARTING_BALANCE:-100000}
       
       # Environment

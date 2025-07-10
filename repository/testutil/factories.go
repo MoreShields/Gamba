@@ -49,25 +49,3 @@ func CreateTestBalanceHistoryWithAmounts(discordID int64, before, after, change 
 	return history
 }
 
-// CreateTestInterestRun creates a test interest run
-func CreateTestInterestRun(runDate time.Time) *models.InterestRun {
-	return &models.InterestRun{
-		RunDate:                  runDate,
-		TotalInterestDistributed: 5000,
-		UsersAffected:            10,
-		ExecutionSummary: map[string]interface{}{
-			"average_interest": 500,
-			"max_interest":     1000,
-			"min_interest":     100,
-		},
-		CreatedAt: time.Now(),
-	}
-}
-
-// CreateTestInterestRunWithDetails creates a test interest run with specific details
-func CreateTestInterestRunWithDetails(runDate time.Time, total int64, users int) *models.InterestRun {
-	run := CreateTestInterestRun(runDate)
-	run.TotalInterestDistributed = total
-	run.UsersAffected = users
-	return run
-}
