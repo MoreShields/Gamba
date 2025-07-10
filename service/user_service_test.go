@@ -174,7 +174,7 @@ func TestUserService_GetOrCreateUser_BalanceHistoryError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, user)
-	assert.Contains(t, err.Error(), "failed to record initial balance history")
+	assert.Contains(t, err.Error(), "failed to record initial balance")
 
 	mockFactory.AssertExpectations(t)
 	mockUoW.AssertExpectations(t)

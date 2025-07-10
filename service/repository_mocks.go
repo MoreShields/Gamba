@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"gambler/events"
 	"gambler/models"
 
 	"github.com/stretchr/testify/mock"
@@ -180,7 +181,7 @@ func (m *MockUnitOfWork) GroupWagerRepository() GroupWagerRepository {
 }
 
 func (m *MockUnitOfWork) EventBus() EventPublisher {
-	return nil // For testing, we can return nil or a mock event bus
+	return &MockEventPublisher{}
 }
 
 func (m *MockUnitOfWork) SetRepositories(userRepo UserRepository, balanceHistoryRepo BalanceHistoryRepository, betRepo BetRepository) {
@@ -300,5 +301,12 @@ func (m *MockGroupWagerRepository) UpdateParticipantPayouts(ctx context.Context,
 func (m *MockGroupWagerRepository) UpdateOptionTotal(ctx context.Context, optionID int64, totalAmount int64) error {
 	args := m.Called(ctx, optionID, totalAmount)
 	return args.Error(0)
+}
+
+// MockEventPublisher is a mock implementation of EventPublisher for testing
+type MockEventPublisher struct{}
+
+func (m *MockEventPublisher) Publish(event events.Event) {
+	// No-op for testing
 }
 

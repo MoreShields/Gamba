@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"gambler/models"
 
@@ -42,6 +43,7 @@ func TestGroupWagerService_PlaceBet_ChangingOptionUpdatesTotalsCorrectly(t *test
 	}
 
 	// Create test group wager
+	futureTime := time.Now().Add(24 * time.Hour) // Set voting to end 24 hours from now
 	groupWager := &models.GroupWager{
 		ID:               groupWagerID,
 		CreatorDiscordID: 999999,
@@ -49,6 +51,7 @@ func TestGroupWagerService_PlaceBet_ChangingOptionUpdatesTotalsCorrectly(t *test
 		State:            models.GroupWagerStateActive,
 		TotalPot:         initialBetAmount, // Already has initial bet
 		MinParticipants:  3,
+		VotingEndsAt:     &futureTime,
 		MessageID:        123,
 		ChannelID:        456,
 	}
@@ -168,6 +171,7 @@ func TestGroupWagerService_PlaceBet_SameOptionUpdatesTotalsCorrectly(t *testing.
 	}
 
 	// Create test group wager
+	futureTime2 := time.Now().Add(24 * time.Hour) // Set voting to end 24 hours from now
 	groupWager := &models.GroupWager{
 		ID:               groupWagerID,
 		CreatorDiscordID: 999999,
@@ -175,6 +179,7 @@ func TestGroupWagerService_PlaceBet_SameOptionUpdatesTotalsCorrectly(t *testing.
 		State:            models.GroupWagerStateActive,
 		TotalPot:         initialBetAmount,
 		MinParticipants:  3,
+		VotingEndsAt:     &futureTime2,
 		MessageID:        123,
 		ChannelID:        456,
 	}

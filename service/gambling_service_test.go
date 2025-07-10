@@ -28,9 +28,10 @@ func TestGamblingService_PlaceBet_Win(t *testing.T) {
 	service := NewGamblingService(mockFactory)
 
 	existingUser := &models.User{
-		DiscordID: 123456,
-		Username:  "testuser",
-		Balance:   10000,
+		DiscordID:        123456,
+		Username:         "testuser",
+		Balance:          10000,
+		AvailableBalance: 10000,
 	}
 
 	// Mock expectations
@@ -38,6 +39,9 @@ func TestGamblingService_PlaceBet_Win(t *testing.T) {
 	mockUoW.On("Begin", ctx).Return(nil)
 	mockUoW.On("Commit").Return(nil)
 	mockUoW.On("Rollback").Return(nil)
+
+	// Mock for daily limit check
+	mockBetRepo.On("GetByUserSince", ctx, int64(123456), mock.AnythingOfType("time.Time")).Return([]*models.Bet{}, nil)
 
 	mockUserRepo.On("GetByDiscordID", ctx, int64(123456)).Return(existingUser, nil)
 	mockUserRepo.On("AddBalance", ctx, int64(123456), int64(10)).Return(nil) // 0.99 odds, 1000 bet = ~10 win
@@ -96,9 +100,10 @@ func TestGamblingService_PlaceBet_Loss(t *testing.T) {
 	service := NewGamblingService(mockFactory)
 
 	existingUser := &models.User{
-		DiscordID: 123456,
-		Username:  "testuser",
-		Balance:   10000,
+		DiscordID:        123456,
+		Username:         "testuser",
+		Balance:          10000,
+		AvailableBalance: 10000,
 	}
 
 	// Mock expectations
@@ -106,6 +111,9 @@ func TestGamblingService_PlaceBet_Loss(t *testing.T) {
 	mockUoW.On("Begin", ctx).Return(nil)
 	mockUoW.On("Commit").Return(nil)
 	mockUoW.On("Rollback").Return(nil)
+
+	// Mock for daily limit check
+	mockBetRepo.On("GetByUserSince", ctx, int64(123456), mock.AnythingOfType("time.Time")).Return([]*models.Bet{}, nil)
 
 	mockUserRepo.On("GetByDiscordID", ctx, int64(123456)).Return(existingUser, nil)
 	mockUserRepo.On("DeductBalance", ctx, int64(123456), int64(1000)).Return(nil)
@@ -207,15 +215,19 @@ func TestGamblingService_PlaceBet_InsufficientBalance(t *testing.T) {
 	service := NewGamblingService(mockFactory)
 
 	existingUser := &models.User{
-		DiscordID: 123456,
-		Username:  "testuser",
-		Balance:   500, // Less than bet amount
+		DiscordID:        123456,
+		Username:         "testuser",
+		Balance:          500, // Less than bet amount
+		AvailableBalance: 500,
 	}
 
 	// Mock expectations
 	mockFactory.On("Create").Return(mockUoW)
 	mockUoW.On("Begin", ctx).Return(nil)
 	mockUoW.On("Rollback").Return(nil)
+
+	// Mock for daily limit check
+	mockBetRepo.On("GetByUserSince", ctx, int64(123456), mock.AnythingOfType("time.Time")).Return([]*models.Bet{}, nil)
 
 	mockUserRepo.On("GetByDiscordID", ctx, int64(123456)).Return(existingUser, nil)
 	mockUserRepo.On("DeductBalance", ctx, int64(123456), int64(1000)).Return(
@@ -255,6 +267,9 @@ func TestGamblingService_PlaceBet_UserNotFound(t *testing.T) {
 	mockUoW.On("Begin", ctx).Return(nil)
 	mockUoW.On("Rollback").Return(nil)
 
+	// Mock for daily limit check
+	mockBetRepo.On("GetByUserSince", ctx, int64(123456), mock.AnythingOfType("time.Time")).Return([]*models.Bet{}, nil)
+
 	mockUserRepo.On("GetByDiscordID", ctx, int64(123456)).Return(nil, nil) // User not found
 
 	result, err := service.PlaceBet(ctx, 123456, 0.5, 1000)
@@ -286,15 +301,19 @@ func TestGamblingService_PlaceBet_TransactionRollback(t *testing.T) {
 	service := NewGamblingService(mockFactory)
 
 	existingUser := &models.User{
-		DiscordID: 123456,
-		Username:  "testuser",
-		Balance:   10000,
+		DiscordID:        123456,
+		Username:         "testuser",
+		Balance:          10000,
+		AvailableBalance: 10000,
 	}
 
 	// Mock expectations
 	mockFactory.On("Create").Return(mockUoW)
 	mockUoW.On("Begin", ctx).Return(nil)
 	mockUoW.On("Rollback").Return(nil)
+
+	// Mock for daily limit check
+	mockBetRepo.On("GetByUserSince", ctx, int64(123456), mock.AnythingOfType("time.Time")).Return([]*models.Bet{}, nil)
 
 	mockUserRepo.On("GetByDiscordID", ctx, int64(123456)).Return(existingUser, nil)
 	mockUserRepo.On("AddBalance", ctx, int64(123456), int64(10)).Return(nil)
