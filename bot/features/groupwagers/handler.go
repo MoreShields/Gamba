@@ -1,8 +1,9 @@
 package groupwagers
+
 import (
-	"gambler/bot/common"
 	"context"
 	"fmt"
+	"gambler/bot/common"
 	"strconv"
 	"strings"
 
@@ -323,7 +324,7 @@ func (f *Feature) handleGroupWagerInteractions(s *discordgo.Session, i *discordg
 // handleGroupWagerButtonInteraction handles button clicks on group wager messages
 func (f *Feature) handleGroupWagerButtonInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	customID := i.MessageComponentData().CustomID
-	
+
 	// Parse custom ID: group_wager_option_<wager_id>_<option_id>
 	parts := strings.Split(customID, "_")
 	if len(parts) != 5 || parts[0] != "group" || parts[1] != "wager" || parts[2] != "option" {
@@ -463,4 +464,3 @@ func (f *Feature) updateGroupWagerMessage(s *discordgo.Session, msg *discordgo.M
 		log.Printf("Error updating group wager message: %v", err)
 	}
 }
-

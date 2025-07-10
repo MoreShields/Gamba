@@ -3,16 +3,16 @@ package wagers
 import (
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"strconv"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 
 	"gambler/bot/common"
 	"gambler/models"
 
 	"github.com/bwmarrin/discordgo"
 )
-
 
 // handleWagerPropose handles the /wager propose subcommand
 func (f *Feature) handleWagerPropose(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -88,6 +88,21 @@ func (f *Feature) handleWagerConditionModal(s *discordgo.Session, i *discordgo.I
 		return
 	}
 
+	// Get server-specific display names
+	proposerName := common.GetDisplayNameInt64(s, i.GuildID, proposerID)
+	targetName := common.GetDisplayNameInt64(s, i.GuildID, targetID)
+	// Get the users to ensure they exist in the DB.
+	_, err = f.userService.GetOrCreateUser(context.Background(), proposerID, targetName)
+	if err != nil {
+		common.UpdateMessageWithError(s, i, fmt.Sprintf("Failed to create wager: %v", err))
+		return
+	}
+	_, err = f.userService.GetOrCreateUser(context.Background(), targetID, targetName)
+	if err != nil {
+		common.UpdateMessageWithError(s, i, fmt.Sprintf("Failed to create wager: %v", err))
+		return
+	}
+
 	// Get condition from modal
 	condition := i.ModalSubmitData().Components[0].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value
 
@@ -104,19 +119,9 @@ func (f *Feature) handleWagerConditionModal(s *discordgo.Session, i *discordgo.I
 	channelID, _ := strconv.ParseInt(i.ChannelID, 10, 64)
 	wager, err := f.wagerService.ProposeWager(context.Background(), proposerID, targetID, amount, condition, 0, channelID)
 	if err != nil {
-		content := fmt.Sprintf("❌ Failed to create wager: %v", err)
-		_, err = s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Content: &content,
-		})
-		if err != nil {
-			log.Printf("Error editing interaction response: %v", err)
-		}
+		common.UpdateMessageWithError(s, i, fmt.Sprintf("Failed to create wager: %v", err))
 		return
 	}
-
-	// Get server-specific display names
-	proposerName := common.GetDisplayNameInt64(s, i.GuildID, proposerID)
-	targetName := common.GetDisplayNameInt64(s, i.GuildID, targetID)
 
 	// Create embed and components
 	embed := BuildWagerProposedEmbed(wager, proposerName, targetName)
@@ -282,14 +287,7 @@ func (f *Feature) handleWagerResponse(s *discordgo.Session, i *discordgo.Interac
 	// Process the response
 	wager, err := f.wagerService.RespondToWager(context.Background(), wagerID, userID, accept)
 	if err != nil {
-		content := fmt.Sprintf("❌ %v", err)
-		_, err = s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
-			Content: content,
-			Flags:   discordgo.MessageFlagsEphemeral,
-		})
-		if err != nil {
-			log.Printf("Error creating followup message: %v", err)
-		}
+		common.FollowUpWithError(s, i, err.Error())
 		return
 	}
 
@@ -360,14 +358,7 @@ func (f *Feature) handleWagerVote(s *discordgo.Session, i *discordgo.Interaction
 	// Cast the vote
 	_, voteCounts, err := f.wagerService.CastVote(context.Background(), wagerID, voterID, voteForID)
 	if err != nil {
-		content := fmt.Sprintf("❌ %v", err)
-		_, err = s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
-			Content: content,
-			Flags:   discordgo.MessageFlagsEphemeral,
-		})
-		if err != nil {
-			log.Printf("Error creating followup message: %v", err)
-		}
+		common.FollowUpWithError(s, i, err.Error())
 		return
 	}
 

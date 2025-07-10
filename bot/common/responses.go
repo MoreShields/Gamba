@@ -136,3 +136,14 @@ func FollowUpWithSuccess(s *discordgo.Session, i *discordgo.InteractionCreate, m
 		log.Errorf("Error sending follow-up success message: %v", err)
 	}
 }
+
+// UpdateMessageWithError edits a deferred interaction response with an error message
+func UpdateMessageWithError(s *discordgo.Session, i *discordgo.InteractionCreate, errorMessage string) {
+	content := "❌ " + errorMessage
+	_, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+		Content: &content,
+	})
+	if err != nil {
+		log.Errorf("Error editing interaction response: %v", err)
+	}
+}
