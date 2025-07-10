@@ -271,12 +271,7 @@ func (m *MockGroupWagerRepository) GetDetailByMessageID(ctx context.Context, mes
 	return args.Get(0).(*models.GroupWagerDetail), args.Error(1)
 }
 
-func (m *MockGroupWagerRepository) AddParticipant(ctx context.Context, participant *models.GroupWagerParticipant) error {
-	args := m.Called(ctx, participant)
-	return args.Error(0)
-}
-
-func (m *MockGroupWagerRepository) UpdateParticipant(ctx context.Context, participant *models.GroupWagerParticipant) error {
+func (m *MockGroupWagerRepository) SaveParticipant(ctx context.Context, participant *models.GroupWagerParticipant) error {
 	args := m.Called(ctx, participant)
 	return args.Error(0)
 }

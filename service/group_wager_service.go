@@ -171,7 +171,7 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 		// Update existing
 		existingParticipant.OptionID = optionID
 		existingParticipant.Amount = amount
-		if err := uow.GroupWagerRepository().UpdateParticipant(ctx, existingParticipant); err != nil {
+		if err := uow.GroupWagerRepository().SaveParticipant(ctx, existingParticipant); err != nil {
 			return nil, fmt.Errorf("failed to update participant: %w", err)
 		}
 		participant = existingParticipant
@@ -183,7 +183,7 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 			OptionID:     optionID,
 			Amount:       amount,
 		}
-		if err := uow.GroupWagerRepository().AddParticipant(ctx, participant); err != nil {
+		if err := uow.GroupWagerRepository().SaveParticipant(ctx, participant); err != nil {
 			return nil, fmt.Errorf("failed to create participant: %w", err)
 		}
 	}

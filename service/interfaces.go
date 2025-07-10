@@ -217,8 +217,7 @@ type GroupWagerRepository interface {
 	GetDetailByMessageID(ctx context.Context, messageID int64) (*models.GroupWagerDetail, error)
 
 	// Participant operations
-	AddParticipant(ctx context.Context, participant *models.GroupWagerParticipant) error
-	UpdateParticipant(ctx context.Context, participant *models.GroupWagerParticipant) error
+	SaveParticipant(ctx context.Context, participant *models.GroupWagerParticipant) error
 	GetParticipant(ctx context.Context, groupWagerID int64, discordID int64) (*models.GroupWagerParticipant, error)
 	GetActiveParticipationsByUser(ctx context.Context, discordID int64) ([]*models.GroupWagerParticipant, error)
 	UpdateParticipantPayouts(ctx context.Context, participants []*models.GroupWagerParticipant) error

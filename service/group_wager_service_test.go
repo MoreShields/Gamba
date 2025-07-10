@@ -103,7 +103,7 @@ func TestGroupWagerService_PlaceBet_ChangingOptionUpdatesTotalsCorrectly(t *test
 	mockGroupWagerRepo.On("GetParticipant", ctx, groupWagerID, userID).Return(existingParticipant, nil)
 
 	// Update participant to new option and amount
-	mockGroupWagerRepo.On("UpdateParticipant", ctx, mock.MatchedBy(func(p *models.GroupWagerParticipant) bool {
+	mockGroupWagerRepo.On("SaveParticipant", ctx, mock.MatchedBy(func(p *models.GroupWagerParticipant) bool {
 		return p.ID == existingParticipant.ID &&
 			p.OptionID == option2ID &&
 			p.Amount == newBetAmount
@@ -222,7 +222,7 @@ func TestGroupWagerService_PlaceBet_SameOptionUpdatesTotalsCorrectly(t *testing.
 	mockGroupWagerRepo.On("GetParticipant", ctx, groupWagerID, userID).Return(existingParticipant, nil)
 
 	// Update participant amount
-	mockGroupWagerRepo.On("UpdateParticipant", ctx, mock.MatchedBy(func(p *models.GroupWagerParticipant) bool {
+	mockGroupWagerRepo.On("SaveParticipant", ctx, mock.MatchedBy(func(p *models.GroupWagerParticipant) bool {
 		return p.ID == existingParticipant.ID &&
 			p.OptionID == optionID &&
 			p.Amount == newBetAmount
