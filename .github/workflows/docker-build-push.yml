@@ -1,6 +1,10 @@
 name: Build and Push Docker Image
 
 on:
+  workflow_run:
+    workflows: ["Run Tests"]
+    types:
+      - completed
   push:
     branches: [ main ]
   pull_request:
@@ -13,6 +17,7 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     permissions:
       contents: read
       packages: write
