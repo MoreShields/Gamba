@@ -50,6 +50,19 @@ func (f *Feature) handleWagerPropose(s *discordgo.Session, i *discordgo.Interact
 		return
 	}
 
+	// Get the users to ensure they exist in the DB.
+	_, err = f.userService.GetOrCreateUser(context.Background(), proposerID, i.Member.User.Username)
+	if err != nil {
+		common.UpdateMessageWithError(s, i, fmt.Sprintf("Failed to create wager: %v", err))
+		return
+	}
+	_, err = f.userService.GetOrCreateUser(context.Background(), targetID, targetUser.Username)
+	if err != nil {
+		common.UpdateMessageWithError(s, i, fmt.Sprintf("Failed to create wager: %v", err))
+		return
+	}
+	log.Info("finished Creating users")
+
 	// Show modal for condition input
 	modal := BuildWagerConditionModal(proposerID, targetID, amount)
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -88,21 +101,6 @@ func (f *Feature) handleWagerConditionModal(s *discordgo.Session, i *discordgo.I
 		return
 	}
 
-	// Get server-specific display names
-	proposerName := common.GetDisplayNameInt64(s, i.GuildID, proposerID)
-	targetName := common.GetDisplayNameInt64(s, i.GuildID, targetID)
-	// Get the users to ensure they exist in the DB.
-	_, err = f.userService.GetOrCreateUser(context.Background(), proposerID, targetName)
-	if err != nil {
-		common.UpdateMessageWithError(s, i, fmt.Sprintf("Failed to create wager: %v", err))
-		return
-	}
-	_, err = f.userService.GetOrCreateUser(context.Background(), targetID, targetName)
-	if err != nil {
-		common.UpdateMessageWithError(s, i, fmt.Sprintf("Failed to create wager: %v", err))
-		return
-	}
-
 	// Get condition from modal
 	condition := i.ModalSubmitData().Components[0].(*discordgo.ActionsRow).Components[0].(*discordgo.TextInput).Value
 
@@ -123,6 +121,9 @@ func (f *Feature) handleWagerConditionModal(s *discordgo.Session, i *discordgo.I
 		return
 	}
 
+	// Get server-specific display names
+	proposerName := common.GetDisplayNameInt64(s, i.GuildID, proposerID)
+	targetName := common.GetDisplayNameInt64(s, i.GuildID, targetID)
 	// Create embed and components
 	embed := BuildWagerProposedEmbed(wager, proposerName, targetName)
 	components := BuildWagerProposalComponents(wager.ID)
@@ -281,6 +282,13 @@ func (f *Feature) handleWagerResponse(s *discordgo.Session, i *discordgo.Interac
 	})
 	if err != nil {
 		log.Printf("Error deferring interaction: %v", err)
+		return
+	}
+
+	// Ensure user exists in the database
+	_, err = f.userService.GetOrCreateUser(context.Background(), userID, i.Member.User.Username)
+	if err != nil {
+		common.RespondWithError(s, i, "Unable to get user from DB")
 		return
 	}
 

@@ -374,6 +374,10 @@ func (f *Feature) handleGroupWagerBetModal(s *discordgo.Session, i *discordgo.In
 	}
 	// Ensure user is present in the database.
 	_, err = f.userService.GetOrCreateUser(ctx, userID, i.Member.User.Username)
+	if err != nil {
+		common.RespondWithError(s, i, "Unable to get user from DB")
+		return
+	}
 
 	// Place the bet
 	_, err = f.groupWagerService.PlaceBet(ctx, groupWagerID, userID, optionID, amount)

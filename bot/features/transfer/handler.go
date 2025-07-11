@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/bwmarrin/discordgo"
 	"gambler/bot/common"
+
+	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -60,6 +61,18 @@ func (f *Feature) handleDonate(s *discordgo.Session, i *discordgo.InteractionCre
 	// Prevent self-donation
 	if fromDiscordID == toDiscordID {
 		common.RespondWithError(s, i, "You cannot donate to yourself.")
+		return
+	}
+
+	// Ensure both users in the DB.
+	_, err = f.userService.GetOrCreateUser(context.Background(), fromDiscordID, recipientUser.Username)
+	if err != nil {
+		common.UpdateMessageWithError(s, i, fmt.Sprintf("Failed to create wager: %v", err))
+		return
+	}
+	_, err = f.userService.GetOrCreateUser(context.Background(), toDiscordID, i.User.Username)
+	if err != nil {
+		common.UpdateMessageWithError(s, i, fmt.Sprintf("Failed to create wager: %v", err))
 		return
 	}
 

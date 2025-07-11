@@ -230,7 +230,6 @@ func (b *Bot) handleCommands(s *discordgo.Session, i *discordgo.InteractionCreat
 
 // handleInteractions routes component interactions to appropriate features
 func (b *Bot) handleInteractions(s *discordgo.Session, i *discordgo.InteractionCreate) {
-
 	switch i.Type {
 	case discordgo.InteractionMessageComponent:
 		customID := i.MessageComponentData().CustomID
