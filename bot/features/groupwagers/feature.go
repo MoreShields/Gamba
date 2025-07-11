@@ -7,6 +7,7 @@ import (
 	"gambler/service"
 
 	"github.com/bwmarrin/discordgo"
+	log "github.com/sirupsen/logrus"
 )
 
 // Feature represents the group wagers feature
@@ -53,38 +54,34 @@ func (f *Feature) HandleInteraction(s *discordgo.Session, i *discordgo.Interacti
 		f.handleComponentInteraction(s, i)
 	case discordgo.InteractionModalSubmit:
 		f.handleModalSubmit(s, i)
+	default:
+		log.Warnf("Unknown interaction type in groupwager: %v", i.Type)
 	}
 }
 
 // handleComponentInteraction routes button clicks based on custom ID
 func (f *Feature) handleComponentInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	customID := i.MessageComponentData().CustomID
-	parts := strings.Split(customID, "_")
-	
-	if len(parts) < 3 {
-		common.RespondWithError(s, i, "Invalid interaction data")
+
+	// Group wager button interactions use format: group_wager_option_<wager_id>_<option_id>
+	if strings.HasPrefix(customID, "group_wager_option_") {
+		f.handleGroupWagerButtonInteraction(s, i)
 		return
 	}
 
-	action := parts[1]
-	switch action {
-	case "bet":
-		f.handleGroupWagerButtonInteraction(s, i)
-	case "resolve":
-		// Admin resolve button (if implemented)
-		common.RespondWithError(s, i, "Please use the /groupwager resolve command")
-	case "cancel":
-		// Admin cancel button (if implemented)
-		common.RespondWithError(s, i, "Cancellation not yet implemented")
-	default:
-		common.RespondWithError(s, i, "Unknown action")
-	}
 }
 
-// handleModalSubmit handles the group wager creation modal
+// handleModalSubmit handles the group wager modals
 func (f *Feature) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	customID := i.ModalSubmitData().CustomID
-	if customID == "groupwager_create_modal" {
+	switch {
+	case customID == "group_wager_create_modal":
+
 		f.handleGroupWagerCreateModal(s, i)
+	case strings.HasPrefix(customID, "group_wager_bet_"):
+		f.handleGroupWagerBetModal(s, i)
+	default:
+		log.Warnf("Unknown group wager modal customID: %s", customID)
+		common.RespondWithError(s, i, "Unknown group wager modal")
 	}
 }

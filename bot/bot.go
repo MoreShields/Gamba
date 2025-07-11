@@ -31,10 +31,10 @@ type Config struct {
 // Bot manages the Discord bot and all feature modules
 type Bot struct {
 	// Core components
-	config    Config
-	session   *discordgo.Session
-	eventBus  *events.Bus
-	
+	config   Config
+	session  *discordgo.Session
+	eventBus *events.Bus
+
 	// Services
 	userService       service.UserService
 	gamblingService   service.GamblingService
@@ -42,14 +42,14 @@ type Bot struct {
 	wagerService      service.WagerService
 	statsService      service.StatsService
 	groupWagerService service.GroupWagerService
-	
+
 	// Feature modules
-	betting       *betting.Feature
-	wagers        *wagers.Feature
-	groupWagers   *groupwagers.Feature
-	stats         *stats.Feature
-	balance       *balance.Feature
-	transfer      *transfer.Feature
+	betting     *betting.Feature
+	wagers      *wagers.Feature
+	groupWagers *groupwagers.Feature
+	stats       *stats.Feature
+	balance     *balance.Feature
+	transfer    *transfer.Feature
 }
 
 // New creates a new bot instance with all features
@@ -230,11 +230,12 @@ func (b *Bot) handleCommands(s *discordgo.Session, i *discordgo.InteractionCreat
 
 // handleInteractions routes component interactions to appropriate features
 func (b *Bot) handleInteractions(s *discordgo.Session, i *discordgo.InteractionCreate) {
+
 	switch i.Type {
 	case discordgo.InteractionMessageComponent:
 		customID := i.MessageComponentData().CustomID
 		b.routeComponentInteraction(s, i, customID)
-		
+
 	case discordgo.InteractionModalSubmit:
 		customID := i.ModalSubmitData().CustomID
 		b.routeModalInteraction(s, i, customID)
@@ -246,11 +247,11 @@ func (b *Bot) routeComponentInteraction(s *discordgo.Session, i *discordgo.Inter
 	switch {
 	case strings.HasPrefix(customID, "bet_"):
 		b.betting.HandleInteraction(s, i)
-		
+
 	case strings.HasPrefix(customID, "wager_"):
 		b.wagers.HandleInteraction(s, i)
-		
-	case strings.HasPrefix(customID, "groupwager_"):
+
+	case strings.HasPrefix(customID, "groupwager_"), strings.HasPrefix(customID, "group_wager_"):
 		b.groupWagers.HandleInteraction(s, i)
 	}
 }
@@ -260,10 +261,10 @@ func (b *Bot) routeModalInteraction(s *discordgo.Session, i *discordgo.Interacti
 	switch {
 	case strings.HasPrefix(customID, "wager_condition_modal_"):
 		b.wagers.HandleInteraction(s, i)
-		
-	case strings.HasPrefix(customID, "groupwager_create"):
+
+	case strings.HasPrefix(customID, "groupwager_"), strings.HasPrefix(customID, "group_wager_"):
 		b.groupWagers.HandleInteraction(s, i)
-		
+
 	case customID == "bet_amount_modal":
 		b.betting.HandleInteraction(s, i)
 	}

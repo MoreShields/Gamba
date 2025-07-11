@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"gambler/config"
 	"gambler/models"
 
 	"github.com/stretchr/testify/assert"
@@ -24,7 +25,7 @@ func TestGroupWagerService_PlaceBet_ChangingOptionUpdatesTotalsCorrectly(t *test
 	mockUoW.SetRepositories(mockUserRepo, nil, nil)
 	mockUoW.SetGroupWagerRepository(mockGroupWagerRepo)
 
-	service := NewGroupWagerService(mockFactory, []int64{})
+	service := NewGroupWagerService(mockFactory, &config.Config{ResolverDiscordIDs: []int64{}})
 
 	// Test data
 	userID := int64(123456)
@@ -153,7 +154,7 @@ func TestGroupWagerService_PlaceBet_SameOptionUpdatesTotalsCorrectly(t *testing.
 	mockUoW.SetRepositories(mockUserRepo, nil, nil)
 	mockUoW.SetGroupWagerRepository(mockGroupWagerRepo)
 
-	service := NewGroupWagerService(mockFactory, []int64{})
+	service := NewGroupWagerService(mockFactory, &config.Config{ResolverDiscordIDs: []int64{}})
 
 	// Test data
 	userID := int64(123456)

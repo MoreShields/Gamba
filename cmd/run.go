@@ -47,7 +47,7 @@ func Run(ctx context.Context) error {
 	transferService := service.NewTransferService(uowFactory)
 	wagerService := service.NewWagerService(uowFactory)
 	statsService := service.NewStatsService(uowFactory)
-	groupWagerService := service.NewGroupWagerService(uowFactory, cfg.ResolverDiscordIDs)
+	groupWagerService := service.NewGroupWagerService(uowFactory, cfg)
 	log.Println("Services initialized successfully")
 
 

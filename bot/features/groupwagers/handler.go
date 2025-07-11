@@ -11,24 +11,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// handleGroupWagerCommand handles the /groupwager command and its subcommands
-func (f *Feature) handleGroupWagerCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	options := i.ApplicationCommandData().Options
-	if len(options) == 0 {
-		common.RespondWithError(s, i, "Please specify a subcommand.")
-		return
-	}
-
-	switch options[0].Name {
-	case "create":
-		f.handleGroupWagerCreate(s, i)
-	case "resolve":
-		f.handleGroupWagerResolve(s, i)
-	default:
-		common.RespondWithError(s, i, "Unknown subcommand.")
-	}
-}
-
 // handleGroupWagerCreate handles the /groupwager create subcommand
 func (f *Feature) handleGroupWagerCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	// Respond with a modal to collect wager details
@@ -181,9 +163,6 @@ func (f *Feature) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo
 		return
 	}
 
-	// Check if message was returned
-	log.Infof("created message with ID: %s", msg.ID)
-
 	// Update the group wager with message and channel IDs
 	messageID, err := strconv.ParseInt(msg.ID, 10, 64)
 	if err != nil {
@@ -197,10 +176,8 @@ func (f *Feature) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo
 	}
 
 	// Update the group wager with the message IDs
-	log.Infof("Updating group wager %d with messageID: %d channelID: %d", groupWagerDetail.Wager.ID, messageID, channelID)
 	if err := f.groupWagerService.UpdateMessageIDs(ctx, groupWagerDetail.Wager.ID, messageID, channelID); err != nil {
 		log.Errorf("failed to update group wager message IDs: %s", err)
-
 	}
 
 }
@@ -301,26 +278,6 @@ func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Int
 	}
 }
 
-// handleGroupWagerInteractions handles all group wager interactions (buttons and modals)
-func (f *Feature) handleGroupWagerInteractions(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	switch i.Type {
-	case discordgo.InteractionMessageComponent:
-		customID := i.MessageComponentData().CustomID
-		if strings.HasPrefix(customID, "group_wager_") {
-			f.handleGroupWagerButtonInteraction(s, i)
-		}
-
-	case discordgo.InteractionModalSubmit:
-		customID := i.ModalSubmitData().CustomID
-		switch {
-		case customID == "group_wager_create_modal":
-			f.handleGroupWagerCreateModal(s, i)
-		case strings.HasPrefix(customID, "group_wager_bet_"):
-			f.handleGroupWagerBetModal(s, i)
-		}
-	}
-}
-
 // handleGroupWagerButtonInteraction handles button clicks on group wager messages
 func (f *Feature) handleGroupWagerButtonInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	customID := i.MessageComponentData().CustomID
@@ -333,13 +290,13 @@ func (f *Feature) handleGroupWagerButtonInteraction(s *discordgo.Session, i *dis
 
 	groupWagerID, err := strconv.ParseInt(parts[3], 10, 64)
 	if err != nil {
-		log.Printf("Error parsing group wager ID: %v", err)
+		log.Errorf("Error parsing group wager ID from %s: %v", parts[3], err)
 		return
 	}
 
 	optionID, err := strconv.ParseInt(parts[4], 10, 64)
 	if err != nil {
-		log.Printf("Error parsing option ID: %v", err)
+		log.Errorf("Error parsing option ID from %s: %v", parts[4], err)
 		return
 	}
 
@@ -366,7 +323,7 @@ func (f *Feature) handleGroupWagerButtonInteraction(s *discordgo.Session, i *dis
 		},
 	})
 	if err != nil {
-		log.Printf("Error showing bet modal: %v", err)
+		log.Errorf("Error showing bet modal: %v", err)
 	}
 }
 
@@ -419,6 +376,7 @@ func (f *Feature) handleGroupWagerBetModal(s *discordgo.Session, i *discordgo.In
 	// Place the bet
 	_, err = f.groupWagerService.PlaceBet(ctx, groupWagerID, userID, optionID, amount)
 	if err != nil {
+		log.Errorf("Error placing bet: %v", err)
 		common.RespondWithError(s, i, fmt.Sprintf("Failed to place bet: %v", err))
 		return
 	}
@@ -432,7 +390,7 @@ func (f *Feature) handleGroupWagerBetModal(s *discordgo.Session, i *discordgo.In
 		},
 	})
 	if err != nil {
-		log.Printf("Error responding to bet: %v", err)
+		log.Errorf("Error responding to bet: %v", err)
 	}
 
 	// Update the original message
@@ -461,6 +419,6 @@ func (f *Feature) updateGroupWagerMessage(s *discordgo.Session, msg *discordgo.M
 		Components: &components,
 	})
 	if err != nil {
-		log.Printf("Error updating group wager message: %v", err)
+		log.Errorf("Error updating group wager message: %v", err)
 	}
 }

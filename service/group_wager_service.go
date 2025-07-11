@@ -3,20 +3,21 @@ package service
 import (
 	"context"
 	"fmt"
+	"gambler/config"
 	"gambler/models"
 	"time"
 )
 
 type groupWagerService struct {
-	uowFactory  UnitOfWorkFactory
-	resolverIDs []int64
+	uowFactory UnitOfWorkFactory
+	config     *config.Config
 }
 
 // NewGroupWagerService creates a new group wager service
-func NewGroupWagerService(uowFactory UnitOfWorkFactory, resolverIDs []int64) GroupWagerService {
+func NewGroupWagerService(uowFactory UnitOfWorkFactory, cfg *config.Config) GroupWagerService {
 	return &groupWagerService{
-		uowFactory:  uowFactory,
-		resolverIDs: resolverIDs,
+		uowFactory: uowFactory,
+		config:     cfg,
 	}
 }
 
@@ -512,7 +513,7 @@ func (s *groupWagerService) GetActiveGroupWagersByUser(ctx context.Context, disc
 
 // IsResolver checks if a user can resolve group wagers
 func (s *groupWagerService) IsResolver(discordID int64) bool {
-	for _, resolverID := range s.resolverIDs {
+	for _, resolverID := range s.config.ResolverDiscordIDs {
 		if discordID == resolverID {
 			return true
 		}

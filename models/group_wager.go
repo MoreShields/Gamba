@@ -34,25 +34,25 @@ type GroupWager struct {
 
 // GroupWagerOption represents a possible outcome for a group wager
 type GroupWagerOption struct {
-	ID             int64     `db:"id"`
-	GroupWagerID   int64     `db:"group_wager_id"`
-	OptionText     string    `db:"option_text"`
-	OptionOrder    int16     `db:"option_order"`
-	TotalAmount    int64     `db:"total_amount"`
-	CreatedAt      time.Time `db:"created_at"`
+	ID           int64     `db:"id"`
+	GroupWagerID int64     `db:"group_wager_id"`
+	OptionText   string    `db:"option_text"`
+	OptionOrder  int16     `db:"option_order"`
+	TotalAmount  int64     `db:"total_amount"`
+	CreatedAt    time.Time `db:"created_at"`
 }
 
 // GroupWagerParticipant represents a user's participation in a group wager
 type GroupWagerParticipant struct {
-	ID                int64      `db:"id"`
-	GroupWagerID      int64      `db:"group_wager_id"`
-	DiscordID         int64      `db:"discord_id"`
-	OptionID          int64      `db:"option_id"`
-	Amount            int64      `db:"amount"`
-	PayoutAmount      *int64     `db:"payout_amount"`
-	BalanceHistoryID  *int64     `db:"balance_history_id"`
-	CreatedAt         time.Time  `db:"created_at"`
-	UpdatedAt         time.Time  `db:"updated_at"`
+	ID               int64     `db:"id"`
+	GroupWagerID     int64     `db:"group_wager_id"`
+	DiscordID        int64     `db:"discord_id"`
+	OptionID         int64     `db:"option_id"`
+	Amount           int64     `db:"amount"`
+	PayoutAmount     *int64    `db:"payout_amount"`
+	BalanceHistoryID *int64    `db:"balance_history_id"`
+	CreatedAt        time.Time `db:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at"`
 }
 
 // GroupWagerDetail combines a group wager with its options and participants
@@ -64,12 +64,12 @@ type GroupWagerDetail struct {
 
 // GroupWagerResult represents the outcome of a group wager resolution
 type GroupWagerResult struct {
-	GroupWager      *GroupWager
-	WinningOption   *GroupWagerOption
-	Winners         []*GroupWagerParticipant
-	Losers          []*GroupWagerParticipant
-	TotalPot        int64
-	PayoutDetails   map[int64]int64 // Discord ID -> payout amount
+	GroupWager    *GroupWager
+	WinningOption *GroupWagerOption
+	Winners       []*GroupWagerParticipant
+	Losers        []*GroupWagerParticipant
+	TotalPot      int64
+	PayoutDetails map[int64]int64 // Discord ID -> payout amount
 }
 
 // IsActive checks if the group wager is in an active state
@@ -101,22 +101,6 @@ func (gw *GroupWager) IsVotingPeriodExpired() bool {
 // CanAcceptBets checks if the group wager can still accept bets
 func (gw *GroupWager) CanAcceptBets() bool {
 	return gw.IsActive() && gw.IsVotingPeriodActive()
-}
-
-// CanResolve checks if the given user can resolve this group wager
-func (gw *GroupWager) CanResolve(discordID int64, resolverIDs []int64) bool {
-	if gw.State != GroupWagerStateActive {
-		return false
-	}
-	
-	// Check if user is in the resolver list
-	for _, resolverID := range resolverIDs {
-		if discordID == resolverID {
-			return true
-		}
-	}
-	
-	return false
 }
 
 // HasMinimumParticipants checks if the wager has enough participants
@@ -153,12 +137,12 @@ func (gwd *GroupWagerDetail) GetParticipantsByOption() map[int64][]*GroupWagerPa
 func (gwd *GroupWagerDetail) HasMultipleOptionsWithParticipants() bool {
 	participantsByOption := gwd.GetParticipantsByOption()
 	optionsWithParticipants := 0
-	
+
 	for _, participants := range participantsByOption {
 		if len(participants) > 0 {
 			optionsWithParticipants++
 		}
 	}
-	
+
 	return optionsWithParticipants >= 2
 }
