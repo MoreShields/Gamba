@@ -1,9 +1,6 @@
 services:
   migrate:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: prod
+    image: ghcr.io/moreshields/gamba:latest
     environment:
       # Database configuration - use host's postgres in production
       DATABASE_URL: ${DATABASE_URL}
@@ -12,10 +9,7 @@ services:
     restart: "no"  # Run once and exit
 
   bot:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: prod
+    image: ghcr.io/moreshields/gamba:latest
     environment:
       # Discord configuration
       DISCORD_TOKEN: ${DISCORD_TOKEN}
