@@ -12,21 +12,21 @@ import (
 )
 
 // BuildScoreboardEmbed creates the scoreboard embed
-func BuildScoreboardEmbed(users []models.User, session *discordgo.Session, guildID string) *discordgo.MessageEmbed {
+func BuildScoreboardEmbed(entry []*models.ScoreboardEntry, session *discordgo.Session, guildID string) *discordgo.MessageEmbed {
 	embed := &discordgo.MessageEmbed{
-		Title:       "🏆 Top Players Scoreboard 🏆",
+		Title:       "🏆 Scoreboard 🏆",
 		Color:       common.ColorPrimary,
 		Description: "",
 		Timestamp:   time.Now().Format(time.RFC3339),
 	}
 
-	if len(users) == 0 {
+	if len(entry) == 0 {
 		embed.Description = "No players found"
 		return embed
 	}
 
 	var lines []string
-	for i, user := range users {
+	for i, user := range entry {
 		medal := ""
 		switch i {
 		case 0:
@@ -40,8 +40,8 @@ func BuildScoreboardEmbed(users []models.User, session *discordgo.Session, guild
 		}
 
 		displayName := common.GetDisplayNameInt64(session, guildID, user.DiscordID)
-		lines = append(lines, fmt.Sprintf("%s **%s** - %s bits",
-			medal, displayName, common.FormatBalance(user.Balance)))
+		lines = append(lines, fmt.Sprintf("%s **%s** - %s",
+			medal, displayName, common.FormatBalance(user.TotalBalance)))
 	}
 
 	embed.Description = strings.Join(lines, "\n")
@@ -60,8 +60,8 @@ func BuildUserStatsEmbed(userStats *models.UserStats, targetName string) *discor
 	// Balance info
 	if userStats.User != nil {
 		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
-			Name:   "💰 Balance",
-			Value:  fmt.Sprintf("Total: **%s bits**\nAvailable: **%s bits**\nReserved: **%s bits**", 
+			Name: "💰 Balance",
+			Value: fmt.Sprintf("Total: **%s bits**\nAvailable: **%s bits**\nReserved: **%s bits**",
 				common.FormatBalance(userStats.User.Balance),
 				common.FormatBalance(userStats.User.AvailableBalance),
 				common.FormatBalance(userStats.ReservedInWagers)),
@@ -74,8 +74,8 @@ func BuildUserStatsEmbed(userStats *models.UserStats, targetName string) *discor
 		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
 			Name: "🎲 Betting Stats",
 			Value: fmt.Sprintf("Total Bets: **%d**\nWins: **%d** (%.1f%%)\nNet P/L: **%s bits**",
-				userStats.BetStats.TotalBets, 
-				userStats.BetStats.TotalWins, 
+				userStats.BetStats.TotalBets,
+				userStats.BetStats.TotalWins,
 				userStats.BetStats.WinPercentage,
 				common.FormatBalance(userStats.BetStats.NetProfit)),
 			Inline: true,
@@ -100,7 +100,7 @@ func BuildUserStatsEmbed(userStats *models.UserStats, targetName string) *discor
 			wagerValue = fmt.Sprintf("Total Wagers: **%d**\nNo resolved wagers yet",
 				userStats.WagerStats.TotalWagers)
 		}
-		
+
 		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
 			Name:   "⚔️ Wager Stats",
 			Value:  wagerValue,

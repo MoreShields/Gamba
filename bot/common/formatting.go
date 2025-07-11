@@ -39,9 +39,9 @@ func FormatBetResult(won bool, betAmount, winAmount, newBalance int64) string {
 }
 
 // FormatTransferResult formats the result of a transfer
-func FormatTransferResult(amount int64, recipientName string, newBalance int64) string {
-	return fmt.Sprintf("✅ Successfully transferred **%s bits** to **%s**.",
-		FormatBalance(amount), recipientName)
+func FormatTransferResult(amount int64, recipientID string) string {
+	return fmt.Sprintf("✅ donated **%s bits** to <@%s>",
+		FormatBalance(amount), recipientID)
 }
 
 // FormatDiscordTimestamp formats a time as a Discord timestamp that displays in user's local timezone

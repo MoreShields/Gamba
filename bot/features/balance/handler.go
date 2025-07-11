@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/bwmarrin/discordgo"
 	"gambler/bot/common"
+
+	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -38,6 +39,7 @@ func (f *Feature) handleBalance(s *discordgo.Session, i *discordgo.InteractionCr
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Content: message,
+			Flags:   discordgo.MessageFlagsEphemeral,
 		},
 	})
 	if err != nil {

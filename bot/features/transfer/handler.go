@@ -84,24 +84,8 @@ func (f *Feature) handleDonate(s *discordgo.Session, i *discordgo.InteractionCre
 		return
 	}
 
-	// Get updated sender balance
-	sender, err := f.userService.GetOrCreateUser(ctx, fromDiscordID, i.Member.User.Username)
-	if err != nil {
-		log.Errorf("Error getting sender after transfer: %v", err)
-		// Transfer succeeded but we couldn't get updated balance - still notify success
-		message := fmt.Sprintf("✅ Successfully transferred **%s bits** to **%s**.",
-			common.FormatBalance(amount), recipientUser.Username)
-		err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: message,
-			},
-		})
-		return
-	}
-
 	// Send success response
-	message := common.FormatTransferResult(amount, recipientUser.Username, sender.AvailableBalance)
+	message := common.FormatTransferResult(amount, recipientUser.ID)
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{

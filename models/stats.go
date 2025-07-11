@@ -38,16 +38,16 @@ type UserStats struct {
 
 // BetStatsDetail contains detailed betting statistics
 type BetStatsDetail struct {
-	TotalBets      int
-	TotalWins      int
-	TotalLosses    int
-	WinPercentage  float64
-	TotalWagered   int64
-	TotalWon       int64
-	TotalLost      int64
-	NetProfit      int64
-	BiggestWin     int64
-	BiggestLoss    int64
+	TotalBets     int
+	TotalWins     int
+	TotalLosses   int
+	WinPercentage float64
+	TotalWagered  int64
+	TotalWon      int64
+	TotalLost     int64
+	NetProfit     int64
+	BiggestWin    int64
+	BiggestLoss   int64
 }
 
 // WagerStatsDetail contains detailed wager statistics
@@ -76,12 +76,12 @@ type GroupWagerStats struct {
 
 // ScoreboardEntry represents a user's entry in the scoreboard
 type ScoreboardEntry struct {
-	Rank              int
-	DiscordID         int64
-	Username          string
-	TotalBalance      int64
-	AvailableBalance  int64
-	ActiveWagerCount  int
-	WagerWinRate      float64 // Percentage as 0-100
-	BetWinRate        float64 // Percentage as 0-100
+	Rank             int
+	DiscordID        int64
+	Username         string
+	TotalBalance     int64
+	AvailableBalance int64
+	ActiveWagerCount int
+	WagerWinRate     float64 // Percentage as 0-100
+	BetWinRate       float64 // Percentage as 0-100
 }

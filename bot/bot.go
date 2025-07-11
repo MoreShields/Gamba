@@ -172,7 +172,7 @@ func (b *Bot) updateHighRollerRole(ctx context.Context) error {
 		// Post notification message in the gamba channel
 		b.postHighRollerChangeMessage(ctx, highRoller)
 	}
-	
+
 	// Update the tracked high roller
 	b.lastHighRollerID = highRoller.DiscordID
 
@@ -233,32 +233,21 @@ func (b *Bot) postHighRollerChangeMessage(ctx context.Context, newHighRoller *mo
 	}
 
 	// Get the scoreboard
-	scoreboard, err := b.statsService.GetScoreboard(ctx, 10)
+	entries, err := b.statsService.GetScoreboard(ctx, 10)
 	if err != nil {
 		log.Errorf("Failed to get scoreboard for high roller notification: %v", err)
 		return
 	}
 
-	// Convert scoreboard entries to users for the embed
-	var users []models.User
-	for _, entry := range scoreboard {
-		user := models.User{
-			DiscordID: entry.DiscordID,
-			Username:  entry.Username,
-			Balance:   entry.TotalBalance,
-		}
-		users = append(users, user)
-	}
-
 	// Create the scoreboard embed
-	embed := stats.BuildScoreboardEmbed(users, b.session, b.config.GuildID)
-	
+	embed := stats.BuildScoreboardEmbed(entries, b.session, b.config.GuildID)
+
 	// Update the title to indicate a new high roller
 	embed.Title = "👑 NEW HIGH ROLLER! 👑"
-	
+
 	// Create the message content with mention
 	highRollerDiscordID := strconv.FormatInt(newHighRoller.DiscordID, 10)
-	content := fmt.Sprintf("🎉 Congratulations <@%s>! You are now the high roller with **%s bits**! 🎉", 
+	content := fmt.Sprintf("🎉 Congratulations <@%s>! You are now the high roller with **%s bits**! 🎉",
 		highRollerDiscordID, common.FormatBalance(newHighRoller.Balance))
 
 	// Send the message

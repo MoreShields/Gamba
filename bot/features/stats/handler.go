@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"gambler/bot/common"
 
@@ -42,60 +41,8 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 		return
 	}
 
-	// Create embed
-	embed := &discordgo.MessageEmbed{
-		Title: "🏆 Gamba Scoreboard",
-		Color: 0x00ff00,
-	}
-
-	if len(entries) == 0 {
-		embed.Description = "No players with positive balance found."
-	} else {
-		// Build scoreboard content as a table
-		var tableContent strings.Builder
-
-		// Add header
-		tableContent.WriteString("```\n")
-		tableContent.WriteString(fmt.Sprintf("%-4s %-20s %-12s %s\n", "", "Player", "Balance", "Wager W/R%"))
-		tableContent.WriteString(strings.Repeat("-", 50) + "\n")
-
-		for _, entry := range entries {
-			// Format rank with medal for top 3
-			rankStr := fmt.Sprintf("#%d", entry.Rank)
-			if entry.Rank == 1 {
-				rankStr = "🥇"
-			} else if entry.Rank == 2 {
-				rankStr = "🥈"
-			} else if entry.Rank == 3 {
-				rankStr = "🥉"
-			}
-
-			// Get display name for the user
-			displayName := common.GetDisplayNameInt64(s, i.GuildID, entry.DiscordID)
-			// Truncate name if too long
-			if len(displayName) > 18 {
-				displayName = displayName[:15] + "..."
-			}
-
-			// Format balance
-			balanceStr := common.FormatBalance(entry.TotalBalance)
-
-			// Format wager stats
-			var wagerStr string
-			if entry.ActiveWagerCount > 0 || entry.WagerWinRate > 0 {
-				wagerStr = fmt.Sprintf("%.1f%%", entry.WagerWinRate)
-			} else {
-				wagerStr = "-"
-			}
-
-			// Add row
-			tableContent.WriteString(fmt.Sprintf("%-4s %-20s %-12s %s\n",
-				rankStr, displayName, balanceStr, wagerStr))
-		}
-
-		tableContent.WriteString("```")
-		embed.Description = tableContent.String()
-	}
+	// Create embed using the shared function
+	embed := BuildScoreboardEmbed(entries, s, i.GuildID)
 
 	// Send response
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
