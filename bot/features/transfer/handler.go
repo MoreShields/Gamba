@@ -70,7 +70,7 @@ func (f *Feature) handleDonate(s *discordgo.Session, i *discordgo.InteractionCre
 		common.UpdateMessageWithError(s, i, fmt.Sprintf("Failed to create wager: %v", err))
 		return
 	}
-	_, err = f.userService.GetOrCreateUser(context.Background(), toDiscordID, i.User.Username)
+	_, err = f.userService.GetOrCreateUser(context.Background(), toDiscordID, i.Member.User.Username)
 	if err != nil {
 		common.UpdateMessageWithError(s, i, fmt.Sprintf("Failed to create wager: %v", err))
 		return

@@ -354,6 +354,13 @@ func (f *Feature) handleWagerVote(s *discordgo.Session, i *discordgo.Interaction
 		return
 	}
 
+	// Ensure user exists in the database
+	_, err = f.userService.GetOrCreateUser(context.Background(), voterID, i.Member.User.Username)
+	if err != nil {
+		common.RespondWithError(s, i, "Unable to get user from DB")
+		return
+	}
+
 	// Defer while processing
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredMessageUpdate,

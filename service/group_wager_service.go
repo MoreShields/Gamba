@@ -21,7 +21,7 @@ func NewGroupWagerService(uowFactory UnitOfWorkFactory) GroupWagerService {
 }
 
 // CreateGroupWager creates a new group wager with options
-func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int64, condition string, options []string, votingPeriodHours int, messageID, channelID int64) (*models.GroupWagerDetail, error) {
+func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int64, condition string, options []string, votingPeriodMinutes int, messageID, channelID int64) (*models.GroupWagerDetail, error) {
 	// Validate inputs
 	if condition == "" {
 		return nil, fmt.Errorf("condition cannot be empty")
@@ -29,8 +29,8 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int6
 	if len(options) < 2 {
 		return nil, fmt.Errorf("must provide at least 2 options")
 	}
-	if votingPeriodHours < 1 || votingPeriodHours > 168 {
-		return nil, fmt.Errorf("voting period must be between 1 and 168 hours")
+	if votingPeriodMinutes < 5 || votingPeriodMinutes > 10080 {
+		return nil, fmt.Errorf("voting period must be between 5 minutes and 168 hours (10080 minutes)")
 	}
 
 	// Create unit of work
@@ -51,20 +51,20 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int6
 
 	// Calculate voting period times
 	now := time.Now()
-	votingEndTime := now.Add(time.Duration(votingPeriodHours) * time.Hour)
+	votingEndTime := now.Add(time.Duration(votingPeriodMinutes) * time.Minute)
 
 	// Create the group wager
 	groupWager := &models.GroupWager{
-		CreatorDiscordID:  creatorID,
-		Condition:         condition,
-		State:             models.GroupWagerStateActive,
-		TotalPot:          0,
-		MinParticipants:   3,
-		VotingPeriodHours: votingPeriodHours,
-		VotingStartsAt:    &now,
-		VotingEndsAt:      &votingEndTime,
-		MessageID:         messageID,
-		ChannelID:         channelID,
+		CreatorDiscordID:    creatorID,
+		Condition:           condition,
+		State:               models.GroupWagerStateActive,
+		TotalPot:            0,
+		MinParticipants:     3,
+		VotingPeriodMinutes: votingPeriodMinutes,
+		VotingStartsAt:      &now,
+		VotingEndsAt:        &votingEndTime,
+		MessageID:           messageID,
+		ChannelID:           channelID,
 	}
 
 	// Note: We'll create the wager with options in one atomic operation below

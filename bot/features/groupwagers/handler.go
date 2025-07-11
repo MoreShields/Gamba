@@ -110,7 +110,7 @@ func (f *Feature) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo
 	}
 
 	// Parse and validate voting period
-	votingPeriodHours := 24 // Default value
+	votingPeriodMinutes := 1440 // Default value (24 hours)
 	if votingPeriodText != "" {
 		// Check if it's in hours:minutes format
 		if strings.Contains(votingPeriodText, ":") {
@@ -146,27 +146,26 @@ func (f *Feature) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo
 				return
 			}
 
-			// Convert to total hours (rounded up)
-			totalMinutes := hours*60 + minutes
-			votingPeriodHours = (totalMinutes + 59) / 60 // Round up to nearest hour
+			// Convert to total minutes
+			votingPeriodMinutes = hours*60 + minutes
 
 			// Validate total time
-			if totalMinutes < 5 {
+			if votingPeriodMinutes < 5 {
 				common.RespondWithError(s, i, "Voting period must be at least 5 minutes.")
 				return
 			}
 		} else {
 			// Parse as plain hours
-			var err error
-			votingPeriodHours, err = strconv.Atoi(votingPeriodText)
+			hours, err := strconv.Atoi(votingPeriodText)
 			if err != nil {
 				common.RespondWithError(s, i, "Voting period must be a valid number or time format (e.g., 1:30).")
 				return
 			}
+			votingPeriodMinutes = hours * 60
 		}
 
 		// Final validation
-		if votingPeriodHours > 168 {
+		if votingPeriodMinutes > 10080 {
 			common.RespondWithError(s, i, "Voting period must not exceed 168 hours (1 week).")
 			return
 		}
@@ -190,7 +189,7 @@ func (f *Feature) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo
 	}
 
 	// Create the group wager (message ID will be updated after posting)
-	groupWagerDetail, err := f.groupWagerService.CreateGroupWager(ctx, creatorID, condition, options, votingPeriodHours, 0, 0)
+	groupWagerDetail, err := f.groupWagerService.CreateGroupWager(ctx, creatorID, condition, options, votingPeriodMinutes, 0, 0)
 	if err != nil {
 		log.Printf("Error creating group wager: %v", err)
 		common.FollowUpWithError(s, i, fmt.Sprintf("Failed to create group wager: %v", err))
@@ -432,7 +431,13 @@ func (f *Feature) handleGroupWagerBetModal(s *discordgo.Session, i *discordgo.In
 	if err != nil {
 		log.Errorf("Error placing bet: %v", err)
 		common.RespondWithError(s, i, fmt.Sprintf("Failed to place bet: %v", err))
-		return
+
+		// Check if the error is due to voting period expiration
+		if strings.Contains(err.Error(), "voting period has ended") {
+			// Update the message to reflect the expired state
+			f.updateGroupWagerMessage(s, i.Message, groupWagerID)
+			return
+		}
 	}
 
 	// Respond with success

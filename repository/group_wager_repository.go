@@ -31,7 +31,7 @@ func (r *GroupWagerRepository) CreateWithOptions(ctx context.Context, wager *mod
 	query := `
 		INSERT INTO group_wagers (
 			creator_discord_id, condition, state, total_pot, 
-			min_participants, message_id, channel_id, voting_period_hours,
+			min_participants, message_id, channel_id, voting_period_minutes,
 			voting_starts_at, voting_ends_at
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
@@ -46,7 +46,7 @@ func (r *GroupWagerRepository) CreateWithOptions(ctx context.Context, wager *mod
 		wager.MinParticipants,
 		wager.MessageID,
 		wager.ChannelID,
-		wager.VotingPeriodHours,
+		wager.VotingPeriodMinutes,
 		wager.VotingStartsAt,
 		wager.VotingEndsAt,
 	).Scan(&wager.ID, &wager.CreatedAt)
@@ -157,7 +157,7 @@ func (r *GroupWagerRepository) GetByID(ctx context.Context, id int64) (*models.G
 		SELECT 
 			id, creator_discord_id, condition, state, resolver_discord_id,
 			winning_option_id, total_pot, min_participants, message_id, 
-			channel_id, voting_period_hours, voting_starts_at, voting_ends_at,
+			channel_id, voting_period_minutes, voting_starts_at, voting_ends_at,
 			created_at, resolved_at
 		FROM group_wagers
 		WHERE id = $1
@@ -175,7 +175,7 @@ func (r *GroupWagerRepository) GetByID(ctx context.Context, id int64) (*models.G
 		&wager.MinParticipants,
 		&wager.MessageID,
 		&wager.ChannelID,
-		&wager.VotingPeriodHours,
+		&wager.VotingPeriodMinutes,
 		&wager.VotingStartsAt,
 		&wager.VotingEndsAt,
 		&wager.CreatedAt,
@@ -198,7 +198,7 @@ func (r *GroupWagerRepository) GetByMessageID(ctx context.Context, messageID int
 		SELECT 
 			id, creator_discord_id, condition, state, resolver_discord_id,
 			winning_option_id, total_pot, min_participants, message_id, 
-			channel_id, voting_period_hours, voting_starts_at, voting_ends_at,
+			channel_id, voting_period_minutes, voting_starts_at, voting_ends_at,
 			created_at, resolved_at
 		FROM group_wagers
 		WHERE message_id = $1
@@ -216,7 +216,7 @@ func (r *GroupWagerRepository) GetByMessageID(ctx context.Context, messageID int
 		&wager.MinParticipants,
 		&wager.MessageID,
 		&wager.ChannelID,
-		&wager.VotingPeriodHours,
+		&wager.VotingPeriodMinutes,
 		&wager.VotingStartsAt,
 		&wager.VotingEndsAt,
 		&wager.CreatedAt,
@@ -239,7 +239,7 @@ func (r *GroupWagerRepository) Update(ctx context.Context, wager *models.GroupWa
 		UPDATE group_wagers
 		SET state = $2, resolver_discord_id = $3, winning_option_id = $4,
 		    total_pot = $5, resolved_at = $6, message_id = $7, channel_id = $8,
-		    voting_period_hours = $9, voting_starts_at = $10, voting_ends_at = $11
+		    voting_period_minutes = $9, voting_starts_at = $10, voting_ends_at = $11
 		WHERE id = $1
 	`
 
@@ -252,7 +252,7 @@ func (r *GroupWagerRepository) Update(ctx context.Context, wager *models.GroupWa
 		wager.ResolvedAt,
 		wager.MessageID,
 		wager.ChannelID,
-		wager.VotingPeriodHours,
+		wager.VotingPeriodMinutes,
 		wager.VotingStartsAt,
 		wager.VotingEndsAt,
 	)
@@ -274,7 +274,7 @@ func (r *GroupWagerRepository) GetActiveByUser(ctx context.Context, discordID in
 		SELECT DISTINCT
 			gw.id, gw.creator_discord_id, gw.condition, gw.state, gw.resolver_discord_id,
 			gw.winning_option_id, gw.total_pot, gw.min_participants, gw.message_id, 
-			gw.channel_id, gw.voting_period_hours, gw.voting_starts_at, gw.voting_ends_at,
+			gw.channel_id, gw.voting_period_minutes, gw.voting_starts_at, gw.voting_ends_at,
 			gw.created_at, gw.resolved_at
 		FROM group_wagers gw
 		JOIN group_wager_participants gwp ON gwp.group_wager_id = gw.id
@@ -302,7 +302,7 @@ func (r *GroupWagerRepository) GetActiveByUser(ctx context.Context, discordID in
 			&wager.MinParticipants,
 			&wager.MessageID,
 			&wager.ChannelID,
-			&wager.VotingPeriodHours,
+			&wager.VotingPeriodMinutes,
 			&wager.VotingStartsAt,
 			&wager.VotingEndsAt,
 			&wager.CreatedAt,
@@ -327,7 +327,7 @@ func (r *GroupWagerRepository) GetAll(ctx context.Context, state *models.GroupWa
 			SELECT 
 				id, creator_discord_id, condition, state, resolver_discord_id,
 				winning_option_id, total_pot, min_participants, message_id, 
-				channel_id, voting_period_hours, voting_starts_at, voting_ends_at,
+				channel_id, voting_period_minutes, voting_starts_at, voting_ends_at,
 				created_at, resolved_at
 			FROM group_wagers
 			WHERE state = $1
@@ -339,7 +339,7 @@ func (r *GroupWagerRepository) GetAll(ctx context.Context, state *models.GroupWa
 			SELECT 
 				id, creator_discord_id, condition, state, resolver_discord_id,
 				winning_option_id, total_pot, min_participants, message_id, 
-				channel_id, voting_period_hours, voting_starts_at, voting_ends_at,
+				channel_id, voting_period_minutes, voting_starts_at, voting_ends_at,
 				created_at, resolved_at
 			FROM group_wagers
 			ORDER BY created_at DESC
@@ -366,7 +366,7 @@ func (r *GroupWagerRepository) GetAll(ctx context.Context, state *models.GroupWa
 			&wager.MinParticipants,
 			&wager.MessageID,
 			&wager.ChannelID,
-			&wager.VotingPeriodHours,
+			&wager.VotingPeriodMinutes,
 			&wager.VotingStartsAt,
 			&wager.VotingEndsAt,
 			&wager.CreatedAt,

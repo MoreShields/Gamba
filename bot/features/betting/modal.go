@@ -15,9 +15,10 @@ func buildBetAmountModal(odds float64, balance int64, remainingLimit int64) *dis
 	// Build label with balance and daily limit info
 	label := fmt.Sprintf("Bet Amount (Balance: %s bits)", common.FormatBalance(balance))
 	if remainingLimit > 0 {
-		label = fmt.Sprintf("Bet Amount (Balance: %s | Daily Limit: %s remaining)",
+		label = fmt.Sprintf("Bet Amount (Balance: %s)",
 			common.FormatBalance(balance),
-			common.FormatBalance(remainingLimit))
+			//common.FormatBalance(remainingLimit))
+		)
 	}
 
 	return &discordgo.InteractionResponseData{
