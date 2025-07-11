@@ -1,7 +1,8 @@
 package groupwagers
+
 import (
-	"gambler/bot/common"
 	"fmt"
+	"gambler/bot/common"
 	"gambler/models"
 	"sort"
 	"strings"
@@ -9,17 +10,57 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+// createProgressBar generates a visual progress bar using Unicode block characters
+func createProgressBar(percentage float64, length int) string {
+	if percentage < 0 {
+		percentage = 0
+	}
+	if percentage > 100 {
+		percentage = 100
+	}
+
+	filled := int(float64(length) * percentage / 100)
+	if filled > length {
+		filled = length
+	}
+
+	bar := strings.Repeat("█", filled)
+	bar += strings.Repeat("░", length-filled)
+
+	return bar
+}
+
+// getMultiplierEmoji returns an emoji indicator based on the multiplier value
+func getMultiplierEmoji(multiplier float64) string {
+	if multiplier < 1.5 {
+		return "🟩" // Green - favorite
+	} else if multiplier < 3.0 {
+		return "🟨" // Yellow - moderate
+	}
+	return "🟥" // Red - underdog
+}
+
+// formatCompactAmount formats large amounts in a compact way (e.g., 1.2M, 500K)
+func formatCompactAmount(amount int64) string {
+	if amount >= 1000000 {
+		return fmt.Sprintf("%.1fM", float64(amount)/1000000)
+	} else if amount >= 1000 {
+		return fmt.Sprintf("%.0fK", float64(amount)/1000)
+	}
+	return fmt.Sprintf("%d", amount)
+}
+
 // createGroupWagerEmbed creates an embed for a group wager
 func createGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEmbed {
 	// Build description with pot info and voting period
 	description := fmt.Sprintf("**Total Pot: %s bits**", common.FormatBalance(detail.Wager.TotalPot))
 	
-	// Add voting period information for active wagers
+	// Add voting period information for active wagers in orange
 	if detail.Wager.State == models.GroupWagerStateActive && detail.Wager.VotingEndsAt != nil {
 		if detail.Wager.IsVotingPeriodActive() {
-			description += fmt.Sprintf("\n**Voting ends: <t:%d:R>**", detail.Wager.VotingEndsAt.Unix())
+			description += fmt.Sprintf("\n🟠 **Voting ends: <t:%d:R>**", detail.Wager.VotingEndsAt.Unix())
 		} else {
-			description += fmt.Sprintf("\n**Voting ended: <t:%d:R>**", detail.Wager.VotingEndsAt.Unix())
+			description += fmt.Sprintf("\n🟠 **Voting ended: <t:%d:R>**", detail.Wager.VotingEndsAt.Unix())
 		}
 	}
 
@@ -36,25 +77,84 @@ func createGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEm
 	// Group participants by option
 	participantsByOption := detail.GetParticipantsByOption()
 
-	// Add fields for each option
-	for _, option := range detail.Options {
+	// Sort options by order for consistent display
+	sortedOptions := make([]*models.GroupWagerOption, len(detail.Options))
+	copy(sortedOptions, detail.Options)
+	sort.Slice(sortedOptions, func(i, j int) bool {
+		return sortedOptions[i].OptionOrder < sortedOptions[j].OptionOrder
+	})
+
+	// Add pot distribution header
+	if detail.Wager.TotalPot > 0 && len(sortedOptions) > 0 {
+		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
+			Name:   "📊 **Pot Distribution**",
+			Value:  " ", // Empty space for visual separation
+			Inline: false,
+		})
+	}
+
+	// Add fields for each option with visual progress bars
+	for _, option := range sortedOptions {
 		participants := participantsByOption[option.ID]
 
-		// Build participant list
-		var participantList []string
-		for _, p := range participants {
-			participantList = append(participantList, fmt.Sprintf("<@%d>: %s bits", p.DiscordID, common.FormatBalance(p.Amount)))
+		// Calculate percentage of total pot
+		percentage := float64(0)
+		if detail.Wager.TotalPot > 0 {
+			percentage = float64(option.TotalAmount) * 100 / float64(detail.Wager.TotalPot)
 		}
 
 		// Calculate multiplier
 		multiplier := option.CalculateMultiplier(detail.Wager.TotalPot)
 
-		fieldValue := fmt.Sprintf("**Total: %s bits** (%.2fx multiplier)\n", common.FormatBalance(option.TotalAmount), multiplier)
-		if len(participantList) > 0 {
-			fieldValue += strings.Join(participantList, "\n")
+		// Build the visual bar graph line
+		multiplierEmoji := getMultiplierEmoji(multiplier)
+		progressBar := createProgressBar(percentage, 25)
+
+		// Format the main stats line with fixed widths for vertical alignment
+		// Use backticks to ensure monospace rendering in Discord
+		statsLine := fmt.Sprintf("%s `%s` • %-7s • %5.2fx",
+			multiplierEmoji,
+			progressBar,
+			formatCompactAmount(option.TotalAmount)+" bits",
+			multiplier)
+
+		// Build participant info
+		var participantInfo string
+		if len(participants) > 0 {
+			// Sort participants by amount (highest first)
+			sortedParticipants := make([]*models.GroupWagerParticipant, len(participants))
+			copy(sortedParticipants, participants)
+			sort.Slice(sortedParticipants, func(i, j int) bool {
+				return sortedParticipants[i].Amount > sortedParticipants[j].Amount
+			})
+
+			// Build participant list with amounts
+			participantTags := make([]string, 0, len(sortedParticipants))
+			for _, p := range sortedParticipants {
+				participantTags = append(participantTags, fmt.Sprintf("<@%d> - %s", p.DiscordID, formatCompactAmount(p.Amount)))
+			}
+
+			// Format participant line with clean delineation
+			if len(participants) == 1 {
+				participantInfo = participantTags[0]
+			} else {
+				// Join with bullet points for clean separation
+				participantInfo = strings.Join(participantTags, " • ")
+			}
 		} else {
-			fieldValue += "*No participants yet*"
+			participantInfo = "*No participants yet*"
 		}
+
+		// Determine option status label
+		statusLabel := ""
+		if percentage > 50 {
+			statusLabel = " (Favorite)"
+		} else if len(participants) > 0 && percentage < 20 {
+			statusLabel = " (Underdog)"
+		}
+
+		// Combine all parts into field value
+		fieldValue := statsLine + "\n" + participantInfo
 
 		// Truncate if too long
 		if len(fieldValue) > 1024 {
@@ -62,8 +162,54 @@ func createGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEm
 		}
 
 		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
-			Name:   fmt.Sprintf("Option %d: %s", option.OptionOrder+1, option.OptionText),
+			Name:   fmt.Sprintf("Option %d: %s%s", option.OptionOrder+1, option.OptionText, statusLabel),
 			Value:  fieldValue,
+			Inline: false,
+		})
+	}
+
+	// Add summary statistics field
+	if len(detail.Participants) > 0 && detail.Wager.TotalPot > 0 {
+		// Count options with bets
+		optionsWithBets := 0
+		for _, option := range detail.Options {
+			if option.TotalAmount > 0 {
+				optionsWithBets++
+			}
+		}
+
+		// Find favorite and underdog
+		var favorite, underdog *models.GroupWagerOption
+		var lowestMultiplier, highestMultiplier float64 = 999, 0
+
+		for _, option := range detail.Options {
+			if option.TotalAmount > 0 {
+				multiplier := option.CalculateMultiplier(detail.Wager.TotalPot)
+				if multiplier < lowestMultiplier {
+					lowestMultiplier = multiplier
+					favorite = option
+				}
+				if multiplier > highestMultiplier {
+					highestMultiplier = multiplier
+					underdog = option
+				}
+			}
+		}
+
+		summaryParts := []string{
+			fmt.Sprintf("**%d** total participants", len(detail.Participants)),
+			fmt.Sprintf("**%d** options with bets", optionsWithBets),
+		}
+
+		if favorite != nil && underdog != nil && favorite.ID != underdog.ID {
+			summaryParts = append(summaryParts,
+				fmt.Sprintf("Favorite: **%s** (%.2fx)", favorite.OptionText, lowestMultiplier),
+				fmt.Sprintf("Underdog: **%s** (%.2fx)", underdog.OptionText, highestMultiplier))
+		}
+
+		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
+			Name:   "📈 **Stats**",
+			Value:  strings.Join(summaryParts, " • "),
 			Inline: false,
 		})
 	}
@@ -126,7 +272,7 @@ func createGroupWagerComponents(detail *models.GroupWagerDetail) []discordgo.Mes
 	if detail.Wager.IsActive() && detail.Wager.IsVotingPeriodActive() {
 		return createActiveWagerComponents(detail)
 	}
-	
+
 	// No components for resolved, cancelled, or expired wagers
 	return []discordgo.MessageComponent{}
 }

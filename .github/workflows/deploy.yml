@@ -30,11 +30,14 @@ jobs:
     - name: Deploy to EC2
       run: |
         ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-          # Navigate to deployment directory
-          cd /opt/gamba
+          # Remove existing deployment directory and create fresh clone
+          sudo rm -rf /opt/gamba
+          sudo mkdir -p /opt
+          cd /opt
           
-          # Pull latest code (for docker-compose file updates)
-          git pull origin main
+          # Fresh shallow clone of the repository
+          sudo git clone --depth 1 https://github.com/${{ github.repository }}.git gamba
+          cd gamba
           
           # Login to GitHub Container Registry
           echo ${{ secrets.GITHUB_TOKEN }} | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin

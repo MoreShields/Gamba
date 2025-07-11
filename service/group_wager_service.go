@@ -53,7 +53,7 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int6
 	// Calculate voting period times
 	now := time.Now()
 	votingEndTime := now.Add(time.Duration(votingPeriodHours) * time.Hour)
-	
+
 	// Create the group wager
 	groupWager := &models.GroupWager{
 		CreatorDiscordID:  creatorID,
@@ -74,9 +74,9 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int6
 	var wagerOptions []*models.GroupWagerOption
 	for i, optionText := range options {
 		option := &models.GroupWagerOption{
-			OptionText:   optionText,
-			OptionOrder:  int16(i),
-			TotalAmount:  0,
+			OptionText:  optionText,
+			OptionOrder: int16(i),
+			TotalAmount: 0,
 		}
 		wagerOptions = append(wagerOptions, option)
 	}
@@ -551,4 +551,3 @@ func (s *groupWagerService) UpdateMessageIDs(ctx context.Context, groupWagerID i
 
 	return nil
 }
-
