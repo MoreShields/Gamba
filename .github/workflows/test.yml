@@ -46,11 +46,13 @@ jobs:
       run: go mod download
 
     - name: Run unit tests
+      env:
+        ENVIRONMENT: test
       run: go test -v -short ./...
 
     - name: Run integration tests
       env:
-        DATABASE_URL: postgres://gambler:testpassword@localhost:5432/gambler_test?sslmode=disable
+        ENVIRONMENT: test
       run: go test -v ./repository/...
 
     - name: Upload test coverage

@@ -14,10 +14,9 @@ type groupWagerService struct {
 }
 
 // NewGroupWagerService creates a new group wager service
-func NewGroupWagerService(uowFactory UnitOfWorkFactory, cfg *config.Config) GroupWagerService {
+func NewGroupWagerService(uowFactory UnitOfWorkFactory) GroupWagerService {
 	return &groupWagerService{
 		uowFactory: uowFactory,
-		config:     cfg,
 	}
 }
 
@@ -513,7 +512,7 @@ func (s *groupWagerService) GetActiveGroupWagersByUser(ctx context.Context, disc
 
 // IsResolver checks if a user can resolve group wagers
 func (s *groupWagerService) IsResolver(discordID int64) bool {
-	for _, resolverID := range s.config.ResolverDiscordIDs {
+	for _, resolverID := range config.Get().ResolverDiscordIDs {
 		if discordID == resolverID {
 			return true
 		}

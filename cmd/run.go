@@ -47,9 +47,8 @@ func Run(ctx context.Context) error {
 	transferService := service.NewTransferService(uowFactory)
 	wagerService := service.NewWagerService(uowFactory)
 	statsService := service.NewStatsService(uowFactory)
-	groupWagerService := service.NewGroupWagerService(uowFactory, cfg)
+	groupWagerService := service.NewGroupWagerService(uowFactory)
 	log.Println("Services initialized successfully")
-
 
 	// Initialize Discord bot
 	log.Println("Initializing Discord bot...")
@@ -68,7 +67,6 @@ func Run(ctx context.Context) error {
 		return fmt.Errorf("failed to initialize Discord bot: %w", err)
 	}
 	log.Println("Discord bot initialized successfully")
-
 
 	// Wait for context cancellation
 	log.Printf("Bot is running in %s mode...", cfg.Environment)

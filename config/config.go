@@ -103,12 +103,14 @@ func load() (*Config, error) {
 		config.Environment = "development"
 	}
 
-	// Validate required configuration
-	if config.DiscordToken == "" {
-		return nil, fmt.Errorf("DISCORD_TOKEN is required")
-	}
-	if config.DatabaseURL == "" {
-		return nil, fmt.Errorf("DATABASE_URL is required")
+	if config.Environment != "test" {
+		// Validate required configuration
+		if config.DiscordToken == "" {
+			return nil, fmt.Errorf("DISCORD_TOKEN is required")
+		}
+		if config.DatabaseURL == "" {
+			return nil, fmt.Errorf("DATABASE_URL is required")
+		}
 	}
 
 	return config, nil

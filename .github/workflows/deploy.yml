@@ -5,13 +5,10 @@ on:
     workflows: ["Build and Push Docker Image"]
     types:
       - completed
-    branches: [main]
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  DATABASE_URL: ${{ secrets.DATABASE_URL }}
-  DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
 
 jobs:
   deploy:
@@ -30,9 +27,19 @@ jobs:
         ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
     - name: Deploy to EC2
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+        DISCORD_GUILD_ID: ${{ secrets.DISCORD_GUILD_ID }}
+        HIGH_ROLLER_ENABLED: ${{ vars.HIGH_ROLLER_ENABLED }}
+        HIGH_ROLLER_ROLE_ID: ${{ vars.HIGH_ROLLER_ROLE_ID }}
+        STARTING_BALANCE: ${{ vars.STARTING_BALANCE }}
+        RESOLVER_DISCORD_IDS: ${{ vars.RESOLVER_DISCORD_IDS }}
       run: |
-        ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-          # Use user's home directory for deployment
+        ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
+          "DATABASE_URL='$DATABASE_URL' DISCORD_TOKEN='$DISCORD_TOKEN' HIGH_ROLLER_ENABLED='$HIGH_ROLLER_ENABLED' HIGH_ROLLER_ROLE_ID='$HIGH_ROLLER_ROLE_ID' RESOLVER_DISCORD_IDS='$RESOLVER_DISCORD_IDS' bash -s" << 'EOF'
+          
+          # Use user's home dir for deployment
           cd ~
           
           # Remove existing deployment directory and create fresh clone
@@ -50,8 +57,16 @@ jobs:
           
           # Stop current containers
           docker-compose down
+
+          echo $DATABASE_URL > db_url_env.txt
+
           
-          # Start services (migrations will run first due to depends_on)
+          # Start services with environment variables (migrations will run first due to depends_on)
+          DATABASE_URL=$DATABASE_URL \
+          DISCORD_TOKEN=$DISCORD_TOKEN \
+          HIGH_ROLLER_ENABLED=$HIGH_ROLLER_ENABLED \
+          HIGH_ROLLER_ROLE_ID=$HIGH_ROLLER_ROLE_ID \
+          RESOLVER_DISCORD_IDS=$RESOLVER_DISCORD_IDS \
           docker-compose up -d
           
           # Clean up old images

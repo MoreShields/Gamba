@@ -20,9 +20,14 @@ services:
       
       # Bot configuration
       STARTING_BALANCE: ${STARTING_BALANCE:-100000}
+      HIGH_ROLLER_ROLE_ID: ${HIGH_ROLLER_ROLE_ID}
+      HIGH_ROLLER_ENABLED: ${HIGH_ROLLER_ENABLED}
       
       # Environment
       ENVIRONMENT: production
+
+      # group wager resolver user IDs
+      RESOLVER_DISCORD_IDS: ${RESOLVER_DISCORD_IDS}
       
     restart: unless-stopped
     network_mode: host  # Access host's postgres instance
