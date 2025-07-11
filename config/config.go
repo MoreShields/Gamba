@@ -25,6 +25,7 @@ type Config struct {
 	// High Roller Role configuration
 	HighRollerRoleID  string
 	HighRollerEnabled bool
+	GambaChannelID    string // Channel ID for high roller change notifications
 
 	// Group Wager configuration
 	ResolverDiscordIDs []int64 // Discord IDs that can resolve group wagers
@@ -68,6 +69,7 @@ func load() (*Config, error) {
 		// High Roller Role
 		HighRollerRoleID:  os.Getenv("HIGH_ROLLER_ROLE_ID"),
 		HighRollerEnabled: os.Getenv("HIGH_ROLLER_ENABLED") == "true",
+		GambaChannelID:    os.Getenv("GAMBA_CHANNEL_ID"),
 
 		// Environment
 		Environment: os.Getenv("ENVIRONMENT"),

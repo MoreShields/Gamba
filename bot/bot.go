@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"gambler/bot/common"
 	"gambler/bot/features/balance"
 	"gambler/bot/features/betting"
 	"gambler/bot/features/groupwagers"
@@ -14,6 +15,7 @@ import (
 	"gambler/bot/features/transfer"
 	"gambler/bot/features/wagers"
 	"gambler/events"
+	"gambler/models"
 	"gambler/service"
 
 	"github.com/bwmarrin/discordgo"
@@ -26,6 +28,7 @@ type Config struct {
 	GuildID           string
 	HighRollerRoleID  string
 	HighRollerEnabled bool
+	GambaChannelID    string
 }
 
 // Bot manages the Discord bot and all feature modules
@@ -34,6 +37,9 @@ type Bot struct {
 	config   Config
 	session  *discordgo.Session
 	eventBus *events.Bus
+
+	// High roller tracking
+	lastHighRollerID int64
 
 	// Services
 	userService       service.UserService
@@ -160,6 +166,16 @@ func (b *Bot) updateHighRollerRole(ctx context.Context) error {
 		return nil
 	}
 
+	// Check if the high roller has changed
+	hasChanged := b.lastHighRollerID != highRoller.DiscordID
+	if hasChanged && b.lastHighRollerID != 0 {
+		// Post notification message in the gamba channel
+		b.postHighRollerChangeMessage(ctx, highRoller)
+	}
+	
+	// Update the tracked high roller
+	b.lastHighRollerID = highRoller.DiscordID
+
 	// Get all guild members with the high roller role
 	members, err := b.session.GuildMembers(b.config.GuildID, "", 1000)
 	if err != nil {
@@ -208,6 +224,54 @@ func (b *Bot) updateHighRollerRole(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// postHighRollerChangeMessage posts a message to the gamba channel when the high roller changes
+func (b *Bot) postHighRollerChangeMessage(ctx context.Context, newHighRoller *models.User) {
+	if b.config.GambaChannelID == "" {
+		return
+	}
+
+	// Get the scoreboard
+	scoreboard, err := b.statsService.GetScoreboard(ctx, 10)
+	if err != nil {
+		log.Errorf("Failed to get scoreboard for high roller notification: %v", err)
+		return
+	}
+
+	// Convert scoreboard entries to users for the embed
+	var users []models.User
+	for _, entry := range scoreboard {
+		user := models.User{
+			DiscordID: entry.DiscordID,
+			Username:  entry.Username,
+			Balance:   entry.TotalBalance,
+		}
+		users = append(users, user)
+	}
+
+	// Create the scoreboard embed
+	embed := stats.BuildScoreboardEmbed(users, b.session, b.config.GuildID)
+	
+	// Update the title to indicate a new high roller
+	embed.Title = "👑 NEW HIGH ROLLER! 👑"
+	
+	// Create the message content with mention
+	highRollerDiscordID := strconv.FormatInt(newHighRoller.DiscordID, 10)
+	content := fmt.Sprintf("🎉 Congratulations <@%s>! You are now the high roller with **%s bits**! 🎉", 
+		highRollerDiscordID, common.FormatBalance(newHighRoller.Balance))
+
+	// Send the message
+	_, err = b.session.ChannelMessageSendComplex(b.config.GambaChannelID, &discordgo.MessageSend{
+		Content: content,
+		Embeds:  []*discordgo.MessageEmbed{embed},
+	})
+
+	if err != nil {
+		log.Errorf("Failed to send high roller change message to channel %s: %v", b.config.GambaChannelID, err)
+	} else {
+		log.Infof("Posted high roller change notification for user %d", newHighRoller.DiscordID)
+	}
 }
 
 // handleCommands routes slash commands to appropriate handlers

@@ -57,6 +57,7 @@ func Run(ctx context.Context) error {
 		GuildID:           cfg.DiscordGuildID,
 		HighRollerRoleID:  cfg.HighRollerRoleID,
 		HighRollerEnabled: cfg.HighRollerEnabled,
+		GambaChannelID:    cfg.GambaChannelID,
 	}
 	gamblingConfig := &betting.GamblingConfig{
 		DailyGambleLimit:    cfg.DailyGambleLimit,
