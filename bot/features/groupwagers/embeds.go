@@ -52,26 +52,37 @@ func formatCompactAmount(amount int64) string {
 
 // createGroupWagerEmbed creates an embed for a group wager
 func createGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEmbed {
-	// Build description with pot info and voting period
-	description := fmt.Sprintf("**Total Pot: %s bits**", common.FormatBalance(detail.Wager.TotalPot))
-	
-	// Add voting period information for active wagers in orange
-	if detail.Wager.State == models.GroupWagerStateActive && detail.Wager.VotingEndsAt != nil {
-		if detail.Wager.IsVotingPeriodActive() {
-			description += fmt.Sprintf("\n🟠 **Voting ends: <t:%d:R>**", detail.Wager.VotingEndsAt.Unix())
-		} else {
-			description += fmt.Sprintf("\n🟠 **Voting ended: <t:%d:R>**", detail.Wager.VotingEndsAt.Unix())
-		}
-	}
-
 	embed := &discordgo.MessageEmbed{
-		Title:       detail.Wager.Condition,
-		Description: description,
-		Color:       common.ColorWarning,
+		Title: detail.Wager.Condition,
+		Color: common.ColorWarning,
 		Footer: &discordgo.MessageEmbedFooter{
 			Text: fmt.Sprintf("Group Wager ID: %d", detail.Wager.ID),
 		},
 		Timestamp: detail.Wager.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+	}
+
+	// Add inline fields for pot and voting info
+	embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
+		Name:   "Total Pot",
+		Value:  fmt.Sprintf("**%s bits**", common.FormatBalance(detail.Wager.TotalPot)),
+		Inline: true,
+	})
+
+	// Add voting period information for active wagers
+	if detail.Wager.State == models.GroupWagerStateActive && detail.Wager.VotingEndsAt != nil {
+		if detail.Wager.IsVotingPeriodActive() {
+			embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
+				Name:   "🟢 Voting Open",
+				Value:  fmt.Sprintf("**Ends <t:%d:R>**", detail.Wager.VotingEndsAt.Unix()),
+				Inline: true,
+			})
+		} else {
+			embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
+				Name:   "🟠 Voting Closed",
+				Value:  fmt.Sprintf("**Ended <t:%d:R>**", detail.Wager.VotingEndsAt.Unix()),
+				Inline: true,
+			})
+		}
 	}
 
 	// Group participants by option
@@ -83,15 +94,6 @@ func createGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEm
 	sort.Slice(sortedOptions, func(i, j int) bool {
 		return sortedOptions[i].OptionOrder < sortedOptions[j].OptionOrder
 	})
-
-	// Add pot distribution header
-	if detail.Wager.TotalPot > 0 && len(sortedOptions) > 0 {
-		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
-			Name:   "📊 **Pot Distribution**",
-			Value:  " ", // Empty space for visual separation
-			Inline: false,
-		})
-	}
 
 	// Add fields for each option with visual progress bars
 	for _, option := range sortedOptions {
@@ -177,41 +179,6 @@ func createGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEm
 				optionsWithBets++
 			}
 		}
-
-		// Find favorite and underdog
-		var favorite, underdog *models.GroupWagerOption
-		var lowestMultiplier, highestMultiplier float64 = 999, 0
-
-		for _, option := range detail.Options {
-			if option.TotalAmount > 0 {
-				multiplier := option.CalculateMultiplier(detail.Wager.TotalPot)
-				if multiplier < lowestMultiplier {
-					lowestMultiplier = multiplier
-					favorite = option
-				}
-				if multiplier > highestMultiplier {
-					highestMultiplier = multiplier
-					underdog = option
-				}
-			}
-		}
-
-		summaryParts := []string{
-			fmt.Sprintf("**%d** total participants", len(detail.Participants)),
-			fmt.Sprintf("**%d** options with bets", optionsWithBets),
-		}
-
-		if favorite != nil && underdog != nil && favorite.ID != underdog.ID {
-			summaryParts = append(summaryParts,
-				fmt.Sprintf("Favorite: **%s** (%.2fx)", favorite.OptionText, lowestMultiplier),
-				fmt.Sprintf("Underdog: **%s** (%.2fx)", underdog.OptionText, highestMultiplier))
-		}
-
-		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
-			Name:   "📈 **Stats**",
-			Value:  strings.Join(summaryParts, " • "),
-			Inline: false,
-		})
 	}
 
 	// Update color based on state
@@ -241,6 +208,8 @@ func createGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEm
 	participantCount := len(detail.Participants)
 	if participantCount < detail.Wager.MinParticipants && detail.Wager.IsActive() {
 		embed.Footer.Text += fmt.Sprintf(" | Need %d more participants", detail.Wager.MinParticipants-participantCount)
+	} else {
+		embed.Footer.Text += fmt.Sprintf(" | %d participants", len(detail.Participants))
 	}
 
 	return embed

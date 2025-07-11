@@ -26,7 +26,7 @@ func (f *Feature) handleGroupWagerCreate(s *discordgo.Session, i *discordgo.Inte
 							CustomID:    "condition",
 							Label:       "Wager Condition",
 							Style:       discordgo.TextInputShort,
-							Placeholder: "e.g., Who will win Worlds?",
+							Placeholder: "Who will win Worlds?",
 							Required:    true,
 							MaxLength:   200,
 						},
@@ -48,11 +48,11 @@ func (f *Feature) handleGroupWagerCreate(s *discordgo.Session, i *discordgo.Inte
 					Components: []discordgo.MessageComponent{
 						discordgo.TextInput{
 							CustomID:    "voting_period",
-							Label:       "Voting Period (hours, default: 24)",
+							Label:       "Voting Period",
 							Style:       discordgo.TextInputShort,
-							Placeholder: "24",
+							Placeholder: "24, 1:30, :45",
 							Required:    false,
-							MaxLength:   3,
+							MaxLength:   10,
 						},
 					},
 				},
@@ -112,14 +112,62 @@ func (f *Feature) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo
 	// Parse and validate voting period
 	votingPeriodHours := 24 // Default value
 	if votingPeriodText != "" {
-		var err error
-		votingPeriodHours, err = strconv.Atoi(votingPeriodText)
-		if err != nil {
-			common.RespondWithError(s, i, "Voting period must be a valid number.")
-			return
+		// Check if it's in hours:minutes format
+		if strings.Contains(votingPeriodText, ":") {
+			parts := strings.Split(votingPeriodText, ":")
+			if len(parts) != 2 {
+				common.RespondWithError(s, i, "Invalid time format. Use hours:minutes (e.g., 1:30) or just hours (e.g., 24).")
+				return
+			}
+
+			// Parse hours
+			hoursStr := strings.TrimSpace(parts[0])
+			hours := 0
+			if hoursStr != "" {
+				var err error
+				hours, err = strconv.Atoi(hoursStr)
+				if err != nil {
+					common.RespondWithError(s, i, "Invalid hours value.")
+					return
+				}
+			}
+
+			// Parse minutes
+			minutesStr := strings.TrimSpace(parts[1])
+			minutes, err := strconv.Atoi(minutesStr)
+			if err != nil {
+				common.RespondWithError(s, i, "Invalid minutes value.")
+				return
+			}
+
+			// Validate minutes
+			if minutes < 0 || minutes >= 60 {
+				common.RespondWithError(s, i, "Minutes must be between 0 and 59.")
+				return
+			}
+
+			// Convert to total hours (rounded up)
+			totalMinutes := hours*60 + minutes
+			votingPeriodHours = (totalMinutes + 59) / 60 // Round up to nearest hour
+
+			// Validate total time
+			if totalMinutes < 5 {
+				common.RespondWithError(s, i, "Voting period must be at least 5 minutes.")
+				return
+			}
+		} else {
+			// Parse as plain hours
+			var err error
+			votingPeriodHours, err = strconv.Atoi(votingPeriodText)
+			if err != nil {
+				common.RespondWithError(s, i, "Voting period must be a valid number or time format (e.g., 1:30).")
+				return
+			}
 		}
-		if votingPeriodHours < 1 || votingPeriodHours > 168 {
-			common.RespondWithError(s, i, "Voting period must be between 1 and 168 hours (1 week).")
+
+		// Final validation
+		if votingPeriodHours > 168 {
+			common.RespondWithError(s, i, "Voting period must not exceed 168 hours (1 week).")
 			return
 		}
 	}

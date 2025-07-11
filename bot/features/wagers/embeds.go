@@ -1,7 +1,8 @@
 package wagers
+
 import (
-	"gambler/bot/common"
 	"fmt"
+	"gambler/bot/common"
 	"time"
 
 	"gambler/models"
@@ -13,7 +14,7 @@ import (
 func BuildWagerProposedEmbed(wager *models.Wager, proposerName, targetName string) *discordgo.MessageEmbed {
 	embed := &discordgo.MessageEmbed{
 		Title:       "⚔️ Wager Proposed",
-		Description: fmt.Sprintf("**%s** challenges **%s**!", proposerName, targetName),
+		Description: fmt.Sprintf("**%s** challenges %s!", common.GetUserMention(wager.ProposerDiscordID), common.GetUserMention(wager.TargetDiscordID)),
 		Color:       common.ColorWarning,
 		Fields: []*discordgo.MessageEmbedField{
 			{
@@ -28,7 +29,7 @@ func BuildWagerProposedEmbed(wager *models.Wager, proposerName, targetName strin
 			},
 		},
 		Footer: &discordgo.MessageEmbedFooter{
-			Text: fmt.Sprintf("___________________________________________________\nOnly %s can respond • %d", targetName, wager.ID),
+			Text: fmt.Sprintf("___________________________________________________\nID: %d • Only %s can respond", wager.ID, targetName),
 		},
 		Timestamp: wager.CreatedAt.Format(time.RFC3339),
 	}
