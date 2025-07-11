@@ -75,8 +75,12 @@ func (f *Feature) handleOddsSelection(s *discordgo.Session, i *discordgo.Interac
 	// Update session balance
 	updateSessionBalance(discordID, user.AvailableBalance, false)
 
+	// Check remaining daily limit
+	remainingLimit, _ := f.gamblingService.CheckDailyLimit(ctx, discordID, 1)
+	// If error, remainingLimit will be 0 which is fine - we'll just not show the limit
+
 	// Show bet amount modal
-	modal := buildBetAmountModal(odds, user.AvailableBalance)
+	modal := buildBetAmountModal(odds, user.AvailableBalance, remainingLimit)
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseModal,
 		Data: modal,

@@ -9,8 +9,16 @@ import (
 )
 
 // buildBetAmountModal creates the modal for entering bet amount
-func buildBetAmountModal(odds float64, balance int64) *discordgo.InteractionResponseData {
+func buildBetAmountModal(odds float64, balance int64, remainingLimit int64) *discordgo.InteractionResponseData {
 	percentage := int(odds * 100)
+
+	// Build label with balance and daily limit info
+	label := fmt.Sprintf("Bet Amount (Balance: %s bits)", common.FormatBalance(balance))
+	if remainingLimit > 0 {
+		label = fmt.Sprintf("Bet Amount (Balance: %s | Daily Limit: %s remaining)", 
+			common.FormatBalance(balance), 
+			common.FormatBalance(remainingLimit))
+	}
 
 	return &discordgo.InteractionResponseData{
 		CustomID: "bet_amount_modal",
@@ -20,7 +28,7 @@ func buildBetAmountModal(odds float64, balance int64) *discordgo.InteractionResp
 				Components: []discordgo.MessageComponent{
 					discordgo.TextInput{
 						CustomID:    "bet_amount_input",
-						Label:       fmt.Sprintf("Bet Amount (Balance: %s bits)", common.FormatBalance(balance)),
+						Label:       label,
 						Style:       discordgo.TextInputShort,
 						Placeholder: "Enter amount to bet",
 						Required:    true,

@@ -30,13 +30,14 @@ jobs:
     - name: Deploy to EC2
       run: |
         ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+          # Use user's home directory for deployment
+          cd ~
+          
           # Remove existing deployment directory and create fresh clone
-          sudo rm -rf /opt/gamba
-          sudo mkdir -p /opt
-          cd /opt
+          rm -rf gamba
           
           # Fresh shallow clone of the repository
-          sudo git clone --depth 1 https://github.com/${{ github.repository }}.git gamba
+          git clone --depth 1 https://github.com/${{ github.repository }}.git gamba
           cd gamba
           
           # Login to GitHub Container Registry
@@ -58,7 +59,7 @@ jobs:
     - name: Verify deployment
       run: |
         ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-          cd /opt/gamba
+          cd ~/gamba
           
           # Check if bot container is running
           if docker-compose ps bot | grep -q "Up"; then
