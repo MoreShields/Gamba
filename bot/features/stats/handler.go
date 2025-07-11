@@ -53,12 +53,12 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 	} else {
 		// Build scoreboard content as a table
 		var tableContent strings.Builder
-		
+
 		// Add header
 		tableContent.WriteString("```\n")
-		tableContent.WriteString(fmt.Sprintf("%-4s %-20s %-12s %s\n", "Rank", "Player", "Balance", "Wagers"))
+		tableContent.WriteString(fmt.Sprintf("%-4s %-20s %-12s %s\n", "", "Player", "Balance", "Wager W/R%"))
 		tableContent.WriteString(strings.Repeat("-", 50) + "\n")
-		
+
 		for _, entry := range entries {
 			// Format rank with medal for top 3
 			rankStr := fmt.Sprintf("#%d", entry.Rank)
@@ -79,20 +79,20 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 
 			// Format balance
 			balanceStr := common.FormatBalance(entry.TotalBalance)
-			
+
 			// Format wager stats
 			var wagerStr string
 			if entry.ActiveWagerCount > 0 || entry.WagerWinRate > 0 {
-				wagerStr = fmt.Sprintf("%d active, %.1f%%", entry.ActiveWagerCount, entry.WagerWinRate)
+				wagerStr = fmt.Sprintf("%.1f%%", entry.WagerWinRate)
 			} else {
 				wagerStr = "-"
 			}
-			
+
 			// Add row
-			tableContent.WriteString(fmt.Sprintf("%-4s %-20s %-12s %s\n", 
+			tableContent.WriteString(fmt.Sprintf("%-4s %-20s %-12s %s\n",
 				rankStr, displayName, balanceStr, wagerStr))
 		}
-		
+
 		tableContent.WriteString("```")
 		embed.Description = tableContent.String()
 	}
@@ -163,20 +163,6 @@ func (f *Feature) handleStatsBalance(s *discordgo.Session, i *discordgo.Interact
 				Inline: false,
 			},
 		},
-	}
-
-	// Add bet statistics if any
-	if stats.BetStats.TotalBets > 0 {
-		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
-			Name: "🎲 Betting Statistics",
-			Value: fmt.Sprintf("Win Rate: **%.1f%%** (%d/%d)\nTotal Wagered: %s bits\nNet Profit: %s bits",
-				stats.BetStats.WinPercentage,
-				stats.BetStats.TotalWins,
-				stats.BetStats.TotalBets,
-				common.FormatBalance(stats.BetStats.TotalWagered),
-				common.FormatBalance(stats.BetStats.NetProfit)),
-			Inline: true,
-		})
 	}
 
 	// Add wager statistics if any

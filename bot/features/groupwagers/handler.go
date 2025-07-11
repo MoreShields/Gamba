@@ -197,8 +197,8 @@ func (f *Feature) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo
 	}
 
 	// Create the embed
-	embed := createGroupWagerEmbed(groupWagerDetail)
-	components := createGroupWagerComponents(groupWagerDetail)
+	embed := CreateGroupWagerEmbed(groupWagerDetail)
+	components := CreateGroupWagerComponents(groupWagerDetail)
 
 	// Send the follow-up message
 	msg, err := s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
@@ -309,8 +309,8 @@ func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Int
 		}
 
 		// Create updated embed and components
-		embed := createGroupWagerEmbed(updatedDetail)
-		components := createGroupWagerComponents(updatedDetail) // Will be empty since wager is resolved
+		embed := CreateGroupWagerEmbed(updatedDetail)
+		components := CreateGroupWagerComponents(updatedDetail) // Will be empty since wager is resolved
 
 		// Update the original message
 		_, err = s.ChannelMessageEditComplex(&discordgo.MessageEdit{
@@ -468,8 +468,8 @@ func (f *Feature) updateGroupWagerMessage(s *discordgo.Session, msg *discordgo.M
 	}
 
 	// Update the message
-	embed := createGroupWagerEmbed(detail)
-	components := createGroupWagerComponents(detail)
+	embed := CreateGroupWagerEmbed(detail)
+	components := CreateGroupWagerComponents(detail)
 
 	_, err = s.ChannelMessageEditComplex(&discordgo.MessageEdit{
 		Channel:    msg.ChannelID,

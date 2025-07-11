@@ -629,3 +629,101 @@ func (r *GroupWagerRepository) getParticipantsByGroupWager(ctx context.Context, 
 
 	return participants, nil
 }
+
+// GetExpiredActiveWagers returns all active group wagers where voting period has expired
+func (r *GroupWagerRepository) GetExpiredActiveWagers(ctx context.Context) ([]*models.GroupWager, error) {
+	query := `
+		SELECT 
+			id, creator_discord_id, condition, state, resolver_discord_id,
+			winning_option_id, total_pot, min_participants, message_id, 
+			channel_id, voting_period_minutes, voting_starts_at, voting_ends_at,
+			created_at, resolved_at
+		FROM group_wagers
+		WHERE state = 'active' 
+		AND voting_ends_at IS NOT NULL 
+		AND voting_ends_at < CURRENT_TIMESTAMP
+		ORDER BY voting_ends_at ASC
+	`
+
+	rows, err := r.q.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query expired active wagers: %w", err)
+	}
+	defer rows.Close()
+
+	var wagers []*models.GroupWager
+	for rows.Next() {
+		var wager models.GroupWager
+		err := rows.Scan(
+			&wager.ID,
+			&wager.CreatorDiscordID,
+			&wager.Condition,
+			&wager.State,
+			&wager.ResolverDiscordID,
+			&wager.WinningOptionID,
+			&wager.TotalPot,
+			&wager.MinParticipants,
+			&wager.MessageID,
+			&wager.ChannelID,
+			&wager.VotingPeriodMinutes,
+			&wager.VotingStartsAt,
+			&wager.VotingEndsAt,
+			&wager.CreatedAt,
+			&wager.ResolvedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan expired active wager: %w", err)
+		}
+		wagers = append(wagers, &wager)
+	}
+
+	return wagers, nil
+}
+
+// GetWagersPendingResolution returns all group wagers in pending_resolution state
+func (r *GroupWagerRepository) GetWagersPendingResolution(ctx context.Context) ([]*models.GroupWager, error) {
+	query := `
+		SELECT 
+			id, creator_discord_id, condition, state, resolver_discord_id,
+			winning_option_id, total_pot, min_participants, message_id, 
+			channel_id, voting_period_minutes, voting_starts_at, voting_ends_at,
+			created_at, resolved_at
+		FROM group_wagers
+		WHERE state = 'pending_resolution'
+		ORDER BY voting_ends_at ASC
+	`
+
+	rows, err := r.q.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query wagers pending resolution: %w", err)
+	}
+	defer rows.Close()
+
+	var wagers []*models.GroupWager
+	for rows.Next() {
+		var wager models.GroupWager
+		err := rows.Scan(
+			&wager.ID,
+			&wager.CreatorDiscordID,
+			&wager.Condition,
+			&wager.State,
+			&wager.ResolverDiscordID,
+			&wager.WinningOptionID,
+			&wager.TotalPot,
+			&wager.MinParticipants,
+			&wager.MessageID,
+			&wager.ChannelID,
+			&wager.VotingPeriodMinutes,
+			&wager.VotingStartsAt,
+			&wager.VotingEndsAt,
+			&wager.CreatedAt,
+			&wager.ResolvedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan wager pending resolution: %w", err)
+		}
+		wagers = append(wagers, &wager)
+	}
+
+	return wagers, nil
+}

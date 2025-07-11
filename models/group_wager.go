@@ -8,9 +8,10 @@ import (
 type GroupWagerState string
 
 const (
-	GroupWagerStateActive    GroupWagerState = "active"
-	GroupWagerStateResolved  GroupWagerState = "resolved"
-	GroupWagerStateCancelled GroupWagerState = "cancelled"
+	GroupWagerStateActive            GroupWagerState = "active"
+	GroupWagerStatePendingResolution GroupWagerState = "pending_resolution"
+	GroupWagerStateResolved          GroupWagerState = "resolved"
+	GroupWagerStateCancelled         GroupWagerState = "cancelled"
 )
 
 // GroupWager represents a multi-participant wager with multiple outcome options
@@ -75,6 +76,11 @@ type GroupWagerResult struct {
 // IsActive checks if the group wager is in an active state
 func (gw *GroupWager) IsActive() bool {
 	return gw.State == GroupWagerStateActive
+}
+
+// IsPendingResolution checks if the group wager is awaiting resolution
+func (gw *GroupWager) IsPendingResolution() bool {
+	return gw.State == GroupWagerStatePendingResolution
 }
 
 // IsResolved checks if the group wager has been resolved

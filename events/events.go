@@ -11,10 +11,11 @@ import (
 type EventType string
 
 const (
-	EventTypeBalanceChange EventType = "balance_change"
-	EventTypeUserCreated   EventType = "user_created"
-	EventTypeBetPlaced     EventType = "bet_placed"
-	EventTypeWagerResolved EventType = "wager_resolved"
+	EventTypeBalanceChange       EventType = "balance_change"
+	EventTypeUserCreated         EventType = "user_created"
+	EventTypeBetPlaced           EventType = "bet_placed"
+	EventTypeWagerResolved       EventType = "wager_resolved"
+	EventTypeGroupWagerStateChange EventType = "group_wager_state_change"
 )
 
 // Event is the base interface for all events
@@ -70,6 +71,19 @@ type WagerResolvedEvent struct {
 
 func (e WagerResolvedEvent) Type() EventType {
 	return EventTypeWagerResolved
+}
+
+// GroupWagerStateChangeEvent represents a group wager state transition
+type GroupWagerStateChangeEvent struct {
+	GroupWagerID int64
+	OldState     string
+	NewState     string
+	MessageID    int64
+	ChannelID    int64
+}
+
+func (e GroupWagerStateChangeEvent) Type() EventType {
+	return EventTypeGroupWagerStateChange
 }
 
 // Handler is a function that handles events

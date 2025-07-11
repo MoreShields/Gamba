@@ -68,6 +68,10 @@ func Run(ctx context.Context) error {
 	}
 	log.Println("Discord bot initialized successfully")
 
+	// Start background worker for group wager expiration
+	log.Println("Starting group wager expiration worker...")
+	go runGroupWagerExpirationWorker(ctx, groupWagerService)
+
 	// Wait for context cancellation
 	log.Printf("Bot is running in %s mode...", cfg.Environment)
 	<-ctx.Done()
@@ -96,4 +100,28 @@ func Run(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// runGroupWagerExpirationWorker runs a background task to check for expired group wagers
+func runGroupWagerExpirationWorker(ctx context.Context, groupWagerService service.GroupWagerService) {
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
+	// Run immediately on startup
+	if err := groupWagerService.TransitionExpiredWagers(context.Background()); err != nil {
+		log.Printf("Error transitioning expired group wagers: %v", err)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("Group wager expiration worker shutting down...")
+			return
+		case <-ticker.C:
+			// Use a separate context for the operation so it's not cancelled by the parent
+			if err := groupWagerService.TransitionExpiredWagers(context.Background()); err != nil {
+				log.Printf("Error transitioning expired group wagers: %v", err)
+			}
+		}
+	}
 }

@@ -221,6 +221,10 @@ type GroupWagerRepository interface {
 
 	// Option operations
 	UpdateOptionTotal(ctx context.Context, optionID int64, totalAmount int64) error
+	
+	// Expiration operations
+	GetExpiredActiveWagers(ctx context.Context) ([]*models.GroupWager, error)
+	GetWagersPendingResolution(ctx context.Context) ([]*models.GroupWager, error)
 }
 
 // GroupWagerService defines the interface for group wager operations
@@ -248,4 +252,7 @@ type GroupWagerService interface {
 
 	// UpdateMessageIDs updates the message and channel IDs for a group wager
 	UpdateMessageIDs(ctx context.Context, groupWagerID int64, messageID int64, channelID int64) error
+	
+	// TransitionExpiredWagers finds and transitions expired active wagers to pending_resolution
+	TransitionExpiredWagers(ctx context.Context) error
 }

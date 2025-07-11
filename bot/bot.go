@@ -97,6 +97,10 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, userService serv
 		return nil, fmt.Errorf("error registering commands: %w", err)
 	}
 
+	// Subscribe to group wager state change events to update Discord embeds
+	eventBus.Subscribe(events.EventTypeGroupWagerStateChange, bot.handleGroupWagerStateChange)
+	log.Info("Group wager state change listener enabled")
+
 	// Subscribe to balance change events for high roller role updates
 	if bot.config.HighRollerEnabled {
 		eventBus.Subscribe(events.EventTypeBalanceChange, func(ctx context.Context, event events.Event) {
@@ -266,5 +270,48 @@ func (b *Bot) routeModalInteraction(s *discordgo.Session, i *discordgo.Interacti
 
 	case customID == "bet_amount_modal":
 		b.betting.HandleInteraction(s, i)
+	}
+}
+
+// handleGroupWagerStateChange handles group wager state change events and updates Discord embeds
+func (b *Bot) handleGroupWagerStateChange(ctx context.Context, event events.Event) {
+	e, ok := event.(events.GroupWagerStateChangeEvent)
+	if !ok {
+		return
+	}
+
+	// Skip if no message to update
+	if e.MessageID == 0 || e.ChannelID == 0 {
+		return
+	}
+
+	// Get updated wager details
+	detail, err := b.groupWagerService.GetGroupWagerDetail(ctx, e.GroupWagerID)
+	if err != nil {
+		log.Errorf("Failed to get group wager detail for event update: %v", err)
+		return
+	}
+
+	// Create updated embed and components
+	embed := groupwagers.CreateGroupWagerEmbed(detail)
+	components := groupwagers.CreateGroupWagerComponents(detail)
+
+	// Update the Discord message
+	channelID := strconv.FormatInt(e.ChannelID, 10)
+	messageID := strconv.FormatInt(e.MessageID, 10)
+
+	_, err = b.session.ChannelMessageEditComplex(&discordgo.MessageEdit{
+		Channel:    channelID,
+		ID:         messageID,
+		Embeds:     &[]*discordgo.MessageEmbed{embed},
+		Components: &components,
+	})
+
+	if err != nil {
+		log.Errorf("Failed to update group wager message (channel: %s, message: %s): %v",
+			channelID, messageID, err)
+	} else {
+		log.Debugf("Successfully updated group wager message for wager %d (state: %s -> %s)",
+			e.GroupWagerID, e.OldState, e.NewState)
 	}
 }

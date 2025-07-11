@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"gambler/config"
+	"gambler/events"
 	"gambler/models"
 	"time"
 )
@@ -259,9 +260,9 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 		return nil, fmt.Errorf("group wager not found")
 	}
 
-	// Check if wager is active
-	if !groupWager.IsActive() {
-		return nil, fmt.Errorf("group wager is not active")
+	// Check if wager can be resolved
+	if !groupWager.IsActive() && !groupWager.IsPendingResolution() {
+		return nil, fmt.Errorf("group wager cannot be resolved (current state: %s)", groupWager.State)
 	}
 
 	// Get full detail to get participants and options
@@ -435,6 +436,7 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 
 	// Update group wager as resolved
 	now := time.Now()
+	oldState := groupWager.State
 	groupWager.State = models.GroupWagerStateResolved
 	groupWager.ResolverDiscordID = &resolverID
 	groupWager.WinningOptionID = &winningOptionID
@@ -443,6 +445,15 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 	if err := uow.GroupWagerRepository().Update(ctx, groupWager); err != nil {
 		return nil, fmt.Errorf("failed to update resolved group wager: %w", err)
 	}
+
+	// Publish state change event
+	uow.EventBus().Publish(events.GroupWagerStateChangeEvent{
+		GroupWagerID: groupWager.ID,
+		OldState:     string(oldState),
+		NewState:     string(groupWager.State),
+		MessageID:    groupWager.MessageID,
+		ChannelID:    groupWager.ChannelID,
+	})
 
 	// Commit the transaction
 	if err := uow.Commit(); err != nil {
@@ -541,6 +552,49 @@ func (s *groupWagerService) UpdateMessageIDs(ctx context.Context, groupWagerID i
 	// Save the update
 	if err := uow.GroupWagerRepository().Update(ctx, groupWager); err != nil {
 		return fmt.Errorf("failed to update group wager: %w", err)
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+// TransitionExpiredWagers finds and transitions expired active wagers to pending_resolution
+func (s *groupWagerService) TransitionExpiredWagers(ctx context.Context) error {
+	// Create unit of work
+	uow := s.uowFactory.Create()
+	if err := uow.Begin(ctx); err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer uow.Rollback()
+
+	// Find expired active wagers
+	expiredWagers, err := uow.GroupWagerRepository().GetExpiredActiveWagers(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get expired active wagers: %w", err)
+	}
+
+	// Transition each wager
+	for _, wager := range expiredWagers {
+		oldState := wager.State
+		wager.State = models.GroupWagerStatePendingResolution
+		
+		// Update the wager
+		if err := uow.GroupWagerRepository().Update(ctx, wager); err != nil {
+			return fmt.Errorf("failed to update wager %d to pending_resolution: %w", wager.ID, err)
+		}
+		
+		// Publish state change event
+		uow.EventBus().Publish(events.GroupWagerStateChangeEvent{
+			GroupWagerID: wager.ID,
+			OldState:     string(oldState),
+			NewState:     string(wager.State),
+			MessageID:    wager.MessageID,
+			ChannelID:    wager.ChannelID,
+		})
 	}
 
 	// Commit the transaction

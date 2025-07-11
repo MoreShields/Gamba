@@ -50,8 +50,8 @@ func formatCompactAmount(amount int64) string {
 	return fmt.Sprintf("%d", amount)
 }
 
-// createGroupWagerEmbed creates an embed for a group wager
-func createGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEmbed {
+// CreateGroupWagerEmbed creates an embed for a group wager
+func CreateGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEmbed {
 	embed := &discordgo.MessageEmbed{
 		Title: detail.Wager.Condition,
 		Color: common.ColorWarning,
@@ -197,6 +197,14 @@ func createGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEm
 	case models.GroupWagerStateCancelled:
 		embed.Color = common.ColorDanger
 		embed.Description += "\n**CANCELLED**"
+	case models.GroupWagerStatePendingResolution:
+		embed.Color = common.ColorPrimary
+		embed.Description += "\n**⏳ AWAITING RESOLUTION**"
+		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
+			Name:   "Status",
+			Value:  "Voting has ended. This wager is ready to be resolved by a resolver.",
+			Inline: false,
+		})
 	case models.GroupWagerStateActive:
 		// For active wagers, change color based on voting period status
 		if detail.Wager.IsVotingPeriodExpired() {
@@ -236,13 +244,13 @@ func truncateButtonLabel(text string, maxLength int) string {
 }
 
 // createGroupWagerComponents creates the button components for a group wager
-func createGroupWagerComponents(detail *models.GroupWagerDetail) []discordgo.MessageComponent {
+func CreateGroupWagerComponents(detail *models.GroupWagerDetail) []discordgo.MessageComponent {
 	// Only show components for active wagers that haven't expired
 	if detail.Wager.IsActive() && detail.Wager.IsVotingPeriodActive() {
 		return createActiveWagerComponents(detail)
 	}
 
-	// No components for resolved, cancelled, or expired wagers
+	// No components for resolved, cancelled, expired, or pending resolution wagers
 	return []discordgo.MessageComponent{}
 }
 
