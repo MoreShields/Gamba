@@ -727,3 +727,47 @@ func (r *GroupWagerRepository) GetWagersPendingResolution(ctx context.Context) (
 
 	return wagers, nil
 }
+
+// GetStats returns group wager statistics for a user
+func (r *GroupWagerRepository) GetStats(ctx context.Context, discordID int64) (*models.GroupWagerStats, error) {
+	// Get participation stats
+	participationQuery := `
+		SELECT 
+			COUNT(DISTINCT gwp.group_wager_id) as total_group_wagers,
+			COUNT(DISTINCT CASE WHEN gw.state = 'resolved' AND gw.winning_option_id = gwp.option_id THEN gw.id END) as total_won,
+			COALESCE(SUM(CASE WHEN gw.state = 'resolved' AND gw.winning_option_id = gwp.option_id AND gwp.payout_amount IS NOT NULL THEN gwp.payout_amount ELSE 0 END), 0) as total_won_amount
+		FROM group_wager_participants gwp
+		JOIN group_wagers gw ON gw.id = gwp.group_wager_id
+		WHERE gwp.discord_id = $1`
+
+	var totalGroupWagers, totalWon int
+	var totalWonAmount int64
+
+	err := r.q.QueryRow(ctx, participationQuery, discordID).Scan(
+		&totalGroupWagers,
+		&totalWon,
+		&totalWonAmount,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get participation stats: %w", err)
+	}
+
+	// Get creation stats
+	creationQuery := `
+		SELECT COUNT(*) 
+		FROM group_wagers 
+		WHERE creator_discord_id = $1`
+
+	var totalProposed int
+	err = r.q.QueryRow(ctx, creationQuery, discordID).Scan(&totalProposed)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get creation stats: %w", err)
+	}
+
+	return &models.GroupWagerStats{
+		TotalGroupWagers: totalGroupWagers,
+		TotalProposed:    totalProposed,
+		TotalWon:         totalWon,
+		TotalWonAmount:   totalWonAmount,
+	}, nil
+}

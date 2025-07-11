@@ -222,6 +222,9 @@ type GroupWagerRepository interface {
 	// Option operations
 	UpdateOptionTotal(ctx context.Context, optionID int64, totalAmount int64) error
 	
+	// Stats operations
+	GetStats(ctx context.Context, discordID int64) (*models.GroupWagerStats, error)
+	
 	// Expiration operations
 	GetExpiredActiveWagers(ctx context.Context) ([]*models.GroupWager, error)
 	GetWagersPendingResolution(ctx context.Context) ([]*models.GroupWager, error)

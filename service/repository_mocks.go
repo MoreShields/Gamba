@@ -303,6 +303,21 @@ func (m *MockGroupWagerRepository) UpdateOptionTotal(ctx context.Context, option
 	return args.Error(0)
 }
 
+func (m *MockGroupWagerRepository) GetStats(ctx context.Context, discordID int64) (*models.GroupWagerStats, error) {
+	args := m.Called(ctx, discordID)
+	return args.Get(0).(*models.GroupWagerStats), args.Error(1)
+}
+
+func (m *MockGroupWagerRepository) GetExpiredActiveWagers(ctx context.Context) ([]*models.GroupWager, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]*models.GroupWager), args.Error(1)
+}
+
+func (m *MockGroupWagerRepository) GetWagersPendingResolution(ctx context.Context) ([]*models.GroupWager, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]*models.GroupWager), args.Error(1)
+}
+
 // MockEventPublisher is a mock implementation of EventPublisher for testing
 type MockEventPublisher struct{}
 

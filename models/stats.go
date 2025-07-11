@@ -32,6 +32,7 @@ type UserStats struct {
 	User             *User
 	BetStats         *BetStatsDetail
 	WagerStats       *WagerStatsDetail
+	GroupWagerStats  *GroupWagerStats
 	ReservedInWagers int64 // Amount currently locked in active wagers
 }
 
@@ -63,6 +64,14 @@ type WagerStatsDetail struct {
 	TotalWonAmount int64
 	BiggestWin     int64
 	BiggestLoss    int64
+}
+
+// GroupWagerStats represents aggregated group wager statistics
+type GroupWagerStats struct {
+	TotalGroupWagers int
+	TotalProposed    int
+	TotalWon         int
+	TotalWonAmount   int64
 }
 
 // ScoreboardEntry represents a user's entry in the scoreboard
