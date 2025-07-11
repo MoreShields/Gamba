@@ -1,19 +1,19 @@
 package betting
+
 import (
-	"gambler/bot/common"
 	"fmt"
+	"gambler/bot/common"
 
 	"gambler/models"
 
 	"github.com/bwmarrin/discordgo"
 )
 
-
 // buildInitialBetEmbed creates the initial betting interface embed
-func buildInitialBetEmbed(balance int64) *discordgo.MessageEmbed {
+func buildInitialBetEmbed(balance int64, remaining int64) *discordgo.MessageEmbed {
 	return &discordgo.MessageEmbed{
 		Title:       "🎰 **Place Your Bet** 🎰",
-		Description: fmt.Sprintf("Current Balance: **%s bits**\n", common.FormatBalance(balance)),
+		Description: fmt.Sprintf("Current Balance: **%s bits**\nRemaining Daily limit: **%s**", common.FormatBalance(balance), common.FormatBalance(remaining)),
 		Color:       common.ColorPrimary,
 		Footer: &discordgo.MessageEmbedFooter{
 			Text: "Select your win probability",
@@ -28,10 +28,9 @@ func buildWinEmbed(result *models.BetResult, odds float64, session *BetSession) 
 	fields := []*discordgo.MessageEmbedField{
 		{
 			Name: "Bet Details",
-			Value: fmt.Sprintf("• Bet: **%s bits** at %d%% odds\n• Won: **%s bits**",
+			Value: fmt.Sprintf("• Bet: **%s bits** at %d%% odds\n",
 				common.FormatBalance(result.BetAmount),
 				percentage,
-				common.FormatBalance(result.WinAmount),
 			),
 			Inline: false,
 		},
@@ -42,11 +41,11 @@ func buildWinEmbed(result *models.BetResult, odds float64, session *BetSession) 
 	var pnlDisplay string
 
 	if session.SessionPnL > 0 {
-		pnlDisplay = fmt.Sprintf("+%s bits (+%.1f%% return, %d bets)", common.FormatBalance(session.SessionPnL), pnlPercent, session.BetCount)
+		pnlDisplay = fmt.Sprintf("+%s (+%.1f%% return, %d bets)", common.FormatBalance(session.SessionPnL), pnlPercent, session.BetCount)
 	} else if session.SessionPnL < 0 {
-		pnlDisplay = fmt.Sprintf("-%s bits (%.1f%% return, %d bets)", common.FormatBalance(-session.SessionPnL), pnlPercent, session.BetCount)
+		pnlDisplay = fmt.Sprintf("-%s (%.1f%% return, %d bets)", common.FormatBalance(-session.SessionPnL), pnlPercent, session.BetCount)
 	} else {
-		pnlDisplay = fmt.Sprintf("0 bits (0.0%% return, %d bets)", session.BetCount)
+		pnlDisplay = fmt.Sprintf("0 (0.0%% return, %d bets)", session.BetCount)
 	}
 
 	fields = append(fields, &discordgo.MessageEmbedField{
@@ -68,8 +67,8 @@ func buildLossEmbed(result *models.BetResult, odds float64, session *BetSession)
 
 	fields := []*discordgo.MessageEmbedField{
 		{
-			Name: "Bet Details",
-			Value: fmt.Sprintf("• Bet: **%s bits** at %d%% odds\n• Lost: **%s bits**",
+			Name: "",
+			Value: fmt.Sprintf("• Bet: **%s** at %d%% odds\n• Lost: **%s**",
 				common.FormatBalance(result.BetAmount),
 				percentage,
 				common.FormatBalance(result.BetAmount),

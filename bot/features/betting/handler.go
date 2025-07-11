@@ -140,7 +140,7 @@ func (f *Feature) handleBetModal(s *discordgo.Session, i *discordgo.InteractionC
 		// Format error message with Discord timestamp for reset time
 		cfg := f.config
 		nextReset := service.GetNextResetTime(cfg.DailyLimitResetHour)
-		
+
 		if remaining <= 0 {
 			common.RespondWithError(s, i, fmt.Sprintf("Daily gambling limit of %s bits reached. Try again %s",
 				common.FormatBalance(cfg.DailyGambleLimit),
@@ -186,8 +186,12 @@ func (f *Feature) handleNewBet(s *discordgo.Session, i *discordgo.InteractionCre
 		updateSessionBalance(session.UserID, user.Balance, false)
 	}
 
+	// Check Daily limit
+	// error already handled during initial bet
+	remaining, _ := f.gamblingService.CheckDailyLimit(ctx, discordID, 0)
+
 	// Show odds selection again as ephemeral
-	embed := buildInitialBetEmbed(user.Balance)
+	embed := buildInitialBetEmbed(user.Balance, remaining)
 	components := CreateInitialComponents()
 
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -263,7 +267,7 @@ func (f *Feature) handleRepeatBet(s *discordgo.Session, i *discordgo.Interaction
 	if err != nil {
 		cfg := f.config
 		nextReset := service.GetNextResetTime(cfg.DailyLimitResetHour)
-		
+
 		var errorMsg string
 		if remaining <= 0 {
 			errorMsg = fmt.Sprintf("❌ Daily gambling limit of %s bits reached. Try again %s",
@@ -274,7 +278,7 @@ func (f *Feature) handleRepeatBet(s *discordgo.Session, i *discordgo.Interaction
 				common.FormatBalance(remaining),
 				common.FormatDiscordTimestamp(nextReset, "R"))
 		}
-		
+
 		err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{

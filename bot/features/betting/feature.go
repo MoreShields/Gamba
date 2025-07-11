@@ -2,6 +2,7 @@ package betting
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -36,10 +37,10 @@ func NewFeature(session *discordgo.Session, config *GamblingConfig, userService 
 		gamblingService: gamblingService,
 		guildID:         guildID,
 	}
-	
+
 	// Start session cleanup
 	go f.startSessionCleanup()
-	
+
 	return f
 }
 
@@ -63,8 +64,21 @@ func (f *Feature) HandleCommand(s *discordgo.Session, i *discordgo.InteractionCr
 		return
 	}
 
+	// Check daily limit
+	remaining, _ := f.gamblingService.CheckDailyLimit(ctx, discordID, 0)
+	if remaining == 0 {
+		// Format error message with Discord timestamp for reset time
+		cfg := f.config
+		nextReset := service.GetNextResetTime(cfg.DailyLimitResetHour)
+		common.RespondWithError(s, i, fmt.Sprintf("Daily gambling limit of %s bits reached. Try again %s",
+			common.FormatBalance(cfg.DailyGambleLimit),
+			common.FormatDiscordTimestamp(nextReset, "R")))
+
+		return
+	}
+
 	// Create initial embed
-	embed := buildInitialBetEmbed(user.AvailableBalance)
+	embed := buildInitialBetEmbed(user.AvailableBalance, remaining)
 	components := CreateInitialComponents()
 
 	// Send initial response
@@ -73,6 +87,7 @@ func (f *Feature) HandleCommand(s *discordgo.Session, i *discordgo.InteractionCr
 		Data: &discordgo.InteractionResponseData{
 			Embeds:     []*discordgo.MessageEmbed{embed},
 			Components: components,
+			Flags:      discordgo.MessageFlagsEphemeral,
 		},
 	})
 
