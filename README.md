@@ -4,7 +4,7 @@ A fun gambling game Discord bot where players can bet with custom odds.
 
 ## Quick Start
 
-1. Copy `.env.example` to `.env` and fill in your Discord bot token and guild ID:
+1. Copy `.env.example` to `.env` and fill in your Discord bot token
    ```bash
    cp .env.example .env
    ```

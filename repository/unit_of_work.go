@@ -22,6 +22,7 @@ type unitOfWork struct {
 	wagerRepo                   service.WagerRepository
 	wagerVoteRepo               service.WagerVoteRepository
 	groupWagerRepo              service.GroupWagerRepository
+	guildSettingsRepo           service.GuildSettingsRepository
 }
 
 // NewUnitOfWorkFactory creates a new UnitOfWork factory
@@ -65,6 +66,7 @@ func (u *unitOfWork) Begin(ctx context.Context) error {
 	u.wagerRepo = newWagerRepositoryWithTx(tx)
 	u.wagerVoteRepo = newWagerVoteRepositoryWithTx(tx)
 	u.groupWagerRepo = newGroupWagerRepositoryWithTx(tx)
+	u.guildSettingsRepo = newGuildSettingsRepositoryWithTx(tx)
 
 	return nil
 }
@@ -165,4 +167,12 @@ func (u *unitOfWork) GroupWagerRepository() service.GroupWagerRepository {
 		panic("unit of work not started - call Begin() first")
 	}
 	return u.groupWagerRepo
+}
+
+// GuildSettingsRepository returns the guild settings repository for this unit of work
+func (u *unitOfWork) GuildSettingsRepository() service.GuildSettingsRepository {
+	if u.guildSettingsRepo == nil {
+		panic("unit of work not started - call Begin() first")
+	}
+	return u.guildSettingsRepo
 }

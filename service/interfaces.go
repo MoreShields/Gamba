@@ -178,6 +178,7 @@ type UnitOfWork interface {
 	WagerRepository() WagerRepository
 	WagerVoteRepository() WagerVoteRepository
 	GroupWagerRepository() GroupWagerRepository
+	GuildSettingsRepository() GuildSettingsRepository
 }
 
 // EventPublisher defines the interface for publishing events within a transaction
@@ -258,4 +259,25 @@ type GroupWagerService interface {
 	
 	// TransitionExpiredWagers finds and transitions expired active wagers to pending_resolution
 	TransitionExpiredWagers(ctx context.Context) error
+}
+
+// GuildSettingsRepository defines the interface for guild settings data access
+type GuildSettingsRepository interface {
+	// GetOrCreateGuildSettings retrieves guild settings or creates default ones if not found
+	GetOrCreateGuildSettings(ctx context.Context, guildID int64) (*models.GuildSettings, error)
+
+	// UpdateGuildSettings updates guild settings
+	UpdateGuildSettings(ctx context.Context, settings *models.GuildSettings) error
+}
+
+// GuildSettingsService defines the interface for guild settings operations
+type GuildSettingsService interface {
+	// GetOrCreateSettings retrieves guild settings or creates default ones if not found
+	GetOrCreateSettings(ctx context.Context, guildID int64) (*models.GuildSettings, error)
+
+	// UpdatePrimaryChannel updates the primary channel for a guild
+	UpdatePrimaryChannel(ctx context.Context, guildID int64, channelID int64) error
+
+	// UpdateHighRollerRole updates the high roller role for a guild
+	UpdateHighRollerRole(ctx context.Context, guildID int64, roleID *int64) error
 }

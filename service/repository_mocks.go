@@ -139,6 +139,7 @@ type MockUnitOfWork struct {
 	wagerRepo                     WagerRepository
 	wagerVoteRepo                 WagerVoteRepository
 	groupWagerRepo                GroupWagerRepository
+	guildSettingsRepo             GuildSettingsRepository
 }
 
 func (m *MockUnitOfWork) Begin(ctx context.Context) error {
@@ -180,6 +181,10 @@ func (m *MockUnitOfWork) GroupWagerRepository() GroupWagerRepository {
 	return m.groupWagerRepo
 }
 
+func (m *MockUnitOfWork) GuildSettingsRepository() GuildSettingsRepository {
+	return m.guildSettingsRepo
+}
+
 func (m *MockUnitOfWork) EventBus() EventPublisher {
 	return &MockEventPublisher{}
 }
@@ -192,6 +197,10 @@ func (m *MockUnitOfWork) SetRepositories(userRepo UserRepository, balanceHistory
 
 func (m *MockUnitOfWork) SetGroupWagerRepository(groupWagerRepo GroupWagerRepository) {
 	m.groupWagerRepo = groupWagerRepo
+}
+
+func (m *MockUnitOfWork) SetGuildSettingsRepository(guildSettingsRepo GuildSettingsRepository) {
+	m.guildSettingsRepo = guildSettingsRepo
 }
 
 // MockUnitOfWorkFactory is a mock implementation of service.UnitOfWorkFactory
@@ -323,5 +332,20 @@ type MockEventPublisher struct{}
 
 func (m *MockEventPublisher) Publish(event events.Event) {
 	// No-op for testing
+}
+
+// MockGuildSettingsRepository is a mock implementation of GuildSettingsRepository
+type MockGuildSettingsRepository struct {
+	mock.Mock
+}
+
+func (m *MockGuildSettingsRepository) GetOrCreateGuildSettings(ctx context.Context, guildID int64) (*models.GuildSettings, error) {
+	args := m.Called(ctx, guildID)
+	return args.Get(0).(*models.GuildSettings), args.Error(1)
+}
+
+func (m *MockGuildSettingsRepository) UpdateGuildSettings(ctx context.Context, settings *models.GuildSettings) error {
+	args := m.Called(ctx, settings)
+	return args.Error(0)
 }
 

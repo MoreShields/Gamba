@@ -13,7 +13,6 @@ services:
     environment:
       # Discord configuration
       DISCORD_TOKEN: ${DISCORD_TOKEN}
-      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID}
       
       # Database configuration - use host's postgres in production
       DATABASE_URL: ${DATABASE_URL}

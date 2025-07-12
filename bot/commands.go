@@ -132,6 +132,25 @@ func (b *Bot) registerCommands() error {
 				},
 			},
 		},
+		{
+			Name:        "settings",
+			Description: "Configure guild settings (admin only)",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "high-roller-role",
+					Description: "Set the role assigned to the player with the most bits",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionRole,
+							Name:        "role",
+							Description: "The role to assign to the high roller (leave empty to disable)",
+							Required:    false,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, cmd := range commands {

@@ -11,8 +11,8 @@ import (
 // Config holds all application configuration
 type Config struct {
 	// Discord configuration
-	DiscordToken   string
-	DiscordGuildID string
+	DiscordToken string
+	GuildID      string // Primary Discord guild ID
 
 	// Database configuration
 	DatabaseURL string
@@ -23,9 +23,7 @@ type Config struct {
 	DailyLimitResetHour int   // Hour in UTC when daily limit resets (0-23)
 
 	// High Roller Role configuration
-	HighRollerRoleID  string
-	HighRollerEnabled bool
-	GambaChannelID    string // Channel ID for high roller change notifications
+	GambaChannelID string // Channel ID for high roller change notifications
 
 	// Group Wager configuration
 	ResolverDiscordIDs []int64 // Discord IDs that can resolve group wagers
@@ -55,8 +53,8 @@ func Get() *Config {
 func load() (*Config, error) {
 	config := &Config{
 		// Discord
-		DiscordToken:   os.Getenv("DISCORD_TOKEN"),
-		DiscordGuildID: os.Getenv("DISCORD_GUILD_ID"),
+		DiscordToken: os.Getenv("DISCORD_TOKEN"),
+		GuildID:      os.Getenv("GUILD_ID"),
 
 		// Database
 		DatabaseURL: os.Getenv("DATABASE_URL"),
@@ -67,9 +65,7 @@ func load() (*Config, error) {
 		DailyLimitResetHour: 12,    // 12:00 PM UTC default
 
 		// High Roller Role
-		HighRollerRoleID:  os.Getenv("HIGH_ROLLER_ROLE_ID"),
-		HighRollerEnabled: os.Getenv("HIGH_ROLLER_ENABLED") == "true",
-		GambaChannelID:    os.Getenv("GAMBA_CHANNEL_ID"),
+		GambaChannelID: os.Getenv("GAMBA_CHANNEL_ID"),
 
 		// Environment
 		Environment: os.Getenv("ENVIRONMENT"),

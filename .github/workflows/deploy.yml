@@ -30,7 +30,6 @@ jobs:
       env:
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
         DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
-        DISCORD_GUILD_ID: ${{ secrets.DISCORD_GUILD_ID }}
         HIGH_ROLLER_ENABLED: ${{ vars.HIGH_ROLLER_ENABLED }}
         HIGH_ROLLER_ROLE_ID: ${{ vars.HIGH_ROLLER_ROLE_ID }}
         STARTING_BALANCE: ${{ vars.STARTING_BALANCE }}

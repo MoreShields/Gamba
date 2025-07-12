@@ -32,7 +32,6 @@ services:
     environment:
       # Discord configuration
       DISCORD_TOKEN: ${DISCORD_TOKEN}
-      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID}
       
       # Database configuration - use local postgres container
       DATABASE_URL: ${DATABASE_URL}
@@ -41,6 +40,7 @@ services:
       STARTING_BALANCE: ${STARTING_BALANCE:-100000}
       HIGH_ROLLER_ROLE_ID: ${HIGH_ROLLER_ROLE_ID}
       HIGH_ROLLER_ENABLED: true
+      
       # group wager resolver user IDs
       RESOLVER_DISCORD_IDS: ${RESOLVER_DISCORD_IDS}
 

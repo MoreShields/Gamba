@@ -11,6 +11,7 @@ import (
 	"gambler/bot/features/balance"
 	"gambler/bot/features/betting"
 	"gambler/bot/features/groupwagers"
+	"gambler/bot/features/settings"
 	"gambler/bot/features/stats"
 	"gambler/bot/features/transfer"
 	"gambler/bot/features/wagers"
@@ -24,11 +25,9 @@ import (
 
 // Config holds bot configuration
 type Config struct {
-	Token             string
-	GuildID           string
-	HighRollerRoleID  string
-	HighRollerEnabled bool
-	GambaChannelID    string
+	Token          string
+	GuildID        string
+	GambaChannelID string
 }
 
 // Bot manages the Discord bot and all feature modules
@@ -42,12 +41,13 @@ type Bot struct {
 	lastHighRollerID int64
 
 	// Services
-	userService       service.UserService
-	gamblingService   service.GamblingService
-	transferService   service.TransferService
-	wagerService      service.WagerService
-	statsService      service.StatsService
-	groupWagerService service.GroupWagerService
+	userService          service.UserService
+	gamblingService      service.GamblingService
+	transferService      service.TransferService
+	wagerService         service.WagerService
+	statsService         service.StatsService
+	groupWagerService    service.GroupWagerService
+	guildSettingsService service.GuildSettingsService
 
 	// Feature modules
 	betting     *betting.Feature
@@ -56,10 +56,11 @@ type Bot struct {
 	stats       *stats.Feature
 	balance     *balance.Feature
 	transfer    *transfer.Feature
+	settings    *settings.Feature
 }
 
 // New creates a new bot instance with all features
-func New(config Config, gamblingConfig *betting.GamblingConfig, userService service.UserService, gamblingService service.GamblingService, transferService service.TransferService, wagerService service.WagerService, statsService service.StatsService, groupWagerService service.GroupWagerService, eventBus *events.Bus) (*Bot, error) {
+func New(config Config, gamblingConfig *betting.GamblingConfig, userService service.UserService, gamblingService service.GamblingService, transferService service.TransferService, wagerService service.WagerService, statsService service.StatsService, groupWagerService service.GroupWagerService, guildSettingsService service.GuildSettingsService, eventBus *events.Bus) (*Bot, error) {
 	// Create Discord session
 	dg, err := discordgo.New("Bot " + config.Token)
 	if err != nil {
@@ -69,15 +70,16 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, userService serv
 
 	// Create bot instance
 	bot := &Bot{
-		config:            config,
-		session:           dg,
-		eventBus:          eventBus,
-		userService:       userService,
-		gamblingService:   gamblingService,
-		transferService:   transferService,
-		wagerService:      wagerService,
-		statsService:      statsService,
-		groupWagerService: groupWagerService,
+		config:               config,
+		session:              dg,
+		eventBus:             eventBus,
+		userService:          userService,
+		gamblingService:      gamblingService,
+		transferService:      transferService,
+		wagerService:         wagerService,
+		statsService:         statsService,
+		groupWagerService:    groupWagerService,
+		guildSettingsService: guildSettingsService,
 	}
 
 	// Create feature modules
@@ -87,10 +89,12 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, userService serv
 	bot.stats = stats.NewFeature(dg, statsService, userService, config.GuildID)
 	bot.balance = balance.New(userService)
 	bot.transfer = transfer.New(transferService, userService)
+	bot.settings = settings.NewFeature(dg, guildSettingsService)
 
 	// Register handlers
 	dg.AddHandler(bot.handleCommands)
 	dg.AddHandler(bot.handleInteractions)
+	dg.AddHandler(bot.handleGuildCreate)
 
 	// Open websocket connection
 	if err := dg.Open(); err != nil {
@@ -108,28 +112,51 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, userService serv
 	log.Info("Group wager state change listener enabled")
 
 	// Subscribe to balance change events for high roller role updates
-	if bot.config.HighRollerEnabled {
-		eventBus.Subscribe(events.EventTypeBalanceChange, func(ctx context.Context, event events.Event) {
-			if _, ok := event.(events.BalanceChangeEvent); ok {
-				if err := bot.updateHighRollerRole(ctx); err != nil {
+	eventBus.Subscribe(events.EventTypeBalanceChange, func(ctx context.Context, event events.Event) {
+		if _, ok := event.(events.BalanceChangeEvent); ok {
+			// TODO: Extract guild ID from the balance change event when user table includes guild_id
+			// For now, use the primary guild from config as a fallback
+			if config.GuildID != "" {
+				guildID, err := strconv.ParseInt(config.GuildID, 10, 64)
+				if err != nil {
+					log.Errorf("Failed to parse primary guild ID: %v", err)
+					return
+				}
+				if err := bot.updateHighRollerRole(ctx, guildID); err != nil {
 					log.Errorf("Failed to update high roller role: %v", err)
 				}
-			}
-		})
-		log.Info("High roller role management enabled")
-
-		// Perform initial sync of high roller role
-		go func() {
-			// Wait a moment for Discord connection to be fully established
-			time.Sleep(2 * time.Second)
-			ctx := context.Background()
-			if err := bot.updateHighRollerRole(ctx); err != nil {
-				log.Errorf("Failed to sync high roller role on startup: %v", err)
 			} else {
-				log.Info("High roller role synced on startup")
+				log.Warn("No primary guild configured, skipping high roller role update")
 			}
-		}()
-	}
+		}
+	})
+	log.Info("High roller role management enabled")
+
+	// Perform initial sync of high roller role for all guilds
+	go func() {
+		// Wait a moment for Discord connection to be fully established
+		time.Sleep(2 * time.Second)
+		ctx := context.Background()
+		
+		// Get all guilds the bot is in
+		guilds := bot.session.State.Guilds
+		log.Infof("Syncing high roller roles for %d guilds", len(guilds))
+		
+		for _, guild := range guilds {
+			guildID, err := strconv.ParseInt(guild.ID, 10, 64)
+			if err != nil {
+				log.Errorf("Failed to parse guild ID %s: %v", guild.ID, err)
+				continue
+			}
+			
+			if err := bot.updateHighRollerRole(ctx, guildID); err != nil {
+				log.Errorf("Failed to sync high roller role for guild %s: %v", guild.Name, err)
+			} else {
+				log.Infof("High roller role synced for guild %s", guild.Name)
+			}
+		}
+		log.Info("High roller role sync completed for all guilds")
+	}()
 
 	return bot, nil
 }
@@ -150,9 +177,16 @@ func (b *Bot) GetConfig() Config {
 }
 
 // updateHighRollerRole updates the high roller role based on current balances
-func (b *Bot) updateHighRollerRole(ctx context.Context) error {
-	if !b.config.HighRollerEnabled || b.config.HighRollerRoleID == "" {
-		return nil
+func (b *Bot) updateHighRollerRole(ctx context.Context, guildID int64) error {
+	// Get guild-specific settings
+	settings, err := b.guildSettingsService.GetOrCreateSettings(ctx, guildID)
+	if err != nil {
+		return fmt.Errorf("failed to get guild settings: %w", err)
+	}
+
+	// Check if high roller feature is enabled for this guild
+	if settings.HighRollerRoleID == nil {
+		return nil // Feature disabled for this guild
 	}
 
 	// Get the current high roller
@@ -170,14 +204,15 @@ func (b *Bot) updateHighRollerRole(ctx context.Context) error {
 	hasChanged := b.lastHighRollerID != highRoller.DiscordID
 	if hasChanged && b.lastHighRollerID != 0 {
 		// Post notification message in the gamba channel
-		b.postHighRollerChangeMessage(ctx, highRoller)
+		b.postHighRollerChangeMessage(ctx, guildID, highRoller)
 	}
 
 	// Update the tracked high roller
 	b.lastHighRollerID = highRoller.DiscordID
 
 	// Get all guild members with the high roller role
-	members, err := b.session.GuildMembers(b.config.GuildID, "", 1000)
+	guildIDStr := strconv.FormatInt(guildID, 10)
+	members, err := b.session.GuildMembers(guildIDStr, "", 1000)
 	if err != nil {
 		return fmt.Errorf("failed to get guild members: %w", err)
 	}
@@ -185,10 +220,11 @@ func (b *Bot) updateHighRollerRole(ctx context.Context) error {
 	// Find who currently has the role
 	var currentHolders []string
 	highRollerDiscordID := strconv.FormatInt(highRoller.DiscordID, 10)
+	roleIDStr := strconv.FormatInt(*settings.HighRollerRoleID, 10)
 
 	for _, member := range members {
 		for _, roleID := range member.Roles {
-			if roleID == b.config.HighRollerRoleID {
+			if roleID == roleIDStr {
 				currentHolders = append(currentHolders, member.User.ID)
 				break
 			}
@@ -198,7 +234,7 @@ func (b *Bot) updateHighRollerRole(ctx context.Context) error {
 	// Remove role from anyone who shouldn't have it
 	for _, holderID := range currentHolders {
 		if holderID != highRollerDiscordID {
-			if err := b.session.GuildMemberRoleRemove(b.config.GuildID, holderID, b.config.HighRollerRoleID); err != nil {
+			if err := b.session.GuildMemberRoleRemove(guildIDStr, holderID, roleIDStr); err != nil {
 				log.Errorf("Failed to remove high roller role from user %s: %v", holderID, err)
 			} else {
 				log.Infof("Removed high roller role from user %s", holderID)
@@ -216,7 +252,7 @@ func (b *Bot) updateHighRollerRole(ctx context.Context) error {
 	}
 
 	if !hasRole {
-		if err := b.session.GuildMemberRoleAdd(b.config.GuildID, highRollerDiscordID, b.config.HighRollerRoleID); err != nil {
+		if err := b.session.GuildMemberRoleAdd(guildIDStr, highRollerDiscordID, roleIDStr); err != nil {
 			log.Errorf("Failed to add high roller role to user %s: %v", highRollerDiscordID, err)
 		} else {
 			log.Infof("Added high roller role to user %s (balance: %d)", highRollerDiscordID, highRoller.Balance)
@@ -227,7 +263,7 @@ func (b *Bot) updateHighRollerRole(ctx context.Context) error {
 }
 
 // postHighRollerChangeMessage posts a message to the gamba channel when the high roller changes
-func (b *Bot) postHighRollerChangeMessage(ctx context.Context, newHighRoller *models.User) {
+func (b *Bot) postHighRollerChangeMessage(ctx context.Context, guildID int64, newHighRoller *models.User) {
 	if b.config.GambaChannelID == "" {
 		return
 	}
@@ -240,7 +276,8 @@ func (b *Bot) postHighRollerChangeMessage(ctx context.Context, newHighRoller *mo
 	}
 
 	// Create the scoreboard embed
-	embed := stats.BuildScoreboardEmbed(entries, b.session, b.config.GuildID)
+	guildIDStr := strconv.FormatInt(guildID, 10)
+	embed := stats.BuildScoreboardEmbed(entries, b.session, guildIDStr)
 
 	// Update the title to indicate a new high roller
 	embed.Title = "👑 NEW HIGH ROLLER! 👑"
@@ -282,6 +319,8 @@ func (b *Bot) handleCommands(s *discordgo.Session, i *discordgo.InteractionCreat
 		b.groupWagers.HandleCommand(s, i)
 	case "stats":
 		b.stats.HandleCommand(s, i)
+	case "settings":
+		b.settings.HandleCommand(s, i)
 	}
 }
 
@@ -367,4 +406,25 @@ func (b *Bot) handleGroupWagerStateChange(ctx context.Context, event events.Even
 		log.Debugf("Successfully updated group wager message for wager %d (state: %s -> %s)",
 			e.GroupWagerID, e.OldState, e.NewState)
 	}
+}
+
+// handleGuildCreate handles when the bot joins a new guild
+func (b *Bot) handleGuildCreate(s *discordgo.Session, g *discordgo.GuildCreate) {
+	ctx := context.Background()
+
+	guildID, err := strconv.ParseInt(g.ID, 10, 64)
+	if err != nil {
+		log.Errorf("Failed to parse guild ID %s: %v", g.ID, err)
+		return
+	}
+
+	// Get or create settings for this guild
+	settings, err := b.guildSettingsService.GetOrCreateSettings(ctx, guildID)
+	if err != nil {
+		log.Errorf("Failed to track new guild %s (%s): %v", g.Name, g.ID, err)
+		return
+	}
+
+	log.Infof("Bot joined new guild: %s (ID: %d, Primary Channel: %v, High Roller Role: %v)",
+		g.Name, settings.GuildID, settings.PrimaryChannelID, settings.HighRollerRoleID)
 }

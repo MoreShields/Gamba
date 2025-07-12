@@ -48,22 +48,21 @@ func Run(ctx context.Context) error {
 	wagerService := service.NewWagerService(uowFactory)
 	statsService := service.NewStatsService(uowFactory)
 	groupWagerService := service.NewGroupWagerService(uowFactory)
+	guildSettingsService := service.NewGuildSettingsService(uowFactory)
 	log.Println("Services initialized successfully")
 
 	// Initialize Discord bot
 	log.Println("Initializing Discord bot...")
 	botConfig := bot.Config{
-		Token:             cfg.DiscordToken,
-		GuildID:           cfg.DiscordGuildID,
-		HighRollerRoleID:  cfg.HighRollerRoleID,
-		HighRollerEnabled: cfg.HighRollerEnabled,
-		GambaChannelID:    cfg.GambaChannelID,
+		Token:          cfg.DiscordToken,
+		GuildID:        cfg.GuildID,
+		GambaChannelID: cfg.GambaChannelID,
 	}
 	gamblingConfig := &betting.GamblingConfig{
 		DailyGambleLimit:    cfg.DailyGambleLimit,
 		DailyLimitResetHour: cfg.DailyLimitResetHour,
 	}
-	discordBot, err := bot.New(botConfig, gamblingConfig, userService, gamblingService, transferService, wagerService, statsService, groupWagerService, eventBus)
+	discordBot, err := bot.New(botConfig, gamblingConfig, userService, gamblingService, transferService, wagerService, statsService, groupWagerService, guildSettingsService, eventBus)
 	if err != nil {
 		return fmt.Errorf("failed to initialize Discord bot: %w", err)
 	}
