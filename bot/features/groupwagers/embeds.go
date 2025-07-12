@@ -112,8 +112,7 @@ func CreateGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEm
 		multiplierEmoji := getMultiplierEmoji(multiplier)
 		progressBar := createProgressBar(percentage, 25)
 
-		// Format the main stats line with fixed widths for vertical alignment
-		// Use backticks to ensure monospace rendering in Discord
+		// Format the main stats line.
 		statsLine := fmt.Sprintf("%s `%s` • %-7s • %5.2fx",
 			multiplierEmoji,
 			progressBar,
@@ -143,8 +142,6 @@ func CreateGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEm
 				// Join with bullet points for clean separation
 				participantInfo = strings.Join(participantTags, " • ")
 			}
-		} else {
-			participantInfo = "*No participants yet*"
 		}
 
 		// Determine option status label
