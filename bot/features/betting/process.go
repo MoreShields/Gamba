@@ -12,8 +12,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// processBetAndUpdateMessage processes a bet and updates the Discord message
-func (f *Feature) processBetAndUpdateMessage(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, session *BetSession, betAmount int64, responseType discordgo.InteractionResponseType) error {
+// processBetAndUpdateMessage processes a bet and sends the result message
+func (f *Feature) processBetAndUpdateMessage(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, session *BetSession, betAmount int64, useFollowUp bool) error {
 	// Create guild-scoped unit of work for bet placement
 	uow, err := f.createUnitOfWork(ctx, i)
 	if err != nil {
@@ -64,18 +64,19 @@ func (f *Feature) processBetAndUpdateMessage(ctx context.Context, s *discordgo.S
 	// Create action buttons for next bet
 	components := CreateActionButtons(betAmount, result.NewBalance)
 
-	// Send the response
-	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: responseType,
-		Data: &discordgo.InteractionResponseData{
-			Embeds:     []*discordgo.MessageEmbed{embed},
-			Components: components,
-		},
-	})
-
-	if err != nil {
-		log.Errorf("Error updating bet message: %v", err)
-		return fmt.Errorf("unable to update message: %w", err)
+	// Send the response - public follow-up for bet results, otherwise update
+	if useFollowUp {
+		_, err = common.FollowUpWithEmbed(s, i, embed, components, false)
+		if err != nil {
+			log.Errorf("Error sending bet result follow-up: %v", err)
+			return fmt.Errorf("unable to send follow-up: %w", err)
+		}
+	} else {
+		err = common.UpdateMessage(s, i, embed, components)
+		if err != nil {
+			log.Errorf("Error updating bet message: %v", err)
+			return fmt.Errorf("unable to update message: %w", err)
+		}
 	}
 
 	// Get display name for logging
@@ -166,8 +167,8 @@ func (f *Feature) processRepeatBet(ctx context.Context, s *discordgo.Session, i 
 		return fmt.Errorf("unable to commit transaction: %w", err)
 	}
 
-	// Process bet and update message
-	return f.processBetAndUpdateMessage(ctx, s, i, session, newAmount, discordgo.InteractionResponseUpdateMessage)
+	// Process bet and send public follow-up
+	return f.processBetAndUpdateMessage(ctx, s, i, session, newAmount, true)
 }
 
 // validateBetAmount validates the bet amount against balance and limits

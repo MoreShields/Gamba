@@ -305,9 +305,18 @@ func (f *Feature) handleBetModal(s *discordgo.Session, i *discordgo.InteractionC
 		return
 	}
 
-	// Process bet and update message
-	if err := f.processBetAndUpdateMessage(ctx, s, i, session, betAmount, discordgo.InteractionResponseUpdateMessage); err != nil {
-		common.RespondWithError(s, i, "Unable to place bet. Please try again.")
+	// First acknowledge the modal with a deferred response (public so follow-ups can be public)
+	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+	})
+	if err != nil {
+		log.Errorf("Error deferring modal response: %v", err)
+		return
+	}
+
+	// Process bet and send public follow-up
+	if err := f.processBetAndUpdateMessage(ctx, s, i, session, betAmount, true); err != nil {
+		common.UpdateMessageWithError(s, i, "Unable to place bet. Please try again.")
 	}
 }
 
@@ -406,38 +415,29 @@ func (f *Feature) handleHalveBet(s *discordgo.Session, i *discordgo.InteractionC
 func (f *Feature) handleRepeatBet(s *discordgo.Session, i *discordgo.InteractionCreate, multiplier float64) {
 	ctx := context.Background()
 
+	// First acknowledge the button interaction (public so follow-ups can be public)
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+	})
+	if err != nil {
+		log.Errorf("Error deferring repeat bet response: %v", err)
+		return
+	}
+
 	if err := f.processRepeatBet(ctx, s, i, multiplier); err != nil {
 		// Handle specific error types with user-friendly messages
 		switch {
 		case fmt.Sprintf("%v", err) == "no previous bet to repeat":
-			common.RespondWithError(s, i, "No previous bet to repeat.")
+			common.UpdateMessageWithError(s, i, "No previous bet to repeat.")
 		case fmt.Sprintf("%v", err)[:4] == "bet ":
 			// Bet validation error - show as ephemeral
-			err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: fmt.Sprintf("❌ %s", err.Error()[19:]), // Remove "bet validation failed: " prefix
-					Flags:   discordgo.MessageFlagsEphemeral,
-				},
-			})
-			if err != nil {
-				log.Errorf("Error sending validation error: %v", err)
-			}
+			common.UpdateMessageWithError(s, i, err.Error()[19:]) // Remove "bet validation failed: " prefix
 		case fmt.Sprintf("%v", err)[:5] == "daily":
 			// Daily limit error - show as ephemeral
-			err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: fmt.Sprintf("❌ %s", err.Error()[23:]), // Remove "daily limit exceeded: " prefix
-					Flags:   discordgo.MessageFlagsEphemeral,
-				},
-			})
-			if err != nil {
-				log.Errorf("Error sending limit error: %v", err)
-			}
+			common.UpdateMessageWithError(s, i, err.Error()[23:]) // Remove "daily limit exceeded: " prefix
 		default:
 			log.Errorf("Error processing repeat bet: %v", err)
-			common.RespondWithError(s, i, "Unable to place bet. Please try again.")
+			common.UpdateMessageWithError(s, i, "Unable to place bet. Please try again.")
 		}
 	}
 }

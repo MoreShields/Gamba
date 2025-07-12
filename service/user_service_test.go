@@ -70,6 +70,10 @@ func TestUserService_GetOrCreateUser_NewUser(t *testing.T) {
 			h.TransactionType == models.TransactionTypeInitial
 	})).Return(nil)
 
+	// Expect event publishing from RecordBalanceChange (both BalanceChangeEvent and UserCreatedEvent)
+	mockEventPublisher.On("Publish", mock.AnythingOfType("events.BalanceChangeEvent")).Return()
+	mockEventPublisher.On("Publish", mock.AnythingOfType("events.UserCreatedEvent")).Return()
+
 	user, err := service.GetOrCreateUser(ctx, 123456, "newuser")
 
 	assert.NoError(t, err)
@@ -77,6 +81,7 @@ func TestUserService_GetOrCreateUser_NewUser(t *testing.T) {
 
 	mockUserRepo.AssertExpectations(t)
 	mockBalanceHistoryRepo.AssertExpectations(t)
+	mockEventPublisher.AssertExpectations(t)
 }
 
 func TestUserService_GetOrCreateUser_CreateError(t *testing.T) {
@@ -127,6 +132,9 @@ func TestUserService_GetOrCreateUser_BalanceHistoryError(t *testing.T) {
 
 	// Balance history recording fails
 	mockBalanceHistoryRepo.On("Record", ctx, mock.Anything).Return(errors.New("history error"))
+
+	// Even though balance history fails, event publishing won't be called since RecordBalanceChange fails early
+	// No event publisher mocks needed for this test case
 
 	// Should fail due to history error
 	user, err := service.GetOrCreateUser(ctx, 123456, "newuser")

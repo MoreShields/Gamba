@@ -57,6 +57,9 @@ func TestGamblingService_PlaceBet_Win(t *testing.T) {
 			*b.BalanceHistoryID == 42
 	})).Return(nil)
 
+	// Expect event publishing from RecordBalanceChange
+	mockEventPublisher.On("Publish", mock.AnythingOfType("events.BalanceChangeEvent")).Return()
+
 	// Force a win by setting a high probability
 	result, err := service.PlaceBet(ctx, 123456, 0.99, 1000)
 
@@ -70,6 +73,7 @@ func TestGamblingService_PlaceBet_Win(t *testing.T) {
 	mockUserRepo.AssertExpectations(t)
 	mockBalanceHistoryRepo.AssertExpectations(t)
 	mockBetRepo.AssertExpectations(t)
+	mockEventPublisher.AssertExpectations(t)
 }
 
 func TestGamblingService_PlaceBet_Loss(t *testing.T) {
@@ -115,6 +119,9 @@ func TestGamblingService_PlaceBet_Loss(t *testing.T) {
 			*b.BalanceHistoryID == 43
 	})).Return(nil)
 
+	// Expect event publishing from RecordBalanceChange
+	mockEventPublisher.On("Publish", mock.AnythingOfType("events.BalanceChangeEvent")).Return()
+
 	// Force a loss by setting a very low probability
 	result, err := service.PlaceBet(ctx, 123456, 0.01, 1000)
 
@@ -127,6 +134,7 @@ func TestGamblingService_PlaceBet_Loss(t *testing.T) {
 	mockUserRepo.AssertExpectations(t)
 	mockBalanceHistoryRepo.AssertExpectations(t)
 	mockBetRepo.AssertExpectations(t)
+	mockEventPublisher.AssertExpectations(t)
 }
 
 func TestGamblingService_PlaceBet_InvalidProbability(t *testing.T) {
@@ -279,6 +287,9 @@ func TestGamblingService_PlaceBet_TransactionRollback(t *testing.T) {
 	// Bet creation fails, should trigger rollback
 	mockBetRepo.On("Create", ctx, mock.Anything).Return(errors.New("database error"))
 
+	// Expect event publishing from RecordBalanceChange (before bet creation fails)
+	mockEventPublisher.On("Publish", mock.AnythingOfType("events.BalanceChangeEvent")).Return()
+
 	// Force a win
 	result, err := service.PlaceBet(ctx, 123456, 0.99, 1000)
 
@@ -289,4 +300,5 @@ func TestGamblingService_PlaceBet_TransactionRollback(t *testing.T) {
 	mockUserRepo.AssertExpectations(t)
 	mockBalanceHistoryRepo.AssertExpectations(t)
 	mockBetRepo.AssertExpectations(t)
+	mockEventPublisher.AssertExpectations(t)
 }
