@@ -334,7 +334,8 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 
 		// Only update balance if there's a net change
 		if netWin != 0 {
-			if err := s.userRepo.AddBalance(ctx, winner.DiscordID, netWin); err != nil {
+			newBalance := user.Balance + netWin
+			if err := s.userRepo.UpdateBalance(ctx, winner.DiscordID, newBalance); err != nil {
 				return nil, fmt.Errorf("failed to update winner balance: %w", err)
 			}
 
@@ -377,9 +378,10 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 			return nil, fmt.Errorf("failed to get loser user: %w", err)
 		}
 
-		// Deduct the bet amount
-		if err := s.userRepo.DeductBalance(ctx, loser.DiscordID, loser.Amount); err != nil {
-			return nil, fmt.Errorf("failed to deduct loser balance: %w", err)
+		// Update balance with bet deduction
+		newBalance := user.Balance - loser.Amount
+		if err := s.userRepo.UpdateBalance(ctx, loser.DiscordID, newBalance); err != nil {
+			return nil, fmt.Errorf("failed to update loser balance: %w", err)
 		}
 
 		// Record balance history

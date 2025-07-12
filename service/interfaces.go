@@ -19,12 +19,6 @@ type UserRepository interface {
 	// UpdateBalance updates a user's balance atomically
 	UpdateBalance(ctx context.Context, discordID int64, newBalance int64) error
 
-	// AddBalance adds to a user's balance atomically
-	AddBalance(ctx context.Context, discordID int64, amount int64) error
-
-	// DeductBalance deducts from a user's balance atomically, failing if insufficient funds
-	DeductBalance(ctx context.Context, discordID int64, amount int64) error
-
 	// GetUsersWithPositiveBalance returns all users with balance > 0
 	GetUsersWithPositiveBalance(ctx context.Context) ([]*models.User, error)
 

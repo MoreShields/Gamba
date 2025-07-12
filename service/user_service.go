@@ -106,9 +106,9 @@ func (s *userService) TransferBetweenUsers(ctx context.Context, fromDiscordID, t
 		return fmt.Errorf("sender user not found")
 	}
 
-	// Check if sender has sufficient balance
-	if fromUser.Balance < amount {
-		return fmt.Errorf("insufficient balance: have %d, need %d", fromUser.Balance, amount)
+	// Check if sender has sufficient available balance
+	if fromUser.AvailableBalance < amount {
+		return fmt.Errorf("insufficient balance: have %d available, need %d", fromUser.AvailableBalance, amount)
 	}
 
 	// Get recipient user
@@ -124,14 +124,14 @@ func (s *userService) TransferBetweenUsers(ctx context.Context, fromDiscordID, t
 	newFromBalance := fromUser.Balance - amount
 	newToBalance := toUser.Balance + amount
 
-	// Deduct amount from sender
-	if err := s.userRepo.DeductBalance(ctx, fromDiscordID, amount); err != nil {
-		return fmt.Errorf("failed to deduct transfer amount: %w", err)
+	// Update sender balance
+	if err := s.userRepo.UpdateBalance(ctx, fromDiscordID, newFromBalance); err != nil {
+		return fmt.Errorf("failed to update sender balance: %w", err)
 	}
 
-	// Add amount to recipient
-	if err := s.userRepo.AddBalance(ctx, toDiscordID, amount); err != nil {
-		return fmt.Errorf("failed to add transfer amount: %w", err)
+	// Update recipient balance
+	if err := s.userRepo.UpdateBalance(ctx, toDiscordID, newToBalance); err != nil {
+		return fmt.Errorf("failed to update recipient balance: %w", err)
 	}
 
 	// Create balance history record for sender (outgoing transfer)

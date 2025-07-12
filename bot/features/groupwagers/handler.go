@@ -337,13 +337,6 @@ func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Int
 		return
 	}
 
-	// Commit resolver check transaction
-	if err := tempUow.Commit(); err != nil {
-		log.Printf("Error committing resolver check transaction: %v", err)
-		common.RespondWithError(s, i, "Unable to process request.")
-		return
-	}
-
 	// Defer response
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,

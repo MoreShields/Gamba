@@ -229,78 +229,7 @@ func (r *UserRepository) GetUsersWithPositiveBalance(ctx context.Context) ([]*mo
 	return users, nil
 }
 
-// AddBalance adds to a user's balance atomically
-func (r *UserRepository) AddBalance(ctx context.Context, discordID int64, amount int64) error {
-	if amount <= 0 {
-		return fmt.Errorf("amount must be positive")
-	}
 
-	query := `
-		UPDATE user_guild_accounts
-		SET balance = balance + $1, updated_at = NOW()
-		WHERE discord_id = $2 AND guild_id = $3
-	`
-
-	result, err := r.q.Exec(ctx, query, amount, discordID, r.guildID)
-	if err != nil {
-		return fmt.Errorf("failed to add balance for user %d in guild %d: %w", discordID, r.guildID, err)
-	}
-
-	if result.RowsAffected() == 0 {
-		return fmt.Errorf("user with discord ID %d not found in guild %d", discordID, r.guildID)
-	}
-
-	return nil
-}
-
-// DeductBalance deducts from a user's balance atomically, failing if insufficient funds
-func (r *UserRepository) DeductBalance(ctx context.Context, discordID int64, amount int64) error {
-	if amount <= 0 {
-		return fmt.Errorf("amount must be positive")
-	}
-
-	// Update only if the user has sufficient available balance (balance - pending wagers)
-	query := `
-		UPDATE user_guild_accounts uga
-		SET balance = balance - $1, updated_at = NOW()
-		WHERE uga.discord_id = $2 AND uga.guild_id = $3
-		  AND uga.balance - COALESCE(
-			  (SELECT SUM(w.amount) 
-			   FROM wagers w 
-			   WHERE (w.proposer_discord_id = uga.discord_id OR w.target_discord_id = uga.discord_id)
-			     AND w.guild_id = uga.guild_id
-			     AND w.state IN ('proposed', 'voting')), 
-			  0
-		  ) - COALESCE(
-			  (SELECT SUM(gwp.amount)
-			   FROM group_wager_participants gwp
-			   JOIN group_wagers gw ON gw.id = gwp.group_wager_id
-			   WHERE gwp.discord_id = uga.discord_id
-			     AND gw.guild_id = uga.guild_id
-			     AND gw.state = 'active'),
-			  0
-		  ) >= $1
-	`
-
-	result, err := r.q.Exec(ctx, query, amount, discordID, r.guildID)
-	if err != nil {
-		return fmt.Errorf("failed to deduct balance for user %d in guild %d: %w", discordID, r.guildID, err)
-	}
-
-	if result.RowsAffected() == 0 {
-		// Check if user exists or has insufficient available balance
-		user, err := r.GetByDiscordID(ctx, discordID)
-		if err != nil {
-			return fmt.Errorf("failed to check user: %w", err)
-		}
-		if user == nil {
-			return fmt.Errorf("user with discord ID %d not found in guild %d", discordID, r.guildID)
-		}
-		return fmt.Errorf("insufficient balance: have %d available, need %d", user.AvailableBalance, amount)
-	}
-
-	return nil
-}
 
 // GetAll returns all users in the current guild
 func (r *UserRepository) GetAll(ctx context.Context) ([]*models.User, error) {

@@ -52,15 +52,6 @@ func (m *MockUserRepository) GetAll(ctx context.Context) ([]*models.User, error)
 	return args.Get(0).([]*models.User), args.Error(1)
 }
 
-func (m *MockUserRepository) AddBalance(ctx context.Context, discordID int64, amount int64) error {
-	args := m.Called(ctx, discordID, amount)
-	return args.Error(0)
-}
-
-func (m *MockUserRepository) DeductBalance(ctx context.Context, discordID int64, amount int64) error {
-	args := m.Called(ctx, discordID, amount)
-	return args.Error(0)
-}
 
 // MockBalanceHistoryRepository is a mock implementation of BalanceHistoryRepository
 type MockBalanceHistoryRepository struct {

@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	"gambler/models"
@@ -34,7 +33,7 @@ func TestGamblingService_PlaceBet_Win(t *testing.T) {
 	mockBetRepo.On("GetByUserSince", ctx, int64(123456), mock.AnythingOfType("time.Time")).Return([]*models.Bet{}, nil)
 
 	mockUserRepo.On("GetByDiscordID", ctx, int64(123456)).Return(existingUser, nil)
-	mockUserRepo.On("AddBalance", ctx, int64(123456), int64(10)).Return(nil) // 0.99 odds, 1000 bet = ~10 win
+	mockUserRepo.On("UpdateBalance", ctx, int64(123456), int64(10010)).Return(nil) // Balance 10000 + 10 win = 10010
 
 	mockBalanceHistoryRepo.On("Record", ctx, mock.MatchedBy(func(h *models.BalanceHistory) bool {
 		return h.DiscordID == 123456 &&
@@ -98,7 +97,7 @@ func TestGamblingService_PlaceBet_Loss(t *testing.T) {
 	mockBetRepo.On("GetByUserSince", ctx, int64(123456), mock.AnythingOfType("time.Time")).Return([]*models.Bet{}, nil)
 
 	mockUserRepo.On("GetByDiscordID", ctx, int64(123456)).Return(existingUser, nil)
-	mockUserRepo.On("DeductBalance", ctx, int64(123456), int64(1000)).Return(nil)
+	mockUserRepo.On("UpdateBalance", ctx, int64(123456), int64(9000)).Return(nil) // Balance 10000 - 1000 bet = 9000
 
 	mockBalanceHistoryRepo.On("Record", ctx, mock.MatchedBy(func(h *models.BalanceHistory) bool {
 		return h.DiscordID == 123456 &&
@@ -213,15 +212,14 @@ func TestGamblingService_PlaceBet_InsufficientBalance(t *testing.T) {
 	mockBetRepo.On("GetByUserSince", ctx, int64(123456), mock.AnythingOfType("time.Time")).Return([]*models.Bet{}, nil)
 
 	mockUserRepo.On("GetByDiscordID", ctx, int64(123456)).Return(existingUser, nil)
-	mockUserRepo.On("DeductBalance", ctx, int64(123456), int64(1000)).Return(
-		fmt.Errorf("insufficient balance: have 500, need 1000"))
+	// No UpdateBalance call expected - service layer will catch insufficient balance before calling repository
 
 	// Force a loss to trigger deduction
 	result, err := service.PlaceBet(ctx, 123456, 0.01, 1000)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "insufficient balance: have 500, need 1000")
+	assert.Contains(t, err.Error(), "insufficient balance: have 500 available, need 1000")
 
 	mockUserRepo.AssertExpectations(t)
 	mockBalanceHistoryRepo.AssertNotCalled(t, "Record")
@@ -277,7 +275,7 @@ func TestGamblingService_PlaceBet_TransactionRollback(t *testing.T) {
 	mockBetRepo.On("GetByUserSince", ctx, int64(123456), mock.AnythingOfType("time.Time")).Return([]*models.Bet{}, nil)
 
 	mockUserRepo.On("GetByDiscordID", ctx, int64(123456)).Return(existingUser, nil)
-	mockUserRepo.On("AddBalance", ctx, int64(123456), int64(10)).Return(nil)
+	mockUserRepo.On("UpdateBalance", ctx, int64(123456), int64(10010)).Return(nil) // Balance 10000 + 10 win = 10010
 
 	mockBalanceHistoryRepo.On("Record", ctx, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
 		history := args.Get(1).(*models.BalanceHistory)

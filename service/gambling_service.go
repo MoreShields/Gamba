@@ -77,26 +77,27 @@ func (s *gamblingService) PlaceBet(ctx context.Context, discordID int64, winProb
 	var transactionType models.TransactionType
 
 	if won {
-		newBalance = user.AvailableBalance + winAmount
+		newBalance = user.Balance + winAmount
 		changeAmount = winAmount
 		transactionType = models.TransactionTypeBetWin
 
-		// Add winnings to balance
-		if err := s.userRepo.AddBalance(ctx, discordID, winAmount); err != nil {
-			return nil, fmt.Errorf("failed to add winnings: %w", err)
+		// Update balance with winnings
+		if err := s.userRepo.UpdateBalance(ctx, discordID, newBalance); err != nil {
+			return nil, fmt.Errorf("failed to update balance with winnings: %w", err)
 		}
 	} else {
-		newBalance = user.AvailableBalance - betAmount
+		newBalance = user.Balance - betAmount
 		changeAmount = -betAmount
 		transactionType = models.TransactionTypeBetLoss
 
-		// Deduct bet amount from balance
-		if err := s.userRepo.DeductBalance(ctx, discordID, betAmount); err != nil {
-			// Check if it's an insufficient balance error
-			if err.Error() == fmt.Sprintf("insufficient balance: have %d, need %d", user.Balance, betAmount) {
-				return nil, fmt.Errorf("insufficient balance: have %d, need %d", user.Balance, betAmount)
-			}
-			return nil, fmt.Errorf("failed to deduct bet amount: %w", err)
+		// Check if sufficient balance before updating
+		if user.AvailableBalance < betAmount {
+			return nil, fmt.Errorf("insufficient balance: have %d available, need %d", user.AvailableBalance, betAmount)
+		}
+
+		// Update balance with bet deduction
+		if err := s.userRepo.UpdateBalance(ctx, discordID, newBalance); err != nil {
+			return nil, fmt.Errorf("failed to update balance with bet deduction: %w", err)
 		}
 	}
 

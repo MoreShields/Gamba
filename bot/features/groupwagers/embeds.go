@@ -144,14 +144,6 @@ func CreateGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEm
 			}
 		}
 
-		// Determine option status label
-		statusLabel := ""
-		if percentage > 50 {
-			statusLabel = " (Favorite)"
-		} else if len(participants) > 0 && percentage < 20 {
-			statusLabel = " (Underdog)"
-		}
-
 		// Combine all parts into field value
 		fieldValue := statsLine + "\n" + participantInfo
 
@@ -161,7 +153,7 @@ func CreateGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEm
 		}
 
 		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
-			Name:   fmt.Sprintf("%s%s", option.OptionText, statusLabel),
+			Name:   fmt.Sprintf("%s", option.OptionText),
 			Value:  fieldValue,
 			Inline: false,
 		})

@@ -209,15 +209,19 @@ func (s *wagerService) resolveWager(ctx context.Context, wager *models.Wager, wi
 		return fmt.Errorf("failed to get loser: %w", err)
 	}
 
+	// Calculate new balances for both users
+	newWinnerBalance := winner.Balance + wager.Amount
+	newLoserBalance := loser.Balance - wager.Amount
+
 	// Transfer funds from loser to winner
-	// First, deduct from loser
-	if err := s.userRepo.DeductBalance(ctx, loserID, wager.Amount); err != nil {
-		return fmt.Errorf("failed to deduct from loser: %w", err)
+	// Update loser balance
+	if err := s.userRepo.UpdateBalance(ctx, loserID, newLoserBalance); err != nil {
+		return fmt.Errorf("failed to update loser balance: %w", err)
 	}
 
-	// Then, add to winner
-	if err := s.userRepo.AddBalance(ctx, winnerID, wager.Amount); err != nil {
-		return fmt.Errorf("failed to add to winner: %w", err)
+	// Update winner balance
+	if err := s.userRepo.UpdateBalance(ctx, winnerID, newWinnerBalance); err != nil {
+		return fmt.Errorf("failed to update winner balance: %w", err)
 	}
 
 	// Create balance history for winner

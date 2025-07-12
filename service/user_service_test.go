@@ -146,6 +146,3 @@ func TestUserService_GetOrCreateUser_BalanceHistoryError(t *testing.T) {
 	mockUserRepo.AssertExpectations(t)
 	mockBalanceHistoryRepo.AssertExpectations(t)
 }
-
-
-

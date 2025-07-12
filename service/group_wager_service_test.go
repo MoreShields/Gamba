@@ -476,14 +476,16 @@ func TestGroupWagerService_ResolveGroupWager(t *testing.T) {
 		mockUserRepo.On("GetByDiscordID", mock.Anything, int64(444444)).Return(loserUser2, nil)
 
 		// Mock balance updates for winners
-		// Winner1 gets 3333 (2000/3000 * 5000), net win = 3333 - 2000 = 1333
-		mockUserRepo.On("AddBalance", mock.Anything, int64(111111), int64(1333)).Return(nil)
-		// Winner2 gets 1666 (1000/3000 * 5000 with integer division), net win = 1666 - 1000 = 666
-		mockUserRepo.On("AddBalance", mock.Anything, int64(222222), int64(666)).Return(nil)
+		// Winner1 gets 3333 (2000/3000 * 5000), net win = 3333 - 2000 = 1333, new balance = 10000 + 1333 = 11333
+		mockUserRepo.On("UpdateBalance", mock.Anything, int64(111111), int64(11333)).Return(nil)
+		// Winner2 gets 1666 (1000/3000 * 5000 with integer division), net win = 1666 - 1000 = 666, new balance = 10000 + 666 = 10666
+		mockUserRepo.On("UpdateBalance", mock.Anything, int64(222222), int64(10666)).Return(nil)
 
-		// Mock balance deductions for losers
-		mockUserRepo.On("DeductBalance", mock.Anything, int64(333333), int64(1500)).Return(nil)
-		mockUserRepo.On("DeductBalance", mock.Anything, int64(444444), int64(500)).Return(nil)
+		// Mock balance updates for losers
+		// Loser1 loses 1500, new balance = 10000 - 1500 = 8500
+		mockUserRepo.On("UpdateBalance", mock.Anything, int64(333333), int64(8500)).Return(nil)
+		// Loser2 loses 500, new balance = 10000 - 500 = 9500
+		mockUserRepo.On("UpdateBalance", mock.Anything, int64(444444), int64(9500)).Return(nil)
 
 		// Mock balance history recording
 		mockBalanceHistoryRepo.On("Record", mock.Anything, mock.MatchedBy(func(h *models.BalanceHistory) bool {
@@ -732,8 +734,8 @@ func TestGroupWagerService_ResolveGroupWager(t *testing.T) {
 		mockUserRepo.On("GetByDiscordID", mock.Anything, int64(111111)).Return(winnerUser, nil)
 
 		// Mock balance update failure on first winner
-		// Winner1 would get 2000/3000 * 4000 = 2666, net win = 666
-		mockUserRepo.On("AddBalance", mock.Anything, int64(111111), int64(666)).Return(fmt.Errorf("database error"))
+		// Winner1 would get 2000/3000 * 4000 = 2666, net win = 666, new balance = 10000 + 666 = 10666
+		mockUserRepo.On("UpdateBalance", mock.Anything, int64(111111), int64(10666)).Return(fmt.Errorf("database error"))
 
 		// Execute
 		result, err := service.ResolveGroupWager(ctx, groupWagerID, resolverID, winningOptionID)
