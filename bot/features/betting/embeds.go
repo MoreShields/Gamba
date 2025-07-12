@@ -22,7 +22,7 @@ func buildInitialBetEmbed(balance int64, remaining int64) *discordgo.MessageEmbe
 }
 
 // buildWinEmbed creates the embed for a winning bet
-func buildWinEmbed(result *models.BetResult, odds float64, session *BetSession) *discordgo.MessageEmbed {
+func buildWinEmbed(result *models.BetResult, odds float64, session *BetSession, userID int64) *discordgo.MessageEmbed {
 	percentage := int(odds * 100)
 
 	fields := []*discordgo.MessageEmbedField{
@@ -55,14 +55,14 @@ func buildWinEmbed(result *models.BetResult, odds float64, session *BetSession) 
 	})
 
 	return &discordgo.MessageEmbed{
-		Description: fmt.Sprintf("🎉 **WINNER!** 🎉\nBalance: **%s bits**", common.FormatBalance(result.NewBalance)),
+		Description: fmt.Sprintf("🎉 **<@%d>** 🎉\nBalance: **%s bits**", userID, common.FormatBalance(result.NewBalance)),
 		Color:       common.ColorSuccess,
 		Fields:      fields,
 	}
 }
 
 // buildLossEmbed creates the embed for a losing bet
-func buildLossEmbed(result *models.BetResult, odds float64, session *BetSession) *discordgo.MessageEmbed {
+func buildLossEmbed(result *models.BetResult, odds float64, session *BetSession, userID int64) *discordgo.MessageEmbed {
 	percentage := int(odds * 100)
 
 	fields := []*discordgo.MessageEmbedField{
@@ -105,7 +105,7 @@ func buildLossEmbed(result *models.BetResult, odds float64, session *BetSession)
 	}
 
 	return &discordgo.MessageEmbed{
-		Description: fmt.Sprintf("**LOSE**\nBalance: %s", common.FormatBalance(result.NewBalance)),
+		Description: fmt.Sprintf("**<@%d>**\nBalance: %s", userID, common.FormatBalance(result.NewBalance)),
 		Color:       common.ColorDanger,
 		Fields:      fields,
 		Footer: &discordgo.MessageEmbedFooter{

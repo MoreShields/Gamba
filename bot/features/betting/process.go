@@ -53,12 +53,15 @@ func (f *Feature) processBetAndUpdateMessage(ctx context.Context, s *discordgo.S
 		return fmt.Errorf("session lost after bet")
 	}
 
+	// Get display name for embed and logging
+	displayName := common.GetDisplayNameInt64(s, i.GuildID, session.UserID)
+
 	// Create result embed based on win/loss
 	var embed *discordgo.MessageEmbed
 	if result.Won {
-		embed = buildWinEmbed(result, session.LastOdds, updatedSession)
+		embed = buildWinEmbed(result, session.LastOdds, updatedSession, session.UserID)
 	} else {
-		embed = buildLossEmbed(result, session.LastOdds, updatedSession)
+		embed = buildLossEmbed(result, session.LastOdds, updatedSession, session.UserID)
 	}
 
 	// Create action buttons for next bet
@@ -78,9 +81,6 @@ func (f *Feature) processBetAndUpdateMessage(ctx context.Context, s *discordgo.S
 			return fmt.Errorf("unable to update message: %w", err)
 		}
 	}
-
-	// Get display name for logging
-	displayName := common.GetDisplayNameInt64(s, i.GuildID, session.UserID)
 
 	// Log the bet
 	if result.Won {
