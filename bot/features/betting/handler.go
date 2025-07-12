@@ -415,9 +415,12 @@ func (f *Feature) handleHalveBet(s *discordgo.Session, i *discordgo.InteractionC
 func (f *Feature) handleRepeatBet(s *discordgo.Session, i *discordgo.InteractionCreate, multiplier float64) {
 	ctx := context.Background()
 
-	// First acknowledge the button interaction (public so follow-ups can be public)
+	// First acknowledge the button interaction (ephemeral so follow-ups are ephemeral)
 	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Flags: discordgo.MessageFlagsEphemeral,
+		},
 	})
 	if err != nil {
 		log.Errorf("Error deferring repeat bet response: %v", err)
