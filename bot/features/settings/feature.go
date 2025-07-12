@@ -8,15 +8,15 @@ import (
 
 // Feature handles guild settings management
 type Feature struct {
-	session              *discordgo.Session
-	guildSettingsService service.GuildSettingsService
+	session    *discordgo.Session
+	uowFactory service.UnitOfWorkFactory
 }
 
 // NewFeature creates a new settings feature instance
-func NewFeature(session *discordgo.Session, guildSettingsService service.GuildSettingsService) *Feature {
+func NewFeature(session *discordgo.Session, uowFactory service.UnitOfWorkFactory) *Feature {
 	return &Feature{
-		session:              session,
-		guildSettingsService: guildSettingsService,
+		session:    session,
+		uowFactory: uowFactory,
 	}
 }
 

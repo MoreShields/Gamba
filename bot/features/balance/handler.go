@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"gambler/bot/common"
+	"gambler/service"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -22,11 +23,42 @@ func (f *Feature) handleBalance(s *discordgo.Session, i *discordgo.InteractionCr
 		return
 	}
 
+	// Extract guild ID from interaction
+	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
+	if err != nil {
+		log.Errorf("Error parsing guild ID %s: %v", i.GuildID, err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+
+	// Create guild-scoped unit of work
+	uow := f.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(ctx); err != nil {
+		log.Errorf("Error beginning transaction: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate user service with repositories from UnitOfWork
+	userService := service.NewUserService(
+		uow.UserRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
 	// Get or create user
-	user, err := f.userService.GetOrCreateUser(ctx, discordID, i.Member.User.Username)
+	user, err := userService.GetOrCreateUser(ctx, discordID, i.Member.User.Username)
 	if err != nil {
 		log.Errorf("Error getting user %d: %v", discordID, err)
 		common.RespondWithError(s, i, "Unable to retrieve balance. Please try again.")
+		return
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Error committing transaction: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
 		return
 	}
 

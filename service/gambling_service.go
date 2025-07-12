@@ -11,13 +11,19 @@ import (
 )
 
 type gamblingService struct {
-	uowFactory UnitOfWorkFactory
+	userRepo          UserRepository
+	betRepo           BetRepository
+	balanceHistoryRepo BalanceHistoryRepository
+	eventPublisher    EventPublisher
 }
 
 // NewGamblingService creates a new gambling service
-func NewGamblingService(uowFactory UnitOfWorkFactory) GamblingService {
+func NewGamblingService(userRepo UserRepository, betRepo BetRepository, balanceHistoryRepo BalanceHistoryRepository, eventPublisher EventPublisher) GamblingService {
 	return &gamblingService{
-		uowFactory: uowFactory,
+		userRepo:          userRepo,
+		betRepo:           betRepo,
+		balanceHistoryRepo: balanceHistoryRepo,
+		eventPublisher:    eventPublisher,
 	}
 }
 
@@ -49,15 +55,8 @@ func (s *gamblingService) PlaceBet(ctx context.Context, discordID int64, winProb
 		return nil, fmt.Errorf("bet amount would exceed daily limit. You have %d bits remaining today", remainingLimit)
 	}
 
-	// Create unit of work
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback() // No-op if already committed
-
 	// Get current user state (for calculating new balance)
-	user, err := uow.UserRepository().GetByDiscordID(ctx, discordID)
+	user, err := s.userRepo.GetByDiscordID(ctx, discordID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -83,7 +82,7 @@ func (s *gamblingService) PlaceBet(ctx context.Context, discordID int64, winProb
 		transactionType = models.TransactionTypeBetWin
 
 		// Add winnings to balance
-		if err := uow.UserRepository().AddBalance(ctx, discordID, winAmount); err != nil {
+		if err := s.userRepo.AddBalance(ctx, discordID, winAmount); err != nil {
 			return nil, fmt.Errorf("failed to add winnings: %w", err)
 		}
 	} else {
@@ -92,7 +91,7 @@ func (s *gamblingService) PlaceBet(ctx context.Context, discordID int64, winProb
 		transactionType = models.TransactionTypeBetLoss
 
 		// Deduct bet amount from balance
-		if err := uow.UserRepository().DeductBalance(ctx, discordID, betAmount); err != nil {
+		if err := s.userRepo.DeductBalance(ctx, discordID, betAmount); err != nil {
 			// Check if it's an insufficient balance error
 			if err.Error() == fmt.Sprintf("insufficient balance: have %d, need %d", user.Balance, betAmount) {
 				return nil, fmt.Errorf("insufficient balance: have %d, need %d", user.Balance, betAmount)
@@ -104,6 +103,7 @@ func (s *gamblingService) PlaceBet(ctx context.Context, discordID int64, winProb
 	// Create balance history record
 	history := &models.BalanceHistory{
 		DiscordID:       discordID,
+		GuildID:         0, // Will be set by repository from UoW's guild scope
 		BalanceBefore:   user.Balance,
 		BalanceAfter:    newBalance,
 		ChangeAmount:    changeAmount,
@@ -115,13 +115,14 @@ func (s *gamblingService) PlaceBet(ctx context.Context, discordID int64, winProb
 		},
 	}
 
-	if err := RecordBalanceChange(ctx, uow, history); err != nil {
+	if err := RecordBalanceChange(ctx, s.balanceHistoryRepo, s.eventPublisher, history); err != nil {
 		return nil, fmt.Errorf("failed to record balance change: %w", err)
 	}
 
 	// Create bet record
 	bet := &models.Bet{
 		DiscordID:        discordID,
+		GuildID:          0, // Will be set by repository from UoW's guild scope
 		Amount:           betAmount,
 		WinProbability:   winProbability,
 		Won:              won,
@@ -129,14 +130,10 @@ func (s *gamblingService) PlaceBet(ctx context.Context, discordID int64, winProb
 		BalanceHistoryID: &history.ID,
 	}
 
-	if err := uow.BetRepository().Create(ctx, bet); err != nil {
+	if err := s.betRepo.Create(ctx, bet); err != nil {
 		return nil, fmt.Errorf("failed to create bet record: %w", err)
 	}
 
-	// Commit the transaction
-	if err := uow.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
-	}
 
 	return &models.BetResult{
 		Won:        won,
@@ -147,15 +144,8 @@ func (s *gamblingService) PlaceBet(ctx context.Context, discordID int64, winProb
 }
 
 func (s *gamblingService) GetDailyRiskAmount(ctx context.Context, discordID int64, since time.Time) (int64, error) {
-	// Create unit of work for read operation
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return 0, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback() // No-op if already committed
-
 	// Get all bets since the specified time
-	bets, err := uow.BetRepository().GetByUserSince(ctx, discordID, since)
+	bets, err := s.betRepo.GetByUserSince(ctx, discordID, since)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get bets since %v: %w", since, err)
 	}

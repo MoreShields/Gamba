@@ -19,6 +19,7 @@ type Wager struct {
 	ID                     int64      `db:"id"`
 	ProposerDiscordID      int64      `db:"proposer_discord_id"`
 	TargetDiscordID        int64      `db:"target_discord_id"`
+	GuildID                int64      `db:"guild_id"`
 	Amount                 int64      `db:"amount"`
 	Condition              string     `db:"condition"`
 	State                  WagerState `db:"state"`

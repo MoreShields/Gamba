@@ -33,21 +33,13 @@ type Config struct {
 // Bot manages the Discord bot and all feature modules
 type Bot struct {
 	// Core components
-	config   Config
-	session  *discordgo.Session
-	eventBus *events.Bus
+	config     Config
+	session    *discordgo.Session
+	eventBus   *events.Bus
+	uowFactory service.UnitOfWorkFactory
 
 	// High roller tracking
 	lastHighRollerID int64
-
-	// Services
-	userService          service.UserService
-	gamblingService      service.GamblingService
-	transferService      service.TransferService
-	wagerService         service.WagerService
-	statsService         service.StatsService
-	groupWagerService    service.GroupWagerService
-	guildSettingsService service.GuildSettingsService
 
 	// Feature modules
 	betting     *betting.Feature
@@ -57,10 +49,13 @@ type Bot struct {
 	balance     *balance.Feature
 	transfer    *transfer.Feature
 	settings    *settings.Feature
+
+	// Worker cleanup functions
+	stopGroupWagerWorker func()
 }
 
 // New creates a new bot instance with all features
-func New(config Config, gamblingConfig *betting.GamblingConfig, userService service.UserService, gamblingService service.GamblingService, transferService service.TransferService, wagerService service.WagerService, statsService service.StatsService, groupWagerService service.GroupWagerService, guildSettingsService service.GuildSettingsService, eventBus *events.Bus) (*Bot, error) {
+func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory service.UnitOfWorkFactory, eventBus *events.Bus) (*Bot, error) {
 	// Create Discord session
 	dg, err := discordgo.New("Bot " + config.Token)
 	if err != nil {
@@ -70,26 +65,20 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, userService serv
 
 	// Create bot instance
 	bot := &Bot{
-		config:               config,
-		session:              dg,
-		eventBus:             eventBus,
-		userService:          userService,
-		gamblingService:      gamblingService,
-		transferService:      transferService,
-		wagerService:         wagerService,
-		statsService:         statsService,
-		groupWagerService:    groupWagerService,
-		guildSettingsService: guildSettingsService,
+		config:     config,
+		session:    dg,
+		eventBus:   eventBus,
+		uowFactory: uowFactory,
 	}
 
 	// Create feature modules
-	bot.betting = betting.NewFeature(dg, gamblingConfig, userService, gamblingService, config.GuildID)
-	bot.wagers = wagers.NewFeature(dg, wagerService, userService, config.GuildID)
-	bot.groupWagers = groupwagers.NewFeature(dg, groupWagerService, userService, config.GuildID)
-	bot.stats = stats.NewFeature(dg, statsService, userService, config.GuildID)
-	bot.balance = balance.New(userService)
-	bot.transfer = transfer.New(transferService, userService)
-	bot.settings = settings.NewFeature(dg, guildSettingsService)
+	bot.betting = betting.New(gamblingConfig, uowFactory)
+	bot.wagers = wagers.NewFeature(dg, uowFactory, config.GuildID)
+	bot.groupWagers = groupwagers.NewFeature(dg, uowFactory)
+	bot.stats = stats.NewFeature(dg, uowFactory, config.GuildID)
+	bot.balance = balance.New(uowFactory)
+	bot.transfer = transfer.New(uowFactory)
+	bot.settings = settings.NewFeature(dg, uowFactory)
 
 	// Register handlers
 	dg.AddHandler(bot.handleCommands)
@@ -113,21 +102,29 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, userService serv
 
 	// Subscribe to balance change events for high roller role updates
 	eventBus.Subscribe(events.EventTypeBalanceChange, func(ctx context.Context, event events.Event) {
-		if _, ok := event.(events.BalanceChangeEvent); ok {
-			// TODO: Extract guild ID from the balance change event when user table includes guild_id
-			// For now, use the primary guild from config as a fallback
-			if config.GuildID != "" {
-				guildID, err := strconv.ParseInt(config.GuildID, 10, 64)
-				if err != nil {
-					log.Errorf("Failed to parse primary guild ID: %v", err)
-					return
-				}
-				if err := bot.updateHighRollerRole(ctx, guildID); err != nil {
-					log.Errorf("Failed to update high roller role: %v", err)
-				}
+		log.WithFields(log.Fields{
+			"eventType": event.Type(),
+		}).Debug("Received event in bot balance change handler")
+
+		if balanceEvent, ok := event.(events.BalanceChangeEvent); ok {
+			log.WithFields(log.Fields{
+				"userID":          balanceEvent.UserID,
+				"guildID":         balanceEvent.GuildID,
+				"oldBalance":      balanceEvent.OldBalance,
+				"newBalance":      balanceEvent.NewBalance,
+				"transactionType": balanceEvent.TransactionType,
+				"changeAmount":    balanceEvent.ChangeAmount,
+			}).Info("Processing balance change event for high roller role update")
+
+			if err := bot.updateHighRollerRole(ctx, balanceEvent.GuildID); err != nil {
+				log.Errorf("Failed to update high roller role for guild %d: %v", balanceEvent.GuildID, err)
 			} else {
-				log.Warn("No primary guild configured, skipping high roller role update")
+				log.Debug("High roller role update completed successfully")
 			}
+		} else {
+			log.WithFields(log.Fields{
+				"eventType": event.Type(),
+			}).Warn("Received non-BalanceChangeEvent in balance change handler")
 		}
 	})
 	log.Info("High roller role management enabled")
@@ -137,32 +134,42 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, userService serv
 		// Wait a moment for Discord connection to be fully established
 		time.Sleep(2 * time.Second)
 		ctx := context.Background()
-		
+
 		// Get all guilds the bot is in
 		guilds := bot.session.State.Guilds
 		log.Infof("Syncing high roller roles for %d guilds", len(guilds))
-		
+
 		for _, guild := range guilds {
 			guildID, err := strconv.ParseInt(guild.ID, 10, 64)
 			if err != nil {
 				log.Errorf("Failed to parse guild ID %s: %v", guild.ID, err)
 				continue
 			}
-			
+
 			if err := bot.updateHighRollerRole(ctx, guildID); err != nil {
 				log.Errorf("Failed to sync high roller role for guild %s: %v", guild.Name, err)
 			} else {
 				log.Infof("High roller role synced for guild %s", guild.Name)
 			}
 		}
-		log.Info("High roller role sync completed for all guilds")
 	}()
+
+	// Start background workers
+	ctx := context.Background()
+	bot.stopGroupWagerWorker = bot.StartGroupWagerExpirationWorker(ctx)
+	log.Info("Background workers started")
 
 	return bot, nil
 }
 
 // Close gracefully shuts down the bot
 func (b *Bot) Close() error {
+	// Stop background workers
+	if b.stopGroupWagerWorker != nil {
+		b.stopGroupWagerWorker()
+		log.Info("Background workers stopped")
+	}
+
 	return b.session.Close()
 }
 
@@ -178,8 +185,26 @@ func (b *Bot) GetConfig() Config {
 
 // updateHighRollerRole updates the high roller role based on current balances
 func (b *Bot) updateHighRollerRole(ctx context.Context, guildID int64) error {
+	// Create guild-scoped unit of work
+	log.Infof("Updating high roller role for guild %s", guildID)
+	uow := b.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(ctx); err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer uow.Rollback()
+
+	// Instantiate services with repositories from UnitOfWork
+	guildSettingsService := service.NewGuildSettingsService(
+		uow.GuildSettingsRepository(),
+	)
+	userService := service.NewUserService(
+		uow.UserRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
 	// Get guild-specific settings
-	settings, err := b.guildSettingsService.GetOrCreateSettings(ctx, guildID)
+	settings, err := guildSettingsService.GetOrCreateSettings(ctx, guildID)
 	if err != nil {
 		return fmt.Errorf("failed to get guild settings: %w", err)
 	}
@@ -190,9 +215,14 @@ func (b *Bot) updateHighRollerRole(ctx context.Context, guildID int64) error {
 	}
 
 	// Get the current high roller
-	highRoller, err := b.userService.GetCurrentHighRoller(ctx)
+	highRoller, err := userService.GetCurrentHighRoller(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get current high roller: %w", err)
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	if highRoller == nil {
@@ -268,10 +298,31 @@ func (b *Bot) postHighRollerChangeMessage(ctx context.Context, guildID int64, ne
 		return
 	}
 
+	// Create guild-scoped unit of work
+	uow := b.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(ctx); err != nil {
+		log.Errorf("Failed to begin transaction for scoreboard: %v", err)
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate service with repositories from UnitOfWork
+	statsService := service.NewStatsService(
+		uow.UserRepository(),
+		uow.WagerRepository(),
+		uow.BetRepository(),
+	)
+
 	// Get the scoreboard
-	entries, err := b.statsService.GetScoreboard(ctx, 10)
+	entries, err := statsService.GetScoreboard(ctx, 10)
 	if err != nil {
 		log.Errorf("Failed to get scoreboard for high roller notification: %v", err)
+		return
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Failed to commit transaction: %v", err)
 		return
 	}
 
@@ -377,10 +428,49 @@ func (b *Bot) handleGroupWagerStateChange(ctx context.Context, event events.Even
 		return
 	}
 
-	// Get updated wager details
-	detail, err := b.groupWagerService.GetGroupWagerDetail(ctx, e.GroupWagerID)
+	// First, get the group wager to determine guild ID
+	// We'll use a temporary UnitOfWork with guild ID 0 to get the guild info from the wager
+	tempUow := b.uowFactory.CreateForGuild(0)
+	if err := tempUow.Begin(ctx); err != nil {
+		log.Errorf("Failed to begin temp transaction: %v", err)
+		return
+	}
+
+	// Get basic wager info to determine guild
+	wager, err := tempUow.GroupWagerRepository().GetByID(ctx, e.GroupWagerID)
+	tempUow.Rollback()
+
+	if err != nil || wager == nil {
+		log.Errorf("Failed to get group wager %d for guild determination: %v", e.GroupWagerID, err)
+		return
+	}
+
+	// Now create guild-scoped unit of work
+	uow := b.uowFactory.CreateForGuild(wager.GuildID)
+	if err := uow.Begin(ctx); err != nil {
+		log.Errorf("Failed to begin transaction: %v", err)
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate service with repositories from UnitOfWork
+	groupWagerService := service.NewGroupWagerService(
+		uow.GroupWagerRepository(),
+		uow.UserRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
+	// Get updated wager details with proper guild scoping
+	detail, err := groupWagerService.GetGroupWagerDetail(ctx, e.GroupWagerID)
 	if err != nil {
 		log.Errorf("Failed to get group wager detail for event update: %v", err)
+		return
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Failed to commit transaction: %v", err)
 		return
 	}
 
@@ -418,10 +508,29 @@ func (b *Bot) handleGuildCreate(s *discordgo.Session, g *discordgo.GuildCreate) 
 		return
 	}
 
+	// Create guild-scoped unit of work
+	uow := b.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(ctx); err != nil {
+		log.Errorf("Failed to begin transaction: %v", err)
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate service with repositories from UnitOfWork
+	guildSettingsService := service.NewGuildSettingsService(
+		uow.GuildSettingsRepository(),
+	)
+
 	// Get or create settings for this guild
-	settings, err := b.guildSettingsService.GetOrCreateSettings(ctx, guildID)
+	settings, err := guildSettingsService.GetOrCreateSettings(ctx, guildID)
 	if err != nil {
 		log.Errorf("Failed to track new guild %s (%s): %v", g.Name, g.ID, err)
+		return
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Failed to commit transaction: %v", err)
 		return
 	}
 

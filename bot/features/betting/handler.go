@@ -12,6 +12,105 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// handleGamble handles the main /gamble command logic
+func (f *Feature) handleGamble(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	ctx := context.Background()
+
+	// Parse user ID
+	discordID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
+	if err != nil {
+		log.Errorf("Error parsing Discord ID %s: %v", i.Member.User.ID, err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+
+	// Extract guild ID from interaction
+	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
+	if err != nil {
+		log.Errorf("Error parsing guild ID %s: %v", i.GuildID, err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+
+	// Create guild-scoped unit of work
+	uow := f.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(ctx); err != nil {
+		log.Errorf("Error beginning transaction: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate services with repositories from UnitOfWork
+	userService := service.NewUserService(
+		uow.UserRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+	gamblingService := service.NewGamblingService(
+		uow.UserRepository(),
+		uow.BetRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
+	// Get or create user
+	user, err := userService.GetOrCreateUser(ctx, discordID, i.Member.User.Username)
+	if err != nil {
+		log.Errorf("Error getting/creating user %d: %v", discordID, err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+
+	// Check daily limit
+	remaining, _ := gamblingService.CheckDailyLimit(ctx, discordID, 0)
+	if remaining == 0 {
+		// Format error message with Discord timestamp for reset time
+		cfg := f.config
+		nextReset := service.GetNextResetTime(cfg.DailyLimitResetHour)
+		common.RespondWithError(s, i, fmt.Sprintf("Daily gambling limit of %s bits reached. Try again %s",
+			common.FormatBalance(cfg.DailyGambleLimit),
+			common.FormatDiscordTimestamp(nextReset, "R")))
+
+		return
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Error committing transaction: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+
+	// Create initial embed
+	embed := buildInitialBetEmbed(user.AvailableBalance, remaining)
+	components := CreateInitialComponents()
+
+	// Send initial response
+	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Embeds:     []*discordgo.MessageEmbed{embed},
+			Components: components,
+			Flags:      discordgo.MessageFlagsEphemeral,
+		},
+	})
+
+	if err != nil {
+		log.Errorf("Error responding to bet command: %v", err)
+		return
+	}
+
+	// Create betting session
+	msg, err := s.InteractionResponse(i.Interaction)
+	if err != nil {
+		log.Errorf("Error getting interaction response: %v", err)
+		return
+	}
+
+	createBetSession(discordID, msg.ID, msg.ChannelID, user.AvailableBalance)
+}
+
 // handleComponentInteraction handles button clicks for betting
 func (f *Feature) handleComponentInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	customID := i.MessageComponentData().CustomID
@@ -64,20 +163,49 @@ func (f *Feature) handleOddsSelection(s *discordgo.Session, i *discordgo.Interac
 	// Update session with selected odds
 	updateBetSession(discordID, odds, 0)
 
+	// Create guild-scoped unit of work
+	uow, err := f.createUnitOfWork(ctx, i)
+	if err != nil {
+		log.Errorf("Error creating unit of work: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate services with repositories from UnitOfWork
+	userService := service.NewUserService(
+		uow.UserRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+	gamblingService := service.NewGamblingService(
+		uow.UserRepository(),
+		uow.BetRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
 	// Get current balance
-	user, err := f.userService.GetOrCreateUser(ctx, discordID, i.Member.User.Username)
+	user, err := userService.GetOrCreateUser(ctx, discordID, i.Member.User.Username)
 	if err != nil {
 		log.Errorf("Error getting user balance: %v", err)
 		common.RespondWithError(s, i, "Unable to fetch current balance. Please try again.")
 		return
 	}
 
+	// Check remaining daily limit
+	remainingLimit, _ := gamblingService.CheckDailyLimit(ctx, discordID, 1)
+	// If error, remainingLimit will be 0 which is fine - we'll just not show the limit
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Error committing transaction: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+
 	// Update session balance
 	updateSessionBalance(discordID, user.AvailableBalance, false)
-
-	// Check remaining daily limit
-	remainingLimit, _ := f.gamblingService.CheckDailyLimit(ctx, discordID, 1)
-	// If error, remainingLimit will be 0 which is fine - we'll just not show the limit
 
 	// Show bet amount modal
 	modal := buildBetAmountModal(odds, user.AvailableBalance, remainingLimit)
@@ -134,8 +262,25 @@ func (f *Feature) handleBetModal(s *discordgo.Session, i *discordgo.InteractionC
 		return
 	}
 
+	// Create guild-scoped unit of work
+	uow, err := f.createUnitOfWork(ctx, i)
+	if err != nil {
+		log.Errorf("Error creating unit of work: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate gambling service with repositories from UnitOfWork
+	gamblingService := service.NewGamblingService(
+		uow.UserRepository(),
+		uow.BetRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
 	// Check daily limit
-	remaining, err := f.gamblingService.CheckDailyLimit(ctx, discordID, betAmount)
+	remaining, err := gamblingService.CheckDailyLimit(ctx, discordID, betAmount)
 	if err != nil {
 		// Format error message with Discord timestamp for reset time
 		cfg := f.config
@@ -150,6 +295,13 @@ func (f *Feature) handleBetModal(s *discordgo.Session, i *discordgo.InteractionC
 				common.FormatBalance(remaining),
 				common.FormatDiscordTimestamp(nextReset, "R")))
 		}
+		return
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Error committing transaction: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
 		return
 	}
 
@@ -170,9 +322,40 @@ func (f *Feature) handleNewBet(s *discordgo.Session, i *discordgo.InteractionCre
 		return
 	}
 
-	user, err := f.userService.GetOrCreateUser(ctx, discordID, i.Member.User.Username)
+	// Create guild-scoped unit of work
+	uow, err := f.createUnitOfWork(ctx, i)
+	if err != nil {
+		log.Errorf("Error creating unit of work: %v", err)
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate services with repositories from UnitOfWork
+	userService := service.NewUserService(
+		uow.UserRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+	gamblingService := service.NewGamblingService(
+		uow.UserRepository(),
+		uow.BetRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
+	user, err := userService.GetOrCreateUser(ctx, discordID, i.Member.User.Username)
 	if err != nil {
 		log.Errorf("Error getting user %d: %v", discordID, err)
+		return
+	}
+
+	// Check Daily limit
+	// error already handled during initial bet
+	remaining, _ := gamblingService.CheckDailyLimit(ctx, discordID, 0)
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Error committing transaction: %v", err)
 		return
 	}
 
@@ -185,10 +368,6 @@ func (f *Feature) handleNewBet(s *discordgo.Session, i *discordgo.InteractionCre
 		session.BetCount = 0
 		updateSessionBalance(session.UserID, user.Balance, false)
 	}
-
-	// Check Daily limit
-	// error already handled during initial bet
-	remaining, _ := f.gamblingService.CheckDailyLimit(ctx, discordID, 0)
 
 	// Show odds selection again as ephemeral
 	embed := buildInitialBetEmbed(user.Balance, remaining)
@@ -227,74 +406,38 @@ func (f *Feature) handleHalveBet(s *discordgo.Session, i *discordgo.InteractionC
 func (f *Feature) handleRepeatBet(s *discordgo.Session, i *discordgo.InteractionCreate, multiplier float64) {
 	ctx := context.Background()
 
-	// Get user session
-	discordID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
-	if err != nil {
-		log.Errorf("Error parsing Discord ID: %v", err)
-		return
-	}
-
-	session := getBetSession(discordID)
-	if session == nil || session.LastAmount == 0 {
-		common.RespondWithError(s, i, "No previous bet to repeat.")
-		return
-	}
-
-	// Calculate new bet amount
-	newAmount := int64(float64(session.LastAmount) * multiplier)
-	if newAmount < 1 {
-		newAmount = 1
-	}
-
-	// Validate new amount
-	if err := validateBetAmount(newAmount, session.CurrentBalance); err != nil {
-		// Show error as a new ephemeral message
-		err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: fmt.Sprintf("❌ %s", err.Error()),
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
-		if err != nil {
-			log.Errorf("Error sending validation error: %v", err)
+	if err := f.processRepeatBet(ctx, s, i, multiplier); err != nil {
+		// Handle specific error types with user-friendly messages
+		switch {
+		case fmt.Sprintf("%v", err) == "no previous bet to repeat":
+			common.RespondWithError(s, i, "No previous bet to repeat.")
+		case fmt.Sprintf("%v", err)[:4] == "bet ":
+			// Bet validation error - show as ephemeral
+			err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: fmt.Sprintf("❌ %s", err.Error()[19:]), // Remove "bet validation failed: " prefix
+					Flags:   discordgo.MessageFlagsEphemeral,
+				},
+			})
+			if err != nil {
+				log.Errorf("Error sending validation error: %v", err)
+			}
+		case fmt.Sprintf("%v", err)[:5] == "daily":
+			// Daily limit error - show as ephemeral
+			err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: fmt.Sprintf("❌ %s", err.Error()[23:]), // Remove "daily limit exceeded: " prefix
+					Flags:   discordgo.MessageFlagsEphemeral,
+				},
+			})
+			if err != nil {
+				log.Errorf("Error sending limit error: %v", err)
+			}
+		default:
+			log.Errorf("Error processing repeat bet: %v", err)
+			common.RespondWithError(s, i, "Unable to place bet. Please try again.")
 		}
-		return
-	}
-
-	// Check daily limit
-	remaining, err := f.gamblingService.CheckDailyLimit(ctx, discordID, newAmount)
-	if err != nil {
-		cfg := f.config
-		nextReset := service.GetNextResetTime(cfg.DailyLimitResetHour)
-
-		var errorMsg string
-		if remaining <= 0 {
-			errorMsg = fmt.Sprintf("❌ Daily gambling limit of %s bits reached. Try again %s",
-				common.FormatBalance(cfg.DailyGambleLimit),
-				common.FormatDiscordTimestamp(nextReset, "R"))
-		} else {
-			errorMsg = fmt.Sprintf("❌ Bet would exceed daily limit. You have %s bits remaining (resets %s)",
-				common.FormatBalance(remaining),
-				common.FormatDiscordTimestamp(nextReset, "R"))
-		}
-
-		err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: errorMsg,
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
-		if err != nil {
-			log.Errorf("Error sending limit error: %v", err)
-		}
-		return
-	}
-
-	// Process bet and update message
-	if err := f.processBetAndUpdateMessage(ctx, s, i, session, newAmount, discordgo.InteractionResponseUpdateMessage); err != nil {
-		log.Errorf("Error processing repeat bet: %v", err)
-		common.RespondWithError(s, i, "Unable to place bet. Please try again.")
 	}
 }

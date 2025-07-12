@@ -10,6 +10,7 @@ import (
 
 	"gambler/bot/common"
 	"gambler/models"
+	"gambler/service"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -50,15 +51,46 @@ func (f *Feature) handleWagerPropose(s *discordgo.Session, i *discordgo.Interact
 		return
 	}
 
-	// Get the users to ensure they exist in the DB.
-	_, err = f.userService.GetOrCreateUser(context.Background(), proposerID, i.Member.User.Username)
+	// Extract guild ID from interaction
+	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
 	if err != nil {
-		common.UpdateMessageWithError(s, i, fmt.Sprintf("Failed to create wager: %v", err))
+		log.Errorf("Error parsing guild ID %s: %v", i.GuildID, err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
 		return
 	}
-	_, err = f.userService.GetOrCreateUser(context.Background(), targetID, targetUser.Username)
+
+	// Create guild-scoped unit of work
+	uow := f.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(context.Background()); err != nil {
+		log.Errorf("Error beginning transaction: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate user service with repositories from UnitOfWork
+	userService := service.NewUserService(
+		uow.UserRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
+	// Get the users to ensure they exist in the DB.
+	_, err = userService.GetOrCreateUser(context.Background(), proposerID, i.Member.User.Username)
 	if err != nil {
-		common.UpdateMessageWithError(s, i, fmt.Sprintf("Failed to create wager: %v", err))
+		common.RespondWithError(s, i, fmt.Sprintf("Failed to create wager: %v", err))
+		return
+	}
+	_, err = userService.GetOrCreateUser(context.Background(), targetID, targetUser.Username)
+	if err != nil {
+		common.RespondWithError(s, i, fmt.Sprintf("Failed to create wager: %v", err))
+		return
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Error committing transaction: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
 		return
 	}
 	log.Info("finished Creating users")
@@ -113,11 +145,44 @@ func (f *Feature) handleWagerConditionModal(s *discordgo.Session, i *discordgo.I
 		return
 	}
 
+	// Extract guild ID from interaction
+	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
+	if err != nil {
+		log.Errorf("Error parsing guild ID %s: %v", i.GuildID, err)
+		common.UpdateMessageWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+
+	// Create guild-scoped unit of work
+	uow := f.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(context.Background()); err != nil {
+		log.Errorf("Error beginning transaction: %v", err)
+		common.UpdateMessageWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate wager service with repositories from UnitOfWork
+	wagerService := service.NewWagerService(
+		uow.UserRepository(),
+		uow.WagerRepository(),
+		uow.WagerVoteRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
 	// Create the wager (we'll get message ID after posting)
 	channelID, _ := strconv.ParseInt(i.ChannelID, 10, 64)
-	wager, err := f.wagerService.ProposeWager(context.Background(), proposerID, targetID, amount, condition, 0, channelID)
+	wager, err := wagerService.ProposeWager(context.Background(), proposerID, targetID, amount, condition, 0, channelID)
 	if err != nil {
 		common.UpdateMessageWithError(s, i, fmt.Sprintf("Failed to create wager: %v", err))
+		return
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Error committing transaction: %v", err)
+		common.UpdateMessageWithError(s, i, "Unable to process request. Please try again.")
 		return
 	}
 
@@ -155,10 +220,43 @@ func (f *Feature) handleWagerList(s *discordgo.Session, i *discordgo.Interaction
 		return
 	}
 
+	// Extract guild ID from interaction
+	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
+	if err != nil {
+		log.Errorf("Error parsing guild ID %s: %v", i.GuildID, err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+
+	// Create guild-scoped unit of work
+	uow := f.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(context.Background()); err != nil {
+		log.Errorf("Error beginning transaction: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate wager service with repositories from UnitOfWork
+	wagerService := service.NewWagerService(
+		uow.UserRepository(),
+		uow.WagerRepository(),
+		uow.WagerVoteRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
 	// Get active wagers
-	wagers, err := f.wagerService.GetActiveWagersByUser(context.Background(), userID)
+	wagers, err := wagerService.GetActiveWagersByUser(context.Background(), userID)
 	if err != nil {
 		common.RespondWithError(s, i, fmt.Sprintf("Failed to get wagers: %v", err))
+		return
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Error committing transaction: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
 		return
 	}
 
@@ -194,8 +292,34 @@ func (f *Feature) handleWagerCancel(s *discordgo.Session, i *discordgo.Interacti
 		return
 	}
 
+	// Extract guild ID from interaction
+	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
+	if err != nil {
+		log.Errorf("Error parsing guild ID %s: %v", i.GuildID, err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+
+	// Create guild-scoped unit of work
+	uow := f.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(context.Background()); err != nil {
+		log.Errorf("Error beginning transaction: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate wager service with repositories from UnitOfWork
+	wagerService := service.NewWagerService(
+		uow.UserRepository(),
+		uow.WagerRepository(),
+		uow.WagerVoteRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
 	// Get the wager details first to find the message
-	wager, err := f.wagerService.GetWagerByID(context.Background(), wagerID)
+	wager, err := wagerService.GetWagerByID(context.Background(), wagerID)
 	if err != nil {
 		common.RespondWithError(s, i, fmt.Sprintf("Failed to get wager: %v", err))
 		return
@@ -206,9 +330,16 @@ func (f *Feature) handleWagerCancel(s *discordgo.Session, i *discordgo.Interacti
 	}
 
 	// Cancel the wager
-	err = f.wagerService.CancelWager(context.Background(), wagerID, userID)
+	err = wagerService.CancelWager(context.Background(), wagerID, userID)
 	if err != nil {
 		common.RespondWithError(s, i, fmt.Sprintf("Failed to cancel wager: %v", err))
+		return
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Error committing transaction: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
 		return
 	}
 
@@ -285,17 +416,55 @@ func (f *Feature) handleWagerResponse(s *discordgo.Session, i *discordgo.Interac
 		return
 	}
 
-	// Ensure user exists in the database
-	_, err = f.userService.GetOrCreateUser(context.Background(), userID, i.Member.User.Username)
+	// Extract guild ID from interaction
+	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
 	if err != nil {
-		common.RespondWithError(s, i, "Unable to get user from DB")
+		log.Errorf("Error parsing guild ID %s: %v", i.GuildID, err)
+		common.FollowUpWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+
+	// Create guild-scoped unit of work
+	uow := f.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(context.Background()); err != nil {
+		log.Errorf("Error beginning transaction: %v", err)
+		common.FollowUpWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate services with repositories from UnitOfWork
+	userService := service.NewUserService(
+		uow.UserRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+	wagerService := service.NewWagerService(
+		uow.UserRepository(),
+		uow.WagerRepository(),
+		uow.WagerVoteRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
+	// Ensure user exists in the database
+	_, err = userService.GetOrCreateUser(context.Background(), userID, i.Member.User.Username)
+	if err != nil {
+		common.FollowUpWithError(s, i, "Unable to get user from DB")
 		return
 	}
 
 	// Process the response
-	wager, err := f.wagerService.RespondToWager(context.Background(), wagerID, userID, accept)
+	wager, err := wagerService.RespondToWager(context.Background(), wagerID, userID, accept)
 	if err != nil {
 		common.FollowUpWithError(s, i, err.Error())
+		return
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Error committing transaction: %v", err)
+		common.FollowUpWithError(s, i, "Unable to process request. Please try again.")
 		return
 	}
 
@@ -354,13 +523,6 @@ func (f *Feature) handleWagerVote(s *discordgo.Session, i *discordgo.Interaction
 		return
 	}
 
-	// Ensure user exists in the database
-	_, err = f.userService.GetOrCreateUser(context.Background(), voterID, i.Member.User.Username)
-	if err != nil {
-		common.RespondWithError(s, i, "Unable to get user from DB")
-		return
-	}
-
 	// Defer while processing
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredMessageUpdate,
@@ -370,15 +532,77 @@ func (f *Feature) handleWagerVote(s *discordgo.Session, i *discordgo.Interaction
 		return
 	}
 
+	// Extract guild ID from interaction
+	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
+	if err != nil {
+		log.Errorf("Error parsing guild ID %s: %v", i.GuildID, err)
+		common.FollowUpWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+
+	// Create guild-scoped unit of work
+	uow := f.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(context.Background()); err != nil {
+		log.Errorf("Error beginning transaction: %v", err)
+		common.FollowUpWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate services with repositories from UnitOfWork
+	userService := service.NewUserService(
+		uow.UserRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+	wagerService := service.NewWagerService(
+		uow.UserRepository(),
+		uow.WagerRepository(),
+		uow.WagerVoteRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
+	// Ensure user exists in the database
+	_, err = userService.GetOrCreateUser(context.Background(), voterID, i.Member.User.Username)
+	if err != nil {
+		common.FollowUpWithError(s, i, "Unable to get user from DB")
+		return
+	}
+
 	// Cast the vote
-	_, voteCounts, err := f.wagerService.CastVote(context.Background(), wagerID, voterID, voteForID)
+	_, voteCounts, err := wagerService.CastVote(context.Background(), wagerID, voterID, voteForID)
 	if err != nil {
 		common.FollowUpWithError(s, i, err.Error())
 		return
 	}
 
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Error committing transaction: %v", err)
+		common.FollowUpWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+
+	// Create new UnitOfWork to get updated wager state
+	uow2 := f.uowFactory.CreateForGuild(guildID)
+	if err := uow2.Begin(context.Background()); err != nil {
+		log.Printf("Error beginning transaction for wager state fetch: %v", err)
+		return
+	}
+	defer uow2.Rollback()
+
+	// Instantiate wager service for fetching updated state
+	wagerService2 := service.NewWagerService(
+		uow2.UserRepository(),
+		uow2.WagerRepository(),
+		uow2.WagerVoteRepository(),
+		uow2.BalanceHistoryRepository(),
+		uow2.EventBus(),
+	)
+
 	// Get updated wager state
-	wager, err := f.wagerService.GetWagerByID(context.Background(), wagerID)
+	wager, err := wagerService2.GetWagerByID(context.Background(), wagerID)
 	if err != nil {
 		log.Printf("Error getting wager after vote: %v", err)
 		return

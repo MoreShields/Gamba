@@ -15,6 +15,7 @@ type unitOfWork struct {
 	db                          *database.DB
 	tx                          pgx.Tx
 	ctx                         context.Context
+	guildID                     int64
 	transactionalBus            *events.TransactionalBus
 	userRepo                    service.UserRepository
 	balanceHistoryRepo          service.BalanceHistoryRepository
@@ -38,9 +39,10 @@ type unitOfWorkFactory struct {
 	eventBus *events.Bus
 }
 
-func (f *unitOfWorkFactory) Create() service.UnitOfWork {
+func (f *unitOfWorkFactory) CreateForGuild(guildID int64) service.UnitOfWork {
 	return &unitOfWork{
 		db:               f.db,
+		guildID:          guildID,
 		transactionalBus: events.NewTransactionalBus(f.eventBus),
 	}
 }
@@ -59,14 +61,14 @@ func (u *unitOfWork) Begin(ctx context.Context) error {
 	u.tx = tx
 	u.ctx = ctx
 
-	// Create repositories with the transaction
-	u.userRepo = newUserRepositoryWithTx(tx)
-	u.balanceHistoryRepo = newBalanceHistoryRepositoryWithTx(tx)
-	u.betRepo = newBetRepositoryWithTx(tx)
-	u.wagerRepo = newWagerRepositoryWithTx(tx)
-	u.wagerVoteRepo = newWagerVoteRepositoryWithTx(tx)
-	u.groupWagerRepo = newGroupWagerRepositoryWithTx(tx)
-	u.guildSettingsRepo = newGuildSettingsRepositoryWithTx(tx)
+	// Create guild-scoped repositories with the transaction
+	u.userRepo = newUserRepository(tx, u.guildID)
+	u.balanceHistoryRepo = newBalanceHistoryRepository(tx, u.guildID)
+	u.betRepo = newBetRepository(tx, u.guildID)
+	u.wagerRepo = newWagerRepository(tx, u.guildID)
+	u.wagerVoteRepo = newWagerVoteRepository(tx, u.guildID)
+	u.groupWagerRepo = newGroupWagerRepository(tx, u.guildID)
+	u.guildSettingsRepo = newGuildSettingsRepositoryWithTx(tx) // Guild settings don't need scoping
 
 	return nil
 }

@@ -124,66 +124,10 @@ func TestGroupWagerRepository_GetStats(t *testing.T) {
 		err = groupWagerRepo.UpdateParticipantPayouts(ctx, []*models.GroupWagerParticipant{winningParticipant})
 		require.NoError(t, err)
 
-		// Debug: print the IDs to make sure they match
-		t.Logf("Wager ID: %d, Winning Option ID: %d, Participant Option ID: %d", 
-			wager3.ID, *wager3.WinningOptionID, winningParticipant.OptionID)
-		t.Logf("Wager State: %s, Payout Amount: %d", wager3.State, *winningParticipant.PayoutAmount)
-
 		// Add losing participant
 		losingParticipant := testutil.CreateTestGroupWagerParticipant(wager3.ID, user3.DiscordID, option6.ID, 1500)
 		err = groupWagerRepo.SaveParticipant(ctx, losingParticipant)
 		require.NoError(t, err)
-
-		// Debug: Test the raw SQL query manually to see what's going wrong
-		rows, err := testDB.DB.Pool.Query(ctx, `
-			SELECT 
-				gwp.discord_id,
-				gwp.option_id,
-				gwp.payout_amount,
-				gw.state,
-				gw.winning_option_id
-			FROM group_wager_participants gwp
-			JOIN group_wagers gw ON gw.id = gwp.group_wager_id
-			WHERE gwp.discord_id = $1
-		`, user1.DiscordID)
-		require.NoError(t, err)
-		defer rows.Close()
-
-		for rows.Next() {
-			var discordID, optionID int64
-			var payoutAmount *int64
-			var state string
-			var winningOptionID *int64
-			err := rows.Scan(&discordID, &optionID, &payoutAmount, &state, &winningOptionID)
-			require.NoError(t, err)
-			var payoutVal, winningVal int64
-			if payoutAmount != nil {
-				payoutVal = *payoutAmount
-			}
-			if winningOptionID != nil {
-				winningVal = *winningOptionID
-			}
-			t.Logf("Discord: %d, Option: %d, Payout: %d, State: %s, WinningOption: %d", 
-				discordID, optionID, payoutVal, state, winningVal)
-		}
-
-		// Test the exact same query that GetStats uses
-		var totalGroupWagers, totalWon int
-		var totalWonAmount int64
-		
-		err = testDB.DB.Pool.QueryRow(ctx, `
-			SELECT 
-				COUNT(DISTINCT gwp.group_wager_id) as total_group_wagers,
-				COUNT(DISTINCT CASE WHEN gw.state = 'resolved' AND gw.winning_option_id = gwp.option_id THEN gw.id END) as total_won,
-				COALESCE(SUM(CASE WHEN gw.state = 'resolved' AND gw.winning_option_id = gwp.option_id AND gwp.payout_amount IS NOT NULL THEN gwp.payout_amount ELSE 0 END), 0) as total_won_amount
-			FROM group_wager_participants gwp
-			JOIN group_wagers gw ON gw.id = gwp.group_wager_id
-			WHERE gwp.discord_id = $1
-		`, user1.DiscordID).Scan(&totalGroupWagers, &totalWon, &totalWonAmount)
-		require.NoError(t, err)
-		
-		t.Logf("Manual query results: TotalGroupWagers: %d, TotalWon: %d, TotalWonAmount: %d", 
-			totalGroupWagers, totalWon, totalWonAmount)
 
 		stats, err := groupWagerRepo.GetStats(ctx, user1.DiscordID)
 		require.NoError(t, err)

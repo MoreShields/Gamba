@@ -6,11 +6,9 @@ import (
 	"strconv"
 	"time"
 
-	"gambler/bot/common"
 	"gambler/service"
 
 	"github.com/bwmarrin/discordgo"
-	log "github.com/sirupsen/logrus"
 )
 
 // GamblingConfig holds gambling-specific configuration
@@ -21,21 +19,15 @@ type GamblingConfig struct {
 
 // Feature represents the betting feature
 type Feature struct {
-	session         *discordgo.Session
-	config          *GamblingConfig
-	userService     service.UserService
-	gamblingService service.GamblingService
-	guildID         string
+	config     *GamblingConfig
+	uowFactory service.UnitOfWorkFactory
 }
 
-// NewFeature creates a new betting feature instance
-func NewFeature(session *discordgo.Session, config *GamblingConfig, userService service.UserService, gamblingService service.GamblingService, guildID string) *Feature {
+// New creates a new betting feature instance
+func New(config *GamblingConfig, uowFactory service.UnitOfWorkFactory) *Feature {
 	f := &Feature{
-		session:         session,
-		config:          config,
-		userService:     userService,
-		gamblingService: gamblingService,
-		guildID:         guildID,
+		config:     config,
+		uowFactory: uowFactory,
 	}
 
 	// Start session cleanup
@@ -46,64 +38,7 @@ func NewFeature(session *discordgo.Session, config *GamblingConfig, userService 
 
 // HandleCommand handles the /gamble command
 func (f *Feature) HandleCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	ctx := context.Background()
-
-	// Parse user ID
-	discordID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
-	if err != nil {
-		log.Errorf("Error parsing Discord ID %s: %v", i.Member.User.ID, err)
-		common.RespondWithError(s, i, "Unable to process request. Please try again.")
-		return
-	}
-
-	// Get or create user
-	user, err := f.userService.GetOrCreateUser(ctx, discordID, i.Member.User.Username)
-	if err != nil {
-		log.Errorf("Error getting/creating user %d: %v", discordID, err)
-		common.RespondWithError(s, i, "Unable to process request. Please try again.")
-		return
-	}
-
-	// Check daily limit
-	remaining, _ := f.gamblingService.CheckDailyLimit(ctx, discordID, 0)
-	if remaining == 0 {
-		// Format error message with Discord timestamp for reset time
-		cfg := f.config
-		nextReset := service.GetNextResetTime(cfg.DailyLimitResetHour)
-		common.RespondWithError(s, i, fmt.Sprintf("Daily gambling limit of %s bits reached. Try again %s",
-			common.FormatBalance(cfg.DailyGambleLimit),
-			common.FormatDiscordTimestamp(nextReset, "R")))
-
-		return
-	}
-
-	// Create initial embed
-	embed := buildInitialBetEmbed(user.AvailableBalance, remaining)
-	components := CreateInitialComponents()
-
-	// Send initial response
-	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Embeds:     []*discordgo.MessageEmbed{embed},
-			Components: components,
-			Flags:      discordgo.MessageFlagsEphemeral,
-		},
-	})
-
-	if err != nil {
-		log.Errorf("Error responding to bet command: %v", err)
-		return
-	}
-
-	// Create betting session
-	msg, err := s.InteractionResponse(i.Interaction)
-	if err != nil {
-		log.Errorf("Error getting interaction response: %v", err)
-		return
-	}
-
-	createBetSession(discordID, msg.ID, msg.ChannelID, user.AvailableBalance)
+	f.handleGamble(s, i)
 }
 
 // HandleInteraction handles betting-related component interactions
@@ -124,4 +59,19 @@ func (f *Feature) startSessionCleanup() {
 	for range ticker.C {
 		cleanupSessions()
 	}
+}
+
+// createUnitOfWork creates and begins a guild-scoped unit of work from a Discord interaction
+func (f *Feature) createUnitOfWork(ctx context.Context, i *discordgo.InteractionCreate) (service.UnitOfWork, error) {
+	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing guild ID %s: %w", i.GuildID, err)
+	}
+
+	uow := f.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(ctx); err != nil {
+		return nil, fmt.Errorf("error beginning transaction: %w", err)
+	}
+
+	return uow, nil
 }

@@ -12,7 +12,8 @@ import (
 
 // BalanceHistoryRepository implements the BalanceHistoryRepository interface
 type BalanceHistoryRepository struct {
-	q queryable
+	q       queryable
+	guildID int64
 }
 
 // NewBalanceHistoryRepository creates a new balance history repository
@@ -25,6 +26,14 @@ func newBalanceHistoryRepositoryWithTx(tx queryable) *BalanceHistoryRepository {
 	return &BalanceHistoryRepository{q: tx}
 }
 
+// newBalanceHistoryRepository creates a new balance history repository with a transaction and guild scope
+func newBalanceHistoryRepository(tx queryable, guildID int64) *BalanceHistoryRepository {
+	return &BalanceHistoryRepository{
+		q:       tx,
+		guildID: guildID,
+	}
+}
+
 // Record creates a new balance history entry
 func (r *BalanceHistoryRepository) Record(ctx context.Context, history *models.BalanceHistory) error {
 	// Convert metadata to JSON
@@ -35,13 +44,14 @@ func (r *BalanceHistoryRepository) Record(ctx context.Context, history *models.B
 	
 	query := `
 		INSERT INTO balance_history 
-		(discord_id, balance_before, balance_after, change_amount, transaction_type, transaction_metadata, related_id, related_type)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		(discord_id, guild_id, balance_before, balance_after, change_amount, transaction_type, transaction_metadata, related_id, related_type)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id, created_at
 	`
 	
 	err = r.q.QueryRow(ctx, query,
 		history.DiscordID,
+		r.guildID, // Use repository's guild scope
 		history.BalanceBefore,
 		history.BalanceAfter,
 		history.ChangeAmount,
@@ -55,21 +65,24 @@ func (r *BalanceHistoryRepository) Record(ctx context.Context, history *models.B
 		return fmt.Errorf("failed to record balance history for user %d: %w", history.DiscordID, err)
 	}
 	
+	// Update the history object with the guild ID that was actually inserted
+	history.GuildID = r.guildID
+	
 	return nil
 }
 
 // GetByUser returns balance history for a specific user
 func (r *BalanceHistoryRepository) GetByUser(ctx context.Context, discordID int64, limit int) ([]*models.BalanceHistory, error) {
 	query := `
-		SELECT id, discord_id, balance_before, balance_after, change_amount, 
+		SELECT id, discord_id, guild_id, balance_before, balance_after, change_amount, 
 		       transaction_type, transaction_metadata, created_at
 		FROM balance_history
-		WHERE discord_id = $1
+		WHERE discord_id = $1 AND guild_id = $2
 		ORDER BY created_at DESC
-		LIMIT $2
+		LIMIT $3
 	`
 	
-	rows, err := r.q.Query(ctx, query, discordID, limit)
+	rows, err := r.q.Query(ctx, query, discordID, r.guildID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get balance history for user %d: %w", discordID, err)
 	}
@@ -83,6 +96,7 @@ func (r *BalanceHistoryRepository) GetByUser(ctx context.Context, discordID int6
 		err := rows.Scan(
 			&history.ID,
 			&history.DiscordID,
+			&history.GuildID,
 			&history.BalanceBefore,
 			&history.BalanceAfter,
 			&history.ChangeAmount,
@@ -114,14 +128,14 @@ func (r *BalanceHistoryRepository) GetByUser(ctx context.Context, discordID int6
 // GetByDateRange returns balance history within a date range
 func (r *BalanceHistoryRepository) GetByDateRange(ctx context.Context, discordID int64, from, to time.Time) ([]*models.BalanceHistory, error) {
 	query := `
-		SELECT id, discord_id, balance_before, balance_after, change_amount, 
+		SELECT id, discord_id, guild_id, balance_before, balance_after, change_amount, 
 		       transaction_type, transaction_metadata, created_at
 		FROM balance_history
-		WHERE discord_id = $1 AND created_at >= $2 AND created_at < $3
+		WHERE discord_id = $1 AND guild_id = $2 AND created_at >= $3 AND created_at < $4
 		ORDER BY created_at DESC
 	`
 	
-	rows, err := r.q.Query(ctx, query, discordID, from, to)
+	rows, err := r.q.Query(ctx, query, discordID, r.guildID, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get balance history for user %d in date range: %w", discordID, err)
 	}
@@ -135,6 +149,7 @@ func (r *BalanceHistoryRepository) GetByDateRange(ctx context.Context, discordID
 		err := rows.Scan(
 			&history.ID,
 			&history.DiscordID,
+			&history.GuildID,
 			&history.BalanceBefore,
 			&history.BalanceAfter,
 			&history.ChangeAmount,

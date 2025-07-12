@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"gambler/bot/common"
+	"gambler/service"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -47,9 +48,30 @@ func (f *Feature) handleHighRollerRole(s *discordgo.Session, i *discordgo.Intera
 
 	ctx := context.Background()
 
+	// Create guild-scoped unit of work
+	uow := f.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(ctx); err != nil {
+		log.Errorf("Error beginning transaction: %v", err)
+		common.RespondWithError(s, i, "❌ Failed to update settings")
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate guild settings service with repositories from UnitOfWork
+	guildSettingsService := service.NewGuildSettingsService(
+		uow.GuildSettingsRepository(),
+	)
+
 	// Update the high roller role setting
-	if err := f.guildSettingsService.UpdateHighRollerRole(ctx, guildID, roleID); err != nil {
+	if err := guildSettingsService.UpdateHighRollerRole(ctx, guildID, roleID); err != nil {
 		log.Errorf("Failed to update high roller role: %v", err)
+		common.RespondWithError(s, i, "❌ Failed to update settings")
+		return
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Error committing transaction: %v", err)
 		common.RespondWithError(s, i, "❌ Failed to update settings")
 		return
 	}

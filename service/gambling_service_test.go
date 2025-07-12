@@ -16,16 +16,12 @@ func TestGamblingService_PlaceBet_Win(t *testing.T) {
 	ctx := context.Background()
 
 	// Setup mocks
-	mockUoW := new(MockUnitOfWork)
-	mockFactory := new(MockUnitOfWorkFactory)
 	mockUserRepo := new(MockUserRepository)
 	mockBalanceHistoryRepo := new(MockBalanceHistoryRepository)
 	mockBetRepo := new(MockBetRepository)
+	mockEventPublisher := new(MockEventPublisher)
 
-	// Configure unit of work
-	mockUoW.SetRepositories(mockUserRepo, mockBalanceHistoryRepo, mockBetRepo)
-
-	service := NewGamblingService(mockFactory)
+	service := NewGamblingService(mockUserRepo, mockBetRepo, mockBalanceHistoryRepo, mockEventPublisher)
 
 	existingUser := &models.User{
 		DiscordID:        123456,
@@ -33,12 +29,6 @@ func TestGamblingService_PlaceBet_Win(t *testing.T) {
 		Balance:          10000,
 		AvailableBalance: 10000,
 	}
-
-	// Mock expectations
-	mockFactory.On("Create").Return(mockUoW)
-	mockUoW.On("Begin", ctx).Return(nil)
-	mockUoW.On("Commit").Return(nil)
-	mockUoW.On("Rollback").Return(nil)
 
 	// Mock for daily limit check
 	mockBetRepo.On("GetByUserSince", ctx, int64(123456), mock.AnythingOfType("time.Time")).Return([]*models.Bet{}, nil)
@@ -77,8 +67,6 @@ func TestGamblingService_PlaceBet_Win(t *testing.T) {
 	assert.Equal(t, int64(10), result.WinAmount)
 	assert.Equal(t, int64(10010), result.NewBalance)
 
-	mockFactory.AssertExpectations(t)
-	mockUoW.AssertExpectations(t)
 	mockUserRepo.AssertExpectations(t)
 	mockBalanceHistoryRepo.AssertExpectations(t)
 	mockBetRepo.AssertExpectations(t)
@@ -88,16 +76,12 @@ func TestGamblingService_PlaceBet_Loss(t *testing.T) {
 	ctx := context.Background()
 
 	// Setup mocks
-	mockUoW := new(MockUnitOfWork)
-	mockFactory := new(MockUnitOfWorkFactory)
 	mockUserRepo := new(MockUserRepository)
 	mockBalanceHistoryRepo := new(MockBalanceHistoryRepository)
 	mockBetRepo := new(MockBetRepository)
+	mockEventPublisher := new(MockEventPublisher)
 
-	// Configure unit of work
-	mockUoW.SetRepositories(mockUserRepo, mockBalanceHistoryRepo, mockBetRepo)
-
-	service := NewGamblingService(mockFactory)
+	service := NewGamblingService(mockUserRepo, mockBetRepo, mockBalanceHistoryRepo, mockEventPublisher)
 
 	existingUser := &models.User{
 		DiscordID:        123456,
@@ -105,12 +89,6 @@ func TestGamblingService_PlaceBet_Loss(t *testing.T) {
 		Balance:          10000,
 		AvailableBalance: 10000,
 	}
-
-	// Mock expectations
-	mockFactory.On("Create").Return(mockUoW)
-	mockUoW.On("Begin", ctx).Return(nil)
-	mockUoW.On("Commit").Return(nil)
-	mockUoW.On("Rollback").Return(nil)
 
 	// Mock for daily limit check
 	mockBetRepo.On("GetByUserSince", ctx, int64(123456), mock.AnythingOfType("time.Time")).Return([]*models.Bet{}, nil)
@@ -146,8 +124,6 @@ func TestGamblingService_PlaceBet_Loss(t *testing.T) {
 	assert.Equal(t, int64(1000), result.BetAmount)
 	assert.Equal(t, int64(9000), result.NewBalance)
 
-	mockFactory.AssertExpectations(t)
-	mockUoW.AssertExpectations(t)
 	mockUserRepo.AssertExpectations(t)
 	mockBalanceHistoryRepo.AssertExpectations(t)
 	mockBetRepo.AssertExpectations(t)
@@ -155,8 +131,11 @@ func TestGamblingService_PlaceBet_Loss(t *testing.T) {
 
 func TestGamblingService_PlaceBet_InvalidProbability(t *testing.T) {
 	ctx := context.Background()
-	mockFactory := new(MockUnitOfWorkFactory)
-	service := NewGamblingService(mockFactory)
+	mockUserRepo := new(MockUserRepository)
+	mockBalanceHistoryRepo := new(MockBalanceHistoryRepository)
+	mockBetRepo := new(MockBetRepository)
+	mockEventPublisher := new(MockEventPublisher)
+	service := NewGamblingService(mockUserRepo, mockBetRepo, mockBalanceHistoryRepo, mockEventPublisher)
 
 	// Test probability too low
 	result, err := service.PlaceBet(ctx, 123456, 0.0, 1000)
@@ -176,13 +155,17 @@ func TestGamblingService_PlaceBet_InvalidProbability(t *testing.T) {
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "win probability must be between 0 and 1 (exclusive)")
 
-	mockFactory.AssertNotCalled(t, "Create")
+	mockUserRepo.AssertNotCalled(t, "GetByDiscordID")
+	mockBetRepo.AssertNotCalled(t, "GetByUserSince")
 }
 
 func TestGamblingService_PlaceBet_InvalidAmount(t *testing.T) {
 	ctx := context.Background()
-	mockFactory := new(MockUnitOfWorkFactory)
-	service := NewGamblingService(mockFactory)
+	mockUserRepo := new(MockUserRepository)
+	mockBalanceHistoryRepo := new(MockBalanceHistoryRepository)
+	mockBetRepo := new(MockBetRepository)
+	mockEventPublisher := new(MockEventPublisher)
+	service := NewGamblingService(mockUserRepo, mockBetRepo, mockBalanceHistoryRepo, mockEventPublisher)
 
 	// Test negative amount
 	result, err := service.PlaceBet(ctx, 123456, 0.5, -100)
@@ -196,23 +179,20 @@ func TestGamblingService_PlaceBet_InvalidAmount(t *testing.T) {
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "bet amount must be positive")
 
-	mockFactory.AssertNotCalled(t, "Create")
+	mockUserRepo.AssertNotCalled(t, "GetByDiscordID")
+	mockBetRepo.AssertNotCalled(t, "GetByUserSince")
 }
 
 func TestGamblingService_PlaceBet_InsufficientBalance(t *testing.T) {
 	ctx := context.Background()
 
 	// Setup mocks
-	mockUoW := new(MockUnitOfWork)
-	mockFactory := new(MockUnitOfWorkFactory)
 	mockUserRepo := new(MockUserRepository)
 	mockBalanceHistoryRepo := new(MockBalanceHistoryRepository)
 	mockBetRepo := new(MockBetRepository)
+	mockEventPublisher := new(MockEventPublisher)
 
-	// Configure unit of work
-	mockUoW.SetRepositories(mockUserRepo, mockBalanceHistoryRepo, mockBetRepo)
-
-	service := NewGamblingService(mockFactory)
+	service := NewGamblingService(mockUserRepo, mockBetRepo, mockBalanceHistoryRepo, mockEventPublisher)
 
 	existingUser := &models.User{
 		DiscordID:        123456,
@@ -220,11 +200,6 @@ func TestGamblingService_PlaceBet_InsufficientBalance(t *testing.T) {
 		Balance:          500, // Less than bet amount
 		AvailableBalance: 500,
 	}
-
-	// Mock expectations
-	mockFactory.On("Create").Return(mockUoW)
-	mockUoW.On("Begin", ctx).Return(nil)
-	mockUoW.On("Rollback").Return(nil)
 
 	// Mock for daily limit check
 	mockBetRepo.On("GetByUserSince", ctx, int64(123456), mock.AnythingOfType("time.Time")).Return([]*models.Bet{}, nil)
@@ -240,8 +215,6 @@ func TestGamblingService_PlaceBet_InsufficientBalance(t *testing.T) {
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "insufficient balance: have 500, need 1000")
 
-	mockFactory.AssertExpectations(t)
-	mockUoW.AssertExpectations(t)
 	mockUserRepo.AssertExpectations(t)
 	mockBalanceHistoryRepo.AssertNotCalled(t, "Record")
 	mockBetRepo.AssertNotCalled(t, "Create")
@@ -251,21 +224,12 @@ func TestGamblingService_PlaceBet_UserNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	// Setup mocks
-	mockUoW := new(MockUnitOfWork)
-	mockFactory := new(MockUnitOfWorkFactory)
 	mockUserRepo := new(MockUserRepository)
 	mockBalanceHistoryRepo := new(MockBalanceHistoryRepository)
 	mockBetRepo := new(MockBetRepository)
+	mockEventPublisher := new(MockEventPublisher)
 
-	// Configure unit of work
-	mockUoW.SetRepositories(mockUserRepo, mockBalanceHistoryRepo, mockBetRepo)
-
-	service := NewGamblingService(mockFactory)
-
-	// Mock expectations
-	mockFactory.On("Create").Return(mockUoW)
-	mockUoW.On("Begin", ctx).Return(nil)
-	mockUoW.On("Rollback").Return(nil)
+	service := NewGamblingService(mockUserRepo, mockBetRepo, mockBalanceHistoryRepo, mockEventPublisher)
 
 	// Mock for daily limit check
 	mockBetRepo.On("GetByUserSince", ctx, int64(123456), mock.AnythingOfType("time.Time")).Return([]*models.Bet{}, nil)
@@ -278,8 +242,6 @@ func TestGamblingService_PlaceBet_UserNotFound(t *testing.T) {
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "user not found")
 
-	mockFactory.AssertExpectations(t)
-	mockUoW.AssertExpectations(t)
 	mockUserRepo.AssertExpectations(t)
 	mockBalanceHistoryRepo.AssertNotCalled(t, "Record")
 	mockBetRepo.AssertNotCalled(t, "Create")
@@ -289,16 +251,12 @@ func TestGamblingService_PlaceBet_TransactionRollback(t *testing.T) {
 	ctx := context.Background()
 
 	// Setup mocks
-	mockUoW := new(MockUnitOfWork)
-	mockFactory := new(MockUnitOfWorkFactory)
 	mockUserRepo := new(MockUserRepository)
 	mockBalanceHistoryRepo := new(MockBalanceHistoryRepository)
 	mockBetRepo := new(MockBetRepository)
+	mockEventPublisher := new(MockEventPublisher)
 
-	// Configure unit of work
-	mockUoW.SetRepositories(mockUserRepo, mockBalanceHistoryRepo, mockBetRepo)
-
-	service := NewGamblingService(mockFactory)
+	service := NewGamblingService(mockUserRepo, mockBetRepo, mockBalanceHistoryRepo, mockEventPublisher)
 
 	existingUser := &models.User{
 		DiscordID:        123456,
@@ -306,11 +264,6 @@ func TestGamblingService_PlaceBet_TransactionRollback(t *testing.T) {
 		Balance:          10000,
 		AvailableBalance: 10000,
 	}
-
-	// Mock expectations
-	mockFactory.On("Create").Return(mockUoW)
-	mockUoW.On("Begin", ctx).Return(nil)
-	mockUoW.On("Rollback").Return(nil)
 
 	// Mock for daily limit check
 	mockBetRepo.On("GetByUserSince", ctx, int64(123456), mock.AnythingOfType("time.Time")).Return([]*models.Bet{}, nil)
@@ -333,8 +286,6 @@ func TestGamblingService_PlaceBet_TransactionRollback(t *testing.T) {
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "failed to create bet record")
 
-	mockFactory.AssertExpectations(t)
-	mockUoW.AssertExpectations(t)
 	mockUserRepo.AssertExpectations(t)
 	mockBalanceHistoryRepo.AssertExpectations(t)
 	mockBetRepo.AssertExpectations(t)

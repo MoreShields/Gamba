@@ -9,26 +9,24 @@ import (
 
 // statsService implements the StatsService interface
 type statsService struct {
-	uowFactory UnitOfWorkFactory
+	userRepo     UserRepository
+	wagerRepo    WagerRepository
+	betRepo      BetRepository
 }
 
 // NewStatsService creates a new stats service
-func NewStatsService(uowFactory UnitOfWorkFactory) StatsService {
+func NewStatsService(userRepo UserRepository, wagerRepo WagerRepository, betRepo BetRepository) StatsService {
 	return &statsService{
-		uowFactory: uowFactory,
+		userRepo:  userRepo,
+		wagerRepo: wagerRepo,
+		betRepo:   betRepo,
 	}
 }
 
 // GetScoreboard returns the top users with their statistics
 func (s *statsService) GetScoreboard(ctx context.Context, limit int) ([]*models.ScoreboardEntry, error) {
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback()
-
 	// Get all users
-	users, err := uow.UserRepository().GetAll(ctx)
+	users, err := s.userRepo.GetAll(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get users: %w", err)
 	}
@@ -42,19 +40,19 @@ func (s *statsService) GetScoreboard(ctx context.Context, limit int) ([]*models.
 		}
 
 		// Get active wagers count
-		activeWagers, err := uow.WagerRepository().GetActiveByUser(ctx, user.DiscordID)
+		activeWagers, err := s.wagerRepo.GetActiveByUser(ctx, user.DiscordID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get active wagers for user %d: %w", user.DiscordID, err)
 		}
 
 		// Get wager stats for win rate
-		wagerStats, err := uow.WagerRepository().GetStats(ctx, user.DiscordID)
+		wagerStats, err := s.wagerRepo.GetStats(ctx, user.DiscordID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get wager stats for user %d: %w", user.DiscordID, err)
 		}
 
 		// Get bet stats for win rate
-		betStats, err := uow.BetRepository().GetStats(ctx, user.DiscordID)
+		betStats, err := s.betRepo.GetStats(ctx, user.DiscordID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get bet stats for user %d: %w", user.DiscordID, err)
 		}
@@ -103,14 +101,8 @@ func (s *statsService) GetScoreboard(ctx context.Context, limit int) ([]*models.
 
 // GetUserStats returns detailed statistics for a specific user
 func (s *statsService) GetUserStats(ctx context.Context, discordID int64) (*models.UserStats, error) {
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback()
-
 	// Get user
-	user, err := uow.UserRepository().GetByDiscordID(ctx, discordID)
+	user, err := s.userRepo.GetByDiscordID(ctx, discordID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -122,13 +114,13 @@ func (s *statsService) GetUserStats(ctx context.Context, discordID int64) (*mode
 	reservedInWagers := user.Balance - user.AvailableBalance
 
 	// Get bet stats
-	betStats, err := uow.BetRepository().GetStats(ctx, discordID)
+	betStats, err := s.betRepo.GetStats(ctx, discordID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get bet stats: %w", err)
 	}
 
 	// Get wager stats
-	wagerStats, err := uow.WagerRepository().GetStats(ctx, discordID)
+	wagerStats, err := s.wagerRepo.GetStats(ctx, discordID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get wager stats: %w", err)
 	}

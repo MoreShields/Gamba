@@ -11,7 +11,8 @@ import (
 
 // WagerRepository implements wager data access
 type WagerRepository struct {
-	q queryable
+	q       queryable
+	guildID int64
 }
 
 // NewWagerRepository creates a new wager repository
@@ -24,20 +25,29 @@ func newWagerRepositoryWithTx(tx queryable) *WagerRepository {
 	return &WagerRepository{q: tx}
 }
 
+// newWagerRepository creates a new wager repository with a transaction and guild scope
+func newWagerRepository(tx queryable, guildID int64) *WagerRepository {
+	return &WagerRepository{
+		q:       tx,
+		guildID: guildID,
+	}
+}
+
 // Create creates a new wager
 func (r *WagerRepository) Create(ctx context.Context, wager *models.Wager) error {
 	query := `
 		INSERT INTO wagers (
-			proposer_discord_id, target_discord_id, amount, condition, 
+			proposer_discord_id, target_discord_id, guild_id, amount, condition, 
 			state, message_id, channel_id
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id, created_at
 	`
 
 	err := r.q.QueryRow(ctx, query,
 		wager.ProposerDiscordID,
 		wager.TargetDiscordID,
+		r.guildID, // Use repository's guild scope
 		wager.Amount,
 		wager.Condition,
 		wager.State,
@@ -56,7 +66,7 @@ func (r *WagerRepository) Create(ctx context.Context, wager *models.Wager) error
 func (r *WagerRepository) GetByID(ctx context.Context, id int64) (*models.Wager, error) {
 	query := `
 		SELECT 
-			id, proposer_discord_id, target_discord_id, amount, condition,
+			id, proposer_discord_id, target_discord_id, guild_id, amount, condition,
 			state, winner_discord_id, winner_balance_history_id, loser_balance_history_id,
 			message_id, channel_id, created_at, accepted_at, resolved_at
 		FROM wagers
@@ -68,6 +78,7 @@ func (r *WagerRepository) GetByID(ctx context.Context, id int64) (*models.Wager,
 		&wager.ID,
 		&wager.ProposerDiscordID,
 		&wager.TargetDiscordID,
+		&wager.GuildID,
 		&wager.Amount,
 		&wager.Condition,
 		&wager.State,
@@ -95,7 +106,7 @@ func (r *WagerRepository) GetByID(ctx context.Context, id int64) (*models.Wager,
 func (r *WagerRepository) GetByMessageID(ctx context.Context, messageID int64) (*models.Wager, error) {
 	query := `
 		SELECT 
-			id, proposer_discord_id, target_discord_id, amount, condition,
+			id, proposer_discord_id, target_discord_id, guild_id, amount, condition,
 			state, winner_discord_id, winner_balance_history_id, loser_balance_history_id,
 			message_id, channel_id, created_at, accepted_at, resolved_at
 		FROM wagers
@@ -107,6 +118,7 @@ func (r *WagerRepository) GetByMessageID(ctx context.Context, messageID int64) (
 		&wager.ID,
 		&wager.ProposerDiscordID,
 		&wager.TargetDiscordID,
+		&wager.GuildID,
 		&wager.Amount,
 		&wager.Condition,
 		&wager.State,
@@ -168,16 +180,17 @@ func (r *WagerRepository) Update(ctx context.Context, wager *models.Wager) error
 func (r *WagerRepository) GetActiveByUser(ctx context.Context, discordID int64) ([]*models.Wager, error) {
 	query := `
 		SELECT 
-			id, proposer_discord_id, target_discord_id, amount, condition,
+			id, proposer_discord_id, target_discord_id, guild_id, amount, condition,
 			state, winner_discord_id, winner_balance_history_id, loser_balance_history_id,
 			message_id, channel_id, created_at, accepted_at, resolved_at
 		FROM wagers
 		WHERE (proposer_discord_id = $1 OR target_discord_id = $1)
+		  AND guild_id = $2
 		  AND state IN ('proposed', 'voting')
 		ORDER BY created_at DESC
 	`
 
-	rows, err := r.q.Query(ctx, query, discordID)
+	rows, err := r.q.Query(ctx, query, discordID, r.guildID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get active wagers for user %d: %w", discordID, err)
 	}
@@ -190,6 +203,7 @@ func (r *WagerRepository) GetActiveByUser(ctx context.Context, discordID int64) 
 			&wager.ID,
 			&wager.ProposerDiscordID,
 			&wager.TargetDiscordID,
+			&wager.GuildID,
 			&wager.Amount,
 			&wager.Condition,
 			&wager.State,
@@ -219,16 +233,17 @@ func (r *WagerRepository) GetActiveByUser(ctx context.Context, discordID int64) 
 func (r *WagerRepository) GetAllByUser(ctx context.Context, discordID int64, limit int) ([]*models.Wager, error) {
 	query := `
 		SELECT 
-			id, proposer_discord_id, target_discord_id, amount, condition,
+			id, proposer_discord_id, target_discord_id, guild_id, amount, condition,
 			state, winner_discord_id, winner_balance_history_id, loser_balance_history_id,
 			message_id, channel_id, created_at, accepted_at, resolved_at
 		FROM wagers
-		WHERE proposer_discord_id = $1 OR target_discord_id = $1
+		WHERE (proposer_discord_id = $1 OR target_discord_id = $1)
+		  AND guild_id = $2
 		ORDER BY created_at DESC
-		LIMIT $2
+		LIMIT $3
 	`
 
-	rows, err := r.q.Query(ctx, query, discordID, limit)
+	rows, err := r.q.Query(ctx, query, discordID, r.guildID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get wagers for user %d: %w", discordID, err)
 	}
@@ -241,6 +256,7 @@ func (r *WagerRepository) GetAllByUser(ctx context.Context, discordID int64, lim
 			&wager.ID,
 			&wager.ProposerDiscordID,
 			&wager.TargetDiscordID,
+			&wager.GuildID,
 			&wager.Amount,
 			&wager.Condition,
 			&wager.State,
@@ -283,10 +299,11 @@ func (r *WagerRepository) GetStats(ctx context.Context, discordID int64) (*model
 			COALESCE(MAX(CASE WHEN state = 'resolved' AND winner_discord_id = $1 THEN amount ELSE 0 END), 0) as biggest_win,
 			COALESCE(MAX(CASE WHEN state = 'resolved' AND winner_discord_id != $1 THEN amount ELSE 0 END), 0) as biggest_loss
 		FROM wagers
-		WHERE proposer_discord_id = $1 OR target_discord_id = $1`
+		WHERE (proposer_discord_id = $1 OR target_discord_id = $1)
+		  AND guild_id = $2`
 
 	var stats models.WagerStats
-	err := r.q.QueryRow(ctx, query, discordID).Scan(
+	err := r.q.QueryRow(ctx, query, discordID, r.guildID).Scan(
 		&stats.TotalWagers,
 		&stats.TotalProposed,
 		&stats.TotalAccepted,

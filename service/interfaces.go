@@ -70,6 +70,9 @@ type UserService interface {
 
 	// GetCurrentHighRoller returns the user with the highest balance
 	GetCurrentHighRoller(ctx context.Context) (*models.User, error)
+
+	// TransferBetweenUsers transfers amount from sender to recipient
+	TransferBetweenUsers(ctx context.Context, fromDiscordID, toDiscordID int64, amount int64, fromUsername, toUsername string) error
 }
 
 // GamblingService defines the interface for gambling operations
@@ -85,11 +88,6 @@ type GamblingService interface {
 	CheckDailyLimit(ctx context.Context, discordID int64, betAmount int64) (remaining int64, err error)
 }
 
-// TransferService defines the interface for transfer operations
-type TransferService interface {
-	// Transfer transfers bits from one user to another
-	Transfer(ctx context.Context, fromDiscordID int64, toDiscordID int64, amount int64) (*models.TransferResult, error)
-}
 
 // WagerRepository defines the interface for wager data access
 type WagerRepository interface {
@@ -157,38 +155,9 @@ type WagerService interface {
 	CancelWager(ctx context.Context, wagerID int64, cancellerID int64) error
 }
 
-// UnitOfWork defines the interface for transaction management
-type UnitOfWork interface {
-	// Begin starts a new unit of work
-	Begin(ctx context.Context) error
-
-	// Commit commits all changes in the unit of work
-	Commit() error
-
-	// Rollback rolls back all changes in the unit of work
-	Rollback() error
-
-	// EventBus returns the transactional event bus for publishing events
-	EventBus() EventPublisher
-
-	// Repository accessors return the same instances throughout the UoW lifetime
-	UserRepository() UserRepository
-	BalanceHistoryRepository() BalanceHistoryRepository
-	BetRepository() BetRepository
-	WagerRepository() WagerRepository
-	WagerVoteRepository() WagerVoteRepository
-	GroupWagerRepository() GroupWagerRepository
-	GuildSettingsRepository() GuildSettingsRepository
-}
-
-// EventPublisher defines the interface for publishing events within a transaction
+// EventPublisher defines the interface for publishing events
 type EventPublisher interface {
 	Publish(event events.Event)
-}
-
-// UnitOfWorkFactory creates new instances of UnitOfWork
-type UnitOfWorkFactory interface {
-	Create() UnitOfWork
 }
 
 // StatsService defines the interface for statistics operations
@@ -229,6 +198,7 @@ type GroupWagerRepository interface {
 	// Expiration operations
 	GetExpiredActiveWagers(ctx context.Context) ([]*models.GroupWager, error)
 	GetWagersPendingResolution(ctx context.Context) ([]*models.GroupWager, error)
+	GetGuildsWithActiveWagers(ctx context.Context) ([]int64, error)
 }
 
 // GroupWagerService defines the interface for group wager operations
@@ -280,4 +250,32 @@ type GuildSettingsService interface {
 
 	// UpdateHighRollerRole updates the high roller role for a guild
 	UpdateHighRollerRole(ctx context.Context, guildID int64, roleID *int64) error
+}
+
+// UnitOfWork defines the interface for transactional repository operations
+type UnitOfWork interface {
+	// Begin starts a new transaction
+	Begin(ctx context.Context) error
+
+	// Commit commits the transaction
+	Commit() error
+
+	// Rollback rolls back the transaction
+	Rollback() error
+
+	// Repository getters
+	UserRepository() UserRepository
+	BalanceHistoryRepository() BalanceHistoryRepository
+	BetRepository() BetRepository
+	WagerRepository() WagerRepository
+	WagerVoteRepository() WagerVoteRepository
+	GroupWagerRepository() GroupWagerRepository
+	GuildSettingsRepository() GuildSettingsRepository
+	EventBus() EventPublisher
+}
+
+// UnitOfWorkFactory defines the interface for creating UnitOfWork instances
+type UnitOfWorkFactory interface {
+	// CreateForGuild creates a new UnitOfWork instance scoped to a specific guild
+	CreateForGuild(guildID int64) UnitOfWork
 }

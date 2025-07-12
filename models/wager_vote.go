@@ -8,6 +8,7 @@ import (
 type WagerVote struct {
 	ID               int64     `db:"id"`
 	WagerID          int64     `db:"wager_id"`
+	GuildID          int64     `db:"guild_id"`
 	VoterDiscordID   int64     `db:"voter_discord_id"`
 	VoteForDiscordID int64     `db:"vote_for_discord_id"`
 	CreatedAt        time.Time `db:"created_at"`

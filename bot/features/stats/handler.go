@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"gambler/bot/common"
+	"gambler/service"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -33,11 +34,42 @@ func (f *Feature) handleStatsCommand(s *discordgo.Session, i *discordgo.Interact
 func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	ctx := context.Background()
 
+	// Extract guild ID from interaction
+	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
+	if err != nil {
+		log.Errorf("Error parsing guild ID %s: %v", i.GuildID, err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+
+	// Create guild-scoped unit of work
+	uow := f.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(ctx); err != nil {
+		log.Errorf("Error beginning transaction: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate stats service with repositories from UnitOfWork
+	statsService := service.NewStatsService(
+		uow.UserRepository(),
+		uow.WagerRepository(),
+		uow.BetRepository(),
+	)
+
 	// Get scoreboard entries (top 10)
-	entries, err := f.statsService.GetScoreboard(ctx, 10)
+	entries, err := statsService.GetScoreboard(ctx, 10)
 	if err != nil {
 		log.Printf("Error getting scoreboard: %v", err)
 		common.RespondWithError(s, i, "Unable to retrieve scoreboard. Please try again.")
+		return
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Error committing transaction: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
 		return
 	}
 
@@ -59,6 +91,14 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 // handleStatsBalance displays individual user statistics
 func (f *Feature) handleStatsBalance(s *discordgo.Session, i *discordgo.InteractionCreate, options []*discordgo.ApplicationCommandInteractionDataOption) {
 	ctx := context.Background()
+
+	// Extract guild ID from interaction
+	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
+	if err != nil {
+		log.Errorf("Error parsing guild ID %s: %v", i.GuildID, err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
 
 	// Get target user (default to command issuer)
 	var targetID int64
@@ -85,11 +125,34 @@ func (f *Feature) handleStatsBalance(s *discordgo.Session, i *discordgo.Interact
 		targetUser = i.Member.User
 	}
 
+	// Create guild-scoped unit of work
+	uow := f.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(ctx); err != nil {
+		log.Errorf("Error beginning transaction: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate stats service with repositories from UnitOfWork
+	statsService := service.NewStatsService(
+		uow.UserRepository(),
+		uow.WagerRepository(),
+		uow.BetRepository(),
+	)
+
 	// Get user stats
-	stats, err := f.statsService.GetUserStats(ctx, targetID)
+	stats, err := statsService.GetUserStats(ctx, targetID)
 	if err != nil {
 		log.Printf("Error getting user stats for %d: %v", targetID, err)
 		common.RespondWithError(s, i, "Unable to retrieve user statistics. Please try again.")
+		return
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Error committing transaction: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
 		return
 	}
 

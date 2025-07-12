@@ -10,14 +10,26 @@ import (
 )
 
 type groupWagerService struct {
-	uowFactory UnitOfWorkFactory
-	config     *config.Config
+	config                   *config.Config
+	groupWagerRepo           GroupWagerRepository
+	userRepo                 UserRepository
+	balanceHistoryRepo       BalanceHistoryRepository
+	eventPublisher           EventPublisher
 }
 
 // NewGroupWagerService creates a new group wager service
-func NewGroupWagerService(uowFactory UnitOfWorkFactory) GroupWagerService {
+func NewGroupWagerService(
+	groupWagerRepo GroupWagerRepository,
+	userRepo UserRepository,
+	balanceHistoryRepo BalanceHistoryRepository,
+	eventPublisher EventPublisher,
+) GroupWagerService {
 	return &groupWagerService{
-		uowFactory: uowFactory,
+		config:             config.Get(),
+		groupWagerRepo:     groupWagerRepo,
+		userRepo:           userRepo,
+		balanceHistoryRepo: balanceHistoryRepo,
+		eventPublisher:     eventPublisher,
 	}
 }
 
@@ -34,15 +46,8 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int6
 		return nil, fmt.Errorf("voting period must be between 5 minutes and 168 hours (10080 minutes)")
 	}
 
-	// Create unit of work
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback()
-
 	// Check if creator exists
-	creator, err := uow.UserRepository().GetByDiscordID(ctx, creatorID)
+	creator, err := s.userRepo.GetByDiscordID(ctx, creatorID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get creator: %w", err)
 	}
@@ -82,14 +87,10 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int6
 	}
 
 	// Use CreateWithOptions to create wager and options atomically
-	if err := uow.GroupWagerRepository().CreateWithOptions(ctx, groupWager, wagerOptions); err != nil {
+	if err := s.groupWagerRepo.CreateWithOptions(ctx, groupWager, wagerOptions); err != nil {
 		return nil, fmt.Errorf("failed to create group wager with options: %w", err)
 	}
 
-	// Commit the transaction
-	if err := uow.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
-	}
 
 	return &models.GroupWagerDetail{
 		Wager:        groupWager,
@@ -105,15 +106,8 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 		return nil, fmt.Errorf("bet amount must be positive")
 	}
 
-	// Create unit of work
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback()
-
 	// Get the group wager
-	groupWager, err := uow.GroupWagerRepository().GetByID(ctx, groupWagerID)
+	groupWager, err := s.groupWagerRepo.GetByID(ctx, groupWagerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get group wager: %w", err)
 	}
@@ -130,7 +124,7 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 	}
 
 	// Get full detail including options
-	detail, err := uow.GroupWagerRepository().GetDetailByID(ctx, groupWagerID)
+	detail, err := s.groupWagerRepo.GetDetailByID(ctx, groupWagerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get group wager detail: %w", err)
 	}
@@ -152,7 +146,7 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 	}
 
 	// Check if user has sufficient balance
-	user, err := uow.UserRepository().GetByDiscordID(ctx, userID)
+	user, err := s.userRepo.GetByDiscordID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -161,7 +155,7 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 	}
 
 	// Check for existing participation
-	existingParticipant, err := uow.GroupWagerRepository().GetParticipant(ctx, groupWagerID, userID)
+	existingParticipant, err := s.groupWagerRepo.GetParticipant(ctx, groupWagerID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing participation: %w", err)
 	}
@@ -185,7 +179,7 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 		// Update existing
 		existingParticipant.OptionID = optionID
 		existingParticipant.Amount = amount
-		if err := uow.GroupWagerRepository().SaveParticipant(ctx, existingParticipant); err != nil {
+		if err := s.groupWagerRepo.SaveParticipant(ctx, existingParticipant); err != nil {
 			return nil, fmt.Errorf("failed to update participant: %w", err)
 		}
 		participant = existingParticipant
@@ -197,7 +191,7 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 			OptionID:     optionID,
 			Amount:       amount,
 		}
-		if err := uow.GroupWagerRepository().SaveParticipant(ctx, participant); err != nil {
+		if err := s.groupWagerRepo.SaveParticipant(ctx, participant); err != nil {
 			return nil, fmt.Errorf("failed to create participant: %w", err)
 		}
 	}
@@ -208,7 +202,7 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 		for _, opt := range options {
 			if opt.ID == previousOptionID {
 				opt.TotalAmount -= previousAmount
-				if err := uow.GroupWagerRepository().UpdateOptionTotal(ctx, opt.ID, opt.TotalAmount); err != nil {
+				if err := s.groupWagerRepo.UpdateOptionTotal(ctx, opt.ID, opt.TotalAmount); err != nil {
 					return nil, fmt.Errorf("failed to update previous option total: %w", err)
 				}
 			}
@@ -219,20 +213,16 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 		// Same option, just update by the net change
 		selectedOption.TotalAmount += netChange
 	}
-	if err := uow.GroupWagerRepository().UpdateOptionTotal(ctx, selectedOption.ID, selectedOption.TotalAmount); err != nil {
+	if err := s.groupWagerRepo.UpdateOptionTotal(ctx, selectedOption.ID, selectedOption.TotalAmount); err != nil {
 		return nil, fmt.Errorf("failed to update option total: %w", err)
 	}
 
 	// Update group wager total pot
 	groupWager.TotalPot += netChange
-	if err := uow.GroupWagerRepository().Update(ctx, groupWager); err != nil {
+	if err := s.groupWagerRepo.Update(ctx, groupWager); err != nil {
 		return nil, fmt.Errorf("failed to update group wager pot: %w", err)
 	}
 
-	// Commit the transaction
-	if err := uow.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
-	}
 
 	return participant, nil
 }
@@ -244,15 +234,8 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 		return nil, fmt.Errorf("user is not authorized to resolve group wagers")
 	}
 
-	// Create unit of work
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback()
-
 	// Get the group wager
-	groupWager, err := uow.GroupWagerRepository().GetByID(ctx, groupWagerID)
+	groupWager, err := s.groupWagerRepo.GetByID(ctx, groupWagerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get group wager: %w", err)
 	}
@@ -266,7 +249,7 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 	}
 
 	// Get full detail to get participants and options
-	detail, err := uow.GroupWagerRepository().GetDetailByID(ctx, groupWagerID)
+	detail, err := s.groupWagerRepo.GetDetailByID(ctx, groupWagerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get group wager detail: %w", err)
 	}
@@ -341,7 +324,7 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 	// Process payouts
 	for _, winner := range winners {
 		// Get user for balance history
-		user, err := uow.UserRepository().GetByDiscordID(ctx, winner.DiscordID)
+		user, err := s.userRepo.GetByDiscordID(ctx, winner.DiscordID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get winner user: %w", err)
 		}
@@ -351,7 +334,7 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 
 		// Only update balance if there's a net change
 		if netWin != 0 {
-			if err := uow.UserRepository().AddBalance(ctx, winner.DiscordID, netWin); err != nil {
+			if err := s.userRepo.AddBalance(ctx, winner.DiscordID, netWin); err != nil {
 				return nil, fmt.Errorf("failed to update winner balance: %w", err)
 			}
 
@@ -372,7 +355,7 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 				RelatedType: relatedTypePtr(models.RelatedTypeGroupWager),
 			}
 
-			if err := RecordBalanceChange(ctx, uow, history); err != nil {
+			if err := RecordBalanceChange(ctx, s.balanceHistoryRepo, s.eventPublisher, history); err != nil {
 				return nil, fmt.Errorf("failed to record winner balance change: %w", err)
 			}
 
@@ -389,13 +372,13 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 	// Process losers
 	for _, loser := range losers {
 		// Get user for balance history
-		user, err := uow.UserRepository().GetByDiscordID(ctx, loser.DiscordID)
+		user, err := s.userRepo.GetByDiscordID(ctx, loser.DiscordID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get loser user: %w", err)
 		}
 
 		// Deduct the bet amount
-		if err := uow.UserRepository().DeductBalance(ctx, loser.DiscordID, loser.Amount); err != nil {
+		if err := s.userRepo.DeductBalance(ctx, loser.DiscordID, loser.Amount); err != nil {
 			return nil, fmt.Errorf("failed to deduct loser balance: %w", err)
 		}
 
@@ -415,7 +398,7 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 			RelatedType: relatedTypePtr(models.RelatedTypeGroupWager),
 		}
 
-		if err := RecordBalanceChange(ctx, uow, history); err != nil {
+		if err := RecordBalanceChange(ctx, s.balanceHistoryRepo, s.eventPublisher, history); err != nil {
 			return nil, fmt.Errorf("failed to record loser balance change: %w", err)
 		}
 
@@ -430,7 +413,7 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 
 	// Update participant records with payouts and balance history IDs
 	allParticipants := append(winners, losers...)
-	if err := uow.GroupWagerRepository().UpdateParticipantPayouts(ctx, allParticipants); err != nil {
+	if err := s.groupWagerRepo.UpdateParticipantPayouts(ctx, allParticipants); err != nil {
 		return nil, fmt.Errorf("failed to update participant payouts: %w", err)
 	}
 
@@ -442,12 +425,12 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 	groupWager.WinningOptionID = &winningOptionID
 	groupWager.ResolvedAt = &now
 
-	if err := uow.GroupWagerRepository().Update(ctx, groupWager); err != nil {
+	if err := s.groupWagerRepo.Update(ctx, groupWager); err != nil {
 		return nil, fmt.Errorf("failed to update resolved group wager: %w", err)
 	}
 
 	// Publish state change event
-	uow.EventBus().Publish(events.GroupWagerStateChangeEvent{
+	s.eventPublisher.Publish(events.GroupWagerStateChangeEvent{
 		GroupWagerID: groupWager.ID,
 		OldState:     string(oldState),
 		NewState:     string(groupWager.State),
@@ -455,10 +438,6 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 		ChannelID:    groupWager.ChannelID,
 	})
 
-	// Commit the transaction
-	if err := uow.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
-	}
 
 	return &models.GroupWagerResult{
 		GroupWager:    groupWager,
@@ -472,13 +451,7 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 
 // GetGroupWagerDetail retrieves full details of a group wager
 func (s *groupWagerService) GetGroupWagerDetail(ctx context.Context, groupWagerID int64) (*models.GroupWagerDetail, error) {
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback()
-
-	detail, err := uow.GroupWagerRepository().GetDetailByID(ctx, groupWagerID)
+	detail, err := s.groupWagerRepo.GetDetailByID(ctx, groupWagerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get group wager detail: %w", err)
 	}
@@ -491,13 +464,7 @@ func (s *groupWagerService) GetGroupWagerDetail(ctx context.Context, groupWagerI
 
 // GetGroupWagerByMessageID retrieves a group wager by message ID
 func (s *groupWagerService) GetGroupWagerByMessageID(ctx context.Context, messageID int64) (*models.GroupWagerDetail, error) {
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback()
-
-	detail, err := uow.GroupWagerRepository().GetDetailByMessageID(ctx, messageID)
+	detail, err := s.groupWagerRepo.GetDetailByMessageID(ctx, messageID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get group wager detail: %w", err)
 	}
@@ -507,13 +474,7 @@ func (s *groupWagerService) GetGroupWagerByMessageID(ctx context.Context, messag
 
 // GetActiveGroupWagersByUser returns active group wagers where user is participating
 func (s *groupWagerService) GetActiveGroupWagersByUser(ctx context.Context, discordID int64) ([]*models.GroupWager, error) {
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback()
-
-	wagers, err := uow.GroupWagerRepository().GetActiveByUser(ctx, discordID)
+	wagers, err := s.groupWagerRepo.GetActiveByUser(ctx, discordID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get active group wagers: %w", err)
 	}
@@ -523,7 +484,7 @@ func (s *groupWagerService) GetActiveGroupWagersByUser(ctx context.Context, disc
 
 // IsResolver checks if a user can resolve group wagers
 func (s *groupWagerService) IsResolver(discordID int64) bool {
-	for _, resolverID := range config.Get().ResolverDiscordIDs {
+	for _, resolverID := range s.config.ResolverDiscordIDs {
 		if discordID == resolverID {
 			return true
 		}
@@ -533,14 +494,8 @@ func (s *groupWagerService) IsResolver(discordID int64) bool {
 
 // UpdateMessageIDs updates the message and channel IDs for a group wager
 func (s *groupWagerService) UpdateMessageIDs(ctx context.Context, groupWagerID int64, messageID int64, channelID int64) error {
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback()
-
 	// Get the group wager
-	groupWager, err := uow.GroupWagerRepository().GetByID(ctx, groupWagerID)
+	groupWager, err := s.groupWagerRepo.GetByID(ctx, groupWagerID)
 	if err != nil {
 		return fmt.Errorf("failed to get group wager: %w", err)
 	}
@@ -550,13 +505,8 @@ func (s *groupWagerService) UpdateMessageIDs(ctx context.Context, groupWagerID i
 	groupWager.ChannelID = channelID
 
 	// Save the update
-	if err := uow.GroupWagerRepository().Update(ctx, groupWager); err != nil {
+	if err := s.groupWagerRepo.Update(ctx, groupWager); err != nil {
 		return fmt.Errorf("failed to update group wager: %w", err)
-	}
-
-	// Commit the transaction
-	if err := uow.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil
@@ -564,15 +514,8 @@ func (s *groupWagerService) UpdateMessageIDs(ctx context.Context, groupWagerID i
 
 // TransitionExpiredWagers finds and transitions expired active wagers to pending_resolution
 func (s *groupWagerService) TransitionExpiredWagers(ctx context.Context) error {
-	// Create unit of work
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback()
-
 	// Find expired active wagers
-	expiredWagers, err := uow.GroupWagerRepository().GetExpiredActiveWagers(ctx)
+	expiredWagers, err := s.groupWagerRepo.GetExpiredActiveWagers(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get expired active wagers: %w", err)
 	}
@@ -583,23 +526,18 @@ func (s *groupWagerService) TransitionExpiredWagers(ctx context.Context) error {
 		wager.State = models.GroupWagerStatePendingResolution
 		
 		// Update the wager
-		if err := uow.GroupWagerRepository().Update(ctx, wager); err != nil {
+		if err := s.groupWagerRepo.Update(ctx, wager); err != nil {
 			return fmt.Errorf("failed to update wager %d to pending_resolution: %w", wager.ID, err)
 		}
 		
 		// Publish state change event
-		uow.EventBus().Publish(events.GroupWagerStateChangeEvent{
+		s.eventPublisher.Publish(events.GroupWagerStateChangeEvent{
 			GroupWagerID: wager.ID,
 			OldState:     string(oldState),
 			NewState:     string(wager.State),
 			MessageID:    wager.MessageID,
 			ChannelID:    wager.ChannelID,
 		})
-	}
-
-	// Commit the transaction
-	if err := uow.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil

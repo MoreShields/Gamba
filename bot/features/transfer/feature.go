@@ -6,14 +6,12 @@ import (
 )
 
 type Feature struct {
-	transferService service.TransferService
-	userService     service.UserService
+	uowFactory service.UnitOfWorkFactory
 }
 
-func New(transferService service.TransferService, userService service.UserService) *Feature {
+func New(uowFactory service.UnitOfWorkFactory) *Feature {
 	return &Feature{
-		transferService: transferService,
-		userService:     userService,
+		uowFactory: uowFactory,
 	}
 }
 

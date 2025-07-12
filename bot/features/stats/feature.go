@@ -9,19 +9,17 @@ import (
 
 // Feature represents the stats feature
 type Feature struct {
-	session      *discordgo.Session
-	statsService service.StatsService
-	userService  service.UserService
-	guildID      string
+	session    *discordgo.Session
+	uowFactory service.UnitOfWorkFactory
+	guildID    string
 }
 
 // NewFeature creates a new stats feature instance
-func NewFeature(session *discordgo.Session, statsService service.StatsService, userService service.UserService, guildID string) *Feature {
+func NewFeature(session *discordgo.Session, uowFactory service.UnitOfWorkFactory, guildID string) *Feature {
 	return &Feature{
-		session:      session,
-		statsService: statsService,
-		userService:  userService,
-		guildID:      guildID,
+		session:    session,
+		uowFactory: uowFactory,
+		guildID:    guildID,
 	}
 }
 

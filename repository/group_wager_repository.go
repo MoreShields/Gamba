@@ -12,7 +12,8 @@ import (
 
 // GroupWagerRepository implements all group wager related data access
 type GroupWagerRepository struct {
-	q queryable
+	q       queryable
+	guildID int64
 }
 
 // NewGroupWagerRepository creates a new consolidated group wager repository
@@ -25,21 +26,30 @@ func newGroupWagerRepositoryWithTx(tx queryable) service.GroupWagerRepository {
 	return &GroupWagerRepository{q: tx}
 }
 
+// newGroupWagerRepository creates a new group wager repository with a transaction and guild scope
+func newGroupWagerRepository(tx queryable, guildID int64) service.GroupWagerRepository {
+	return &GroupWagerRepository{
+		q:       tx,
+		guildID: guildID,
+	}
+}
+
 // CreateWithOptions creates a new group wager with its options atomically
 func (r *GroupWagerRepository) CreateWithOptions(ctx context.Context, wager *models.GroupWager, options []*models.GroupWagerOption) error {
 	// Create the group wager
 	query := `
 		INSERT INTO group_wagers (
-			creator_discord_id, condition, state, total_pot, 
+			creator_discord_id, guild_id, condition, state, total_pot, 
 			min_participants, message_id, channel_id, voting_period_minutes,
 			voting_starts_at, voting_ends_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING id, created_at
 	`
 
 	err := r.q.QueryRow(ctx, query,
 		wager.CreatorDiscordID,
+		r.guildID, // Use repository's guild scope
 		wager.Condition,
 		wager.State,
 		wager.TotalPot,
@@ -155,7 +165,7 @@ func (r *GroupWagerRepository) GetDetailByMessageID(ctx context.Context, message
 func (r *GroupWagerRepository) GetByID(ctx context.Context, id int64) (*models.GroupWager, error) {
 	query := `
 		SELECT 
-			id, creator_discord_id, condition, state, resolver_discord_id,
+			id, creator_discord_id, guild_id, condition, state, resolver_discord_id,
 			winning_option_id, total_pot, min_participants, message_id, 
 			channel_id, voting_period_minutes, voting_starts_at, voting_ends_at,
 			created_at, resolved_at
@@ -167,6 +177,7 @@ func (r *GroupWagerRepository) GetByID(ctx context.Context, id int64) (*models.G
 	err := r.q.QueryRow(ctx, query, id).Scan(
 		&wager.ID,
 		&wager.CreatorDiscordID,
+		&wager.GuildID,
 		&wager.Condition,
 		&wager.State,
 		&wager.ResolverDiscordID,
@@ -196,7 +207,7 @@ func (r *GroupWagerRepository) GetByID(ctx context.Context, id int64) (*models.G
 func (r *GroupWagerRepository) GetByMessageID(ctx context.Context, messageID int64) (*models.GroupWager, error) {
 	query := `
 		SELECT 
-			id, creator_discord_id, condition, state, resolver_discord_id,
+			id, creator_discord_id, guild_id, condition, state, resolver_discord_id,
 			winning_option_id, total_pot, min_participants, message_id, 
 			channel_id, voting_period_minutes, voting_starts_at, voting_ends_at,
 			created_at, resolved_at
@@ -208,6 +219,7 @@ func (r *GroupWagerRepository) GetByMessageID(ctx context.Context, messageID int
 	err := r.q.QueryRow(ctx, query, messageID).Scan(
 		&wager.ID,
 		&wager.CreatorDiscordID,
+		&wager.GuildID,
 		&wager.Condition,
 		&wager.State,
 		&wager.ResolverDiscordID,
@@ -272,17 +284,17 @@ func (r *GroupWagerRepository) Update(ctx context.Context, wager *models.GroupWa
 func (r *GroupWagerRepository) GetActiveByUser(ctx context.Context, discordID int64) ([]*models.GroupWager, error) {
 	query := `
 		SELECT DISTINCT
-			gw.id, gw.creator_discord_id, gw.condition, gw.state, gw.resolver_discord_id,
+			gw.id, gw.creator_discord_id, gw.guild_id, gw.condition, gw.state, gw.resolver_discord_id,
 			gw.winning_option_id, gw.total_pot, gw.min_participants, gw.message_id, 
 			gw.channel_id, gw.voting_period_minutes, gw.voting_starts_at, gw.voting_ends_at,
 			gw.created_at, gw.resolved_at
 		FROM group_wagers gw
 		JOIN group_wager_participants gwp ON gwp.group_wager_id = gw.id
-		WHERE gwp.discord_id = $1 AND gw.state = 'active'
+		WHERE gwp.discord_id = $1 AND gw.state = 'active' AND gw.guild_id = $2
 		ORDER BY gw.created_at DESC
 	`
 
-	rows, err := r.q.Query(ctx, query, discordID)
+	rows, err := r.q.Query(ctx, query, discordID, r.guildID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query active group wagers: %w", err)
 	}
@@ -294,6 +306,7 @@ func (r *GroupWagerRepository) GetActiveByUser(ctx context.Context, discordID in
 		err := rows.Scan(
 			&wager.ID,
 			&wager.CreatorDiscordID,
+			&wager.GuildID,
 			&wager.Condition,
 			&wager.State,
 			&wager.ResolverDiscordID,
@@ -325,25 +338,27 @@ func (r *GroupWagerRepository) GetAll(ctx context.Context, state *models.GroupWa
 	if state != nil {
 		query = `
 			SELECT 
-				id, creator_discord_id, condition, state, resolver_discord_id,
+				id, creator_discord_id, guild_id, condition, state, resolver_discord_id,
 				winning_option_id, total_pot, min_participants, message_id, 
 				channel_id, voting_period_minutes, voting_starts_at, voting_ends_at,
 				created_at, resolved_at
 			FROM group_wagers
-			WHERE state = $1
+			WHERE state = $1 AND guild_id = $2
 			ORDER BY created_at DESC
 		`
-		args = append(args, *state)
+		args = append(args, *state, r.guildID)
 	} else {
 		query = `
 			SELECT 
-				id, creator_discord_id, condition, state, resolver_discord_id,
+				id, creator_discord_id, guild_id, condition, state, resolver_discord_id,
 				winning_option_id, total_pot, min_participants, message_id, 
 				channel_id, voting_period_minutes, voting_starts_at, voting_ends_at,
 				created_at, resolved_at
 			FROM group_wagers
+			WHERE guild_id = $1
 			ORDER BY created_at DESC
 		`
+		args = append(args, r.guildID)
 	}
 
 	rows, err := r.q.Query(ctx, query, args...)
@@ -358,6 +373,7 @@ func (r *GroupWagerRepository) GetAll(ctx context.Context, state *models.GroupWa
 		err := rows.Scan(
 			&wager.ID,
 			&wager.CreatorDiscordID,
+			&wager.GuildID,
 			&wager.Condition,
 			&wager.State,
 			&wager.ResolverDiscordID,
@@ -469,11 +485,11 @@ func (r *GroupWagerRepository) GetActiveParticipationsByUser(ctx context.Context
 			gwp.payout_amount, gwp.balance_history_id, gwp.created_at, gwp.updated_at
 		FROM group_wager_participants gwp
 		JOIN group_wagers gw ON gw.id = gwp.group_wager_id
-		WHERE gwp.discord_id = $1 AND gw.state = 'active'
+		WHERE gwp.discord_id = $1 AND gw.state = 'active' AND gw.guild_id = $2
 		ORDER BY gwp.created_at DESC
 	`
 
-	rows, err := r.q.Query(ctx, query, discordID)
+	rows, err := r.q.Query(ctx, query, discordID, r.guildID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query active group wager participants: %w", err)
 	}
@@ -634,7 +650,7 @@ func (r *GroupWagerRepository) getParticipantsByGroupWager(ctx context.Context, 
 func (r *GroupWagerRepository) GetExpiredActiveWagers(ctx context.Context) ([]*models.GroupWager, error) {
 	query := `
 		SELECT 
-			id, creator_discord_id, condition, state, resolver_discord_id,
+			id, creator_discord_id, guild_id, condition, state, resolver_discord_id,
 			winning_option_id, total_pot, min_participants, message_id, 
 			channel_id, voting_period_minutes, voting_starts_at, voting_ends_at,
 			created_at, resolved_at
@@ -642,10 +658,11 @@ func (r *GroupWagerRepository) GetExpiredActiveWagers(ctx context.Context) ([]*m
 		WHERE state = 'active' 
 		AND voting_ends_at IS NOT NULL 
 		AND voting_ends_at < CURRENT_TIMESTAMP
+		AND guild_id = $1
 		ORDER BY voting_ends_at ASC
 	`
 
-	rows, err := r.q.Query(ctx, query)
+	rows, err := r.q.Query(ctx, query, r.guildID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query expired active wagers: %w", err)
 	}
@@ -657,6 +674,7 @@ func (r *GroupWagerRepository) GetExpiredActiveWagers(ctx context.Context) ([]*m
 		err := rows.Scan(
 			&wager.ID,
 			&wager.CreatorDiscordID,
+			&wager.GuildID,
 			&wager.Condition,
 			&wager.State,
 			&wager.ResolverDiscordID,
@@ -684,16 +702,16 @@ func (r *GroupWagerRepository) GetExpiredActiveWagers(ctx context.Context) ([]*m
 func (r *GroupWagerRepository) GetWagersPendingResolution(ctx context.Context) ([]*models.GroupWager, error) {
 	query := `
 		SELECT 
-			id, creator_discord_id, condition, state, resolver_discord_id,
+			id, creator_discord_id, guild_id, condition, state, resolver_discord_id,
 			winning_option_id, total_pot, min_participants, message_id, 
 			channel_id, voting_period_minutes, voting_starts_at, voting_ends_at,
 			created_at, resolved_at
 		FROM group_wagers
-		WHERE state = 'pending_resolution'
+		WHERE state = 'pending_resolution' AND guild_id = $1
 		ORDER BY voting_ends_at ASC
 	`
 
-	rows, err := r.q.Query(ctx, query)
+	rows, err := r.q.Query(ctx, query, r.guildID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query wagers pending resolution: %w", err)
 	}
@@ -705,6 +723,7 @@ func (r *GroupWagerRepository) GetWagersPendingResolution(ctx context.Context) (
 		err := rows.Scan(
 			&wager.ID,
 			&wager.CreatorDiscordID,
+			&wager.GuildID,
 			&wager.Condition,
 			&wager.State,
 			&wager.ResolverDiscordID,
@@ -738,12 +757,12 @@ func (r *GroupWagerRepository) GetStats(ctx context.Context, discordID int64) (*
 			COALESCE(SUM(CASE WHEN gw.state = 'resolved' AND gw.winning_option_id = gwp.option_id AND gwp.payout_amount IS NOT NULL THEN gwp.payout_amount ELSE 0 END), 0) as total_won_amount
 		FROM group_wager_participants gwp
 		JOIN group_wagers gw ON gw.id = gwp.group_wager_id
-		WHERE gwp.discord_id = $1`
+		WHERE gwp.discord_id = $1 AND gw.guild_id = $2`
 
 	var totalGroupWagers, totalWon int
 	var totalWonAmount int64
 
-	err := r.q.QueryRow(ctx, participationQuery, discordID).Scan(
+	err := r.q.QueryRow(ctx, participationQuery, discordID, r.guildID).Scan(
 		&totalGroupWagers,
 		&totalWon,
 		&totalWonAmount,
@@ -756,10 +775,10 @@ func (r *GroupWagerRepository) GetStats(ctx context.Context, discordID int64) (*
 	creationQuery := `
 		SELECT COUNT(*) 
 		FROM group_wagers 
-		WHERE creator_discord_id = $1`
+		WHERE creator_discord_id = $1 AND guild_id = $2`
 
 	var totalProposed int
-	err = r.q.QueryRow(ctx, creationQuery, discordID).Scan(&totalProposed)
+	err = r.q.QueryRow(ctx, creationQuery, discordID, r.guildID).Scan(&totalProposed)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get creation stats: %w", err)
 	}
@@ -770,4 +789,34 @@ func (r *GroupWagerRepository) GetStats(ctx context.Context, discordID int64) (*
 		TotalWon:         totalWon,
 		TotalWonAmount:   totalWonAmount,
 	}, nil
+}
+
+// GetGuildsWithActiveWagers returns all guild IDs that have active group wagers
+func (r *GroupWagerRepository) GetGuildsWithActiveWagers(ctx context.Context) ([]int64, error) {
+	query := `
+		SELECT DISTINCT guild_id 
+		FROM group_wagers 
+		WHERE state = 'active' 
+		  AND voting_ends_at IS NOT NULL 
+		  AND voting_ends_at < CURRENT_TIMESTAMP
+		ORDER BY guild_id
+	`
+
+	rows, err := r.q.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query guilds with active wagers: %w", err)
+	}
+	defer rows.Close()
+
+	var guildIDs []int64
+	for rows.Next() {
+		var guildID int64
+		err := rows.Scan(&guildID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan guild ID: %w", err)
+		}
+		guildIDs = append(guildIDs, guildID)
+	}
+
+	return guildIDs, nil
 }

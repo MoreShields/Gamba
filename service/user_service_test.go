@@ -15,15 +15,11 @@ func TestUserService_GetOrCreateUser_ExistingUser(t *testing.T) {
 	ctx := context.Background()
 
 	// Setup mocks
-	mockUoW := new(MockUnitOfWork)
-	mockFactory := new(MockUnitOfWorkFactory)
 	mockUserRepo := new(MockUserRepository)
 	mockBalanceHistoryRepo := new(MockBalanceHistoryRepository)
+	mockEventPublisher := new(MockEventPublisher)
 
-	// Configure unit of work
-	mockUoW.SetRepositories(mockUserRepo, mockBalanceHistoryRepo, nil)
-
-	service := NewUserService(mockFactory)
+	service := NewUserService(mockUserRepo, mockBalanceHistoryRepo, mockEventPublisher)
 
 	existingUser := &models.User{
 		DiscordID: 123456,
@@ -32,11 +28,6 @@ func TestUserService_GetOrCreateUser_ExistingUser(t *testing.T) {
 	}
 
 	// Mock expectations
-	mockFactory.On("Create").Return(mockUoW)
-	mockUoW.On("Begin", ctx).Return(nil)
-	mockUoW.On("Rollback").Return(nil)
-	// No Commit() expected since user exists and no changes are made
-
 	mockUserRepo.On("GetByDiscordID", ctx, int64(123456)).Return(existingUser, nil)
 
 	user, err := service.GetOrCreateUser(ctx, 123456, "testuser")
@@ -44,8 +35,6 @@ func TestUserService_GetOrCreateUser_ExistingUser(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, existingUser, user)
 
-	mockFactory.AssertExpectations(t)
-	mockUoW.AssertExpectations(t)
 	mockUserRepo.AssertExpectations(t)
 	mockBalanceHistoryRepo.AssertNotCalled(t, "Record")
 }
@@ -54,15 +43,11 @@ func TestUserService_GetOrCreateUser_NewUser(t *testing.T) {
 	ctx := context.Background()
 
 	// Setup mocks
-	mockUoW := new(MockUnitOfWork)
-	mockFactory := new(MockUnitOfWorkFactory)
 	mockUserRepo := new(MockUserRepository)
 	mockBalanceHistoryRepo := new(MockBalanceHistoryRepository)
+	mockEventPublisher := new(MockEventPublisher)
 
-	// Configure unit of work
-	mockUoW.SetRepositories(mockUserRepo, mockBalanceHistoryRepo, nil)
-
-	service := NewUserService(mockFactory)
+	service := NewUserService(mockUserRepo, mockBalanceHistoryRepo, mockEventPublisher)
 
 	newUser := &models.User{
 		DiscordID: 123456,
@@ -71,11 +56,6 @@ func TestUserService_GetOrCreateUser_NewUser(t *testing.T) {
 	}
 
 	// Mock expectations
-	mockFactory.On("Create").Return(mockUoW)
-	mockUoW.On("Begin", ctx).Return(nil)
-	mockUoW.On("Commit").Return(nil)
-	mockUoW.On("Rollback").Return(nil)
-
 	// User doesn't exist on first check
 	mockUserRepo.On("GetByDiscordID", ctx, int64(123456)).Return(nil, nil)
 	// Create call returns new user
@@ -95,8 +75,6 @@ func TestUserService_GetOrCreateUser_NewUser(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, newUser, user)
 
-	mockFactory.AssertExpectations(t)
-	mockUoW.AssertExpectations(t)
 	mockUserRepo.AssertExpectations(t)
 	mockBalanceHistoryRepo.AssertExpectations(t)
 }
@@ -105,21 +83,13 @@ func TestUserService_GetOrCreateUser_CreateError(t *testing.T) {
 	ctx := context.Background()
 
 	// Setup mocks
-	mockUoW := new(MockUnitOfWork)
-	mockFactory := new(MockUnitOfWorkFactory)
 	mockUserRepo := new(MockUserRepository)
 	mockBalanceHistoryRepo := new(MockBalanceHistoryRepository)
+	mockEventPublisher := new(MockEventPublisher)
 
-	// Configure unit of work
-	mockUoW.SetRepositories(mockUserRepo, mockBalanceHistoryRepo, nil)
-
-	service := NewUserService(mockFactory)
+	service := NewUserService(mockUserRepo, mockBalanceHistoryRepo, mockEventPublisher)
 
 	// Mock expectations
-	mockFactory.On("Create").Return(mockUoW)
-	mockUoW.On("Begin", ctx).Return(nil)
-	mockUoW.On("Rollback").Return(nil)
-
 	// User doesn't exist
 	mockUserRepo.On("GetByDiscordID", ctx, int64(123456)).Return(nil, nil)
 	// Create fails
@@ -131,8 +101,6 @@ func TestUserService_GetOrCreateUser_CreateError(t *testing.T) {
 	assert.Nil(t, user)
 	assert.Contains(t, err.Error(), "failed to create user")
 
-	mockFactory.AssertExpectations(t)
-	mockUoW.AssertExpectations(t)
 	mockUserRepo.AssertExpectations(t)
 	mockBalanceHistoryRepo.AssertNotCalled(t, "Record")
 }
@@ -141,15 +109,11 @@ func TestUserService_GetOrCreateUser_BalanceHistoryError(t *testing.T) {
 	ctx := context.Background()
 
 	// Setup mocks
-	mockUoW := new(MockUnitOfWork)
-	mockFactory := new(MockUnitOfWorkFactory)
 	mockUserRepo := new(MockUserRepository)
 	mockBalanceHistoryRepo := new(MockBalanceHistoryRepository)
+	mockEventPublisher := new(MockEventPublisher)
 
-	// Configure unit of work
-	mockUoW.SetRepositories(mockUserRepo, mockBalanceHistoryRepo, nil)
-
-	service := NewUserService(mockFactory)
+	service := NewUserService(mockUserRepo, mockBalanceHistoryRepo, mockEventPublisher)
 
 	newUser := &models.User{
 		DiscordID: 123456,
@@ -158,11 +122,6 @@ func TestUserService_GetOrCreateUser_BalanceHistoryError(t *testing.T) {
 	}
 
 	// Mock expectations
-	mockFactory.On("Create").Return(mockUoW)
-	mockUoW.On("Begin", ctx).Return(nil)
-	mockUoW.On("Rollback").Return(nil)
-	// No Commit expected since balance history error causes rollback
-
 	mockUserRepo.On("GetByDiscordID", ctx, int64(123456)).Return(nil, nil)
 	mockUserRepo.On("Create", ctx, int64(123456), "newuser", InitialBalance).Return(newUser, nil)
 
@@ -176,8 +135,6 @@ func TestUserService_GetOrCreateUser_BalanceHistoryError(t *testing.T) {
 	assert.Nil(t, user)
 	assert.Contains(t, err.Error(), "failed to record initial balance")
 
-	mockFactory.AssertExpectations(t)
-	mockUoW.AssertExpectations(t)
 	mockUserRepo.AssertExpectations(t)
 	mockBalanceHistoryRepo.AssertExpectations(t)
 }

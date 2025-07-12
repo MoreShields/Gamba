@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"gambler/bot/common"
+	"gambler/service"
 	"strconv"
 	"strings"
 
@@ -188,11 +189,43 @@ func (f *Feature) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo
 		return
 	}
 
+	// Parse guild ID
+	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
+	if err != nil {
+		log.Printf("Error parsing guild ID: %v", err)
+		common.FollowUpWithError(s, i, "Unable to process request.")
+		return
+	}
+
+	// Create unit of work
+	uow := f.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(ctx); err != nil {
+		log.Printf("Error beginning transaction: %v", err)
+		common.FollowUpWithError(s, i, "Unable to process request.")
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate group wager service with repositories from UnitOfWork
+	groupWagerService := service.NewGroupWagerService(
+		uow.GroupWagerRepository(),
+		uow.UserRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
 	// Create the group wager (message ID will be updated after posting)
-	groupWagerDetail, err := f.groupWagerService.CreateGroupWager(ctx, creatorID, condition, options, votingPeriodMinutes, 0, 0)
+	groupWagerDetail, err := groupWagerService.CreateGroupWager(ctx, creatorID, condition, options, votingPeriodMinutes, 0, 0)
 	if err != nil {
 		log.Printf("Error creating group wager: %v", err)
 		common.FollowUpWithError(s, i, fmt.Sprintf("Failed to create group wager: %v", err))
+		return
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Printf("Error committing transaction: %v", err)
+		common.FollowUpWithError(s, i, "Failed to save group wager.")
 		return
 	}
 
@@ -223,8 +256,28 @@ func (f *Feature) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo
 	}
 
 	// Update the group wager with the message IDs
-	if err := f.groupWagerService.UpdateMessageIDs(ctx, groupWagerDetail.Wager.ID, messageID, channelID); err != nil {
+	uow2 := f.uowFactory.CreateForGuild(guildID)
+	if err := uow2.Begin(ctx); err != nil {
+		log.Errorf("failed to begin transaction for message ID update: %s", err)
+		return
+	}
+	defer uow2.Rollback()
+
+	// Instantiate group wager service with repositories from UnitOfWork
+	groupWagerService2 := service.NewGroupWagerService(
+		uow2.GroupWagerRepository(),
+		uow2.UserRepository(),
+		uow2.BalanceHistoryRepository(),
+		uow2.EventBus(),
+	)
+
+	if err := groupWagerService2.UpdateMessageIDs(ctx, groupWagerDetail.Wager.ID, messageID, channelID); err != nil {
 		log.Errorf("failed to update group wager message IDs: %s", err)
+		return
+	}
+
+	if err := uow2.Commit(); err != nil {
+		log.Errorf("failed to commit message ID update: %s", err)
 	}
 
 }
@@ -254,9 +307,40 @@ func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Int
 		return
 	}
 
+	// Create temporary UnitOfWork for resolver check (if needed)
+	tempGuildID, err := strconv.ParseInt(i.GuildID, 10, 64)
+	if err != nil {
+		log.Printf("Error parsing guild ID for resolver check: %v", err)
+		common.RespondWithError(s, i, "Unable to process request.")
+		return
+	}
+
+	tempUow := f.uowFactory.CreateForGuild(tempGuildID)
+	if err := tempUow.Begin(ctx); err != nil {
+		log.Printf("Error beginning transaction for resolver check: %v", err)
+		common.RespondWithError(s, i, "Unable to process request.")
+		return
+	}
+	defer tempUow.Rollback()
+
+	// Instantiate group wager service for resolver check
+	tempGroupWagerService := service.NewGroupWagerService(
+		tempUow.GroupWagerRepository(),
+		tempUow.UserRepository(),
+		tempUow.BalanceHistoryRepository(),
+		tempUow.EventBus(),
+	)
+
 	// Check if user is a resolver
-	if !f.groupWagerService.IsResolver(resolverID) {
+	if !tempGroupWagerService.IsResolver(resolverID) {
 		common.RespondWithError(s, i, "You are not authorized to resolve group wagers.")
+		return
+	}
+
+	// Commit resolver check transaction
+	if err := tempUow.Commit(); err != nil {
+		log.Printf("Error committing resolver check transaction: %v", err)
+		common.RespondWithError(s, i, "Unable to process request.")
 		return
 	}
 
@@ -269,11 +353,43 @@ func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Int
 		return
 	}
 
+	// Parse guild ID
+	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
+	if err != nil {
+		log.Printf("Error parsing guild ID: %v", err)
+		common.FollowUpWithError(s, i, "Unable to process request.")
+		return
+	}
+
+	// Create unit of work
+	uow := f.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(ctx); err != nil {
+		log.Printf("Error beginning transaction: %v", err)
+		common.FollowUpWithError(s, i, "Unable to process request.")
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate group wager service with repositories from UnitOfWork
+	groupWagerService := service.NewGroupWagerService(
+		uow.GroupWagerRepository(),
+		uow.UserRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
 	// Resolve the wager
-	result, err := f.groupWagerService.ResolveGroupWager(ctx, groupWagerID, resolverID, winningOptionID)
+	result, err := groupWagerService.ResolveGroupWager(ctx, groupWagerID, resolverID, winningOptionID)
 	if err != nil {
 		log.Printf("Error resolving group wager: %v", err)
 		common.FollowUpWithError(s, i, fmt.Sprintf("Failed to resolve wager: %v", err))
+		return
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Printf("Error committing transaction: %v", err)
+		common.FollowUpWithError(s, i, "Failed to save resolution.")
 		return
 	}
 
@@ -302,7 +418,22 @@ func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Int
 	// Update the original wager message to show it's resolved
 	if result.GroupWager.MessageID != 0 && result.GroupWager.ChannelID != 0 {
 		// Get updated wager details
-		updatedDetail, err := f.groupWagerService.GetGroupWagerDetail(ctx, groupWagerID)
+		uow2 := f.uowFactory.CreateForGuild(guildID)
+		if err := uow2.Begin(ctx); err != nil {
+			log.Printf("Error beginning transaction for detail fetch: %v", err)
+			return
+		}
+		defer uow2.Rollback()
+
+		// Instantiate group wager service with repositories from UnitOfWork
+		groupWagerService2 := service.NewGroupWagerService(
+			uow2.GroupWagerRepository(),
+			uow2.UserRepository(),
+			uow2.BalanceHistoryRepository(),
+			uow2.EventBus(),
+		)
+
+		updatedDetail, err := groupWagerService2.GetGroupWagerDetail(ctx, groupWagerID)
 		if err != nil {
 			log.Printf("Error getting updated group wager detail: %v", err)
 			return
@@ -419,15 +550,46 @@ func (f *Feature) handleGroupWagerBetModal(s *discordgo.Session, i *discordgo.In
 		common.RespondWithError(s, i, "Unable to process request.")
 		return
 	}
+	// Parse guild ID
+	guildIDInt, err := strconv.ParseInt(i.GuildID, 10, 64)
+	if err != nil {
+		log.Info("Guild ID parsing failed here")
+		log.Printf("Error parsing guild ID: %v", err)
+		common.RespondWithError(s, i, "Unable to process request.")
+		return
+	}
+
+	// Create unit of work
+	uow := f.uowFactory.CreateForGuild(guildIDInt)
+	if err := uow.Begin(ctx); err != nil {
+		log.Printf("Error beginning transaction: %v", err)
+		common.RespondWithError(s, i, "Unable to process request.")
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate services with repositories from UnitOfWork
+	userService := service.NewUserService(
+		uow.UserRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+	groupWagerService := service.NewGroupWagerService(
+		uow.GroupWagerRepository(),
+		uow.UserRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
 	// Ensure user is present in the database.
-	_, err = f.userService.GetOrCreateUser(ctx, userID, i.Member.User.Username)
+	_, err = userService.GetOrCreateUser(ctx, userID, i.Member.User.Username)
 	if err != nil {
 		common.RespondWithError(s, i, "Unable to get user from DB")
 		return
 	}
 
 	// Place the bet
-	_, err = f.groupWagerService.PlaceBet(ctx, groupWagerID, userID, optionID, amount)
+	_, err = groupWagerService.PlaceBet(ctx, groupWagerID, userID, optionID, amount)
 	if err != nil {
 		log.Errorf("Error placing bet: %v", err)
 		common.RespondWithError(s, i, fmt.Sprintf("Failed to place bet: %v", err))
@@ -435,9 +597,17 @@ func (f *Feature) handleGroupWagerBetModal(s *discordgo.Session, i *discordgo.In
 		// Check if the error is due to voting period expiration
 		if strings.Contains(err.Error(), "voting period has ended") {
 			// Update the message to reflect the expired state
-			f.updateGroupWagerMessage(s, i.Message, groupWagerID)
+			f.updateGroupWagerMessage(s, i.Message, groupWagerID, guildIDInt)
 			return
 		}
+		return
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Printf("Error committing transaction: %v", err)
+		common.RespondWithError(s, i, "Failed to save bet.")
+		return
 	}
 
 	// Respond with success
@@ -453,15 +623,33 @@ func (f *Feature) handleGroupWagerBetModal(s *discordgo.Session, i *discordgo.In
 	}
 
 	// Update the original message
-	f.updateGroupWagerMessage(s, i.Message, groupWagerID)
+	f.updateGroupWagerMessage(s, i.Message, groupWagerID, guildIDInt)
 }
 
 // updateGroupWagerMessage updates a group wager message with current state
-func (f *Feature) updateGroupWagerMessage(s *discordgo.Session, msg *discordgo.Message, groupWagerID int64) {
+func (f *Feature) updateGroupWagerMessage(s *discordgo.Session, msg *discordgo.Message, groupWagerID int64, guildID int64) {
 	ctx := context.Background()
 
+	// Use the provided guild ID (no parsing needed)
+
+	// Create unit of work
+	uow := f.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(ctx); err != nil {
+		log.Printf("Error beginning transaction: %v", err)
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate group wager service with repositories from UnitOfWork
+	groupWagerService := service.NewGroupWagerService(
+		uow.GroupWagerRepository(),
+		uow.UserRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
 	// Get updated wager details
-	detail, err := f.groupWagerService.GetGroupWagerDetail(ctx, groupWagerID)
+	detail, err := groupWagerService.GetGroupWagerDetail(ctx, groupWagerID)
 	if err != nil {
 		log.Printf("Error getting group wager detail: %v", err)
 		return

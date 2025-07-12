@@ -130,88 +130,6 @@ func (m *MockBetRepository) GetByUserSince(ctx context.Context, discordID int64,
 	return args.Get(0).([]*models.Bet), args.Error(1)
 }
 
-// MockUnitOfWork is a mock implementation of service.UnitOfWork
-type MockUnitOfWork struct {
-	mock.Mock
-	userRepo                      UserRepository
-	balanceHistoryRepo            BalanceHistoryRepository
-	betRepo                       BetRepository
-	wagerRepo                     WagerRepository
-	wagerVoteRepo                 WagerVoteRepository
-	groupWagerRepo                GroupWagerRepository
-	guildSettingsRepo             GuildSettingsRepository
-}
-
-func (m *MockUnitOfWork) Begin(ctx context.Context) error {
-	args := m.Called(ctx)
-	return args.Error(0)
-}
-
-func (m *MockUnitOfWork) Commit() error {
-	args := m.Called()
-	return args.Error(0)
-}
-
-func (m *MockUnitOfWork) Rollback() error {
-	args := m.Called()
-	return args.Error(0)
-}
-
-func (m *MockUnitOfWork) UserRepository() UserRepository {
-	return m.userRepo
-}
-
-func (m *MockUnitOfWork) BalanceHistoryRepository() BalanceHistoryRepository {
-	return m.balanceHistoryRepo
-}
-
-func (m *MockUnitOfWork) BetRepository() BetRepository {
-	return m.betRepo
-}
-
-func (m *MockUnitOfWork) WagerRepository() WagerRepository {
-	return m.wagerRepo
-}
-
-func (m *MockUnitOfWork) WagerVoteRepository() WagerVoteRepository {
-	return m.wagerVoteRepo
-}
-
-func (m *MockUnitOfWork) GroupWagerRepository() GroupWagerRepository {
-	return m.groupWagerRepo
-}
-
-func (m *MockUnitOfWork) GuildSettingsRepository() GuildSettingsRepository {
-	return m.guildSettingsRepo
-}
-
-func (m *MockUnitOfWork) EventBus() EventPublisher {
-	return &MockEventPublisher{}
-}
-
-func (m *MockUnitOfWork) SetRepositories(userRepo UserRepository, balanceHistoryRepo BalanceHistoryRepository, betRepo BetRepository) {
-	m.userRepo = userRepo
-	m.balanceHistoryRepo = balanceHistoryRepo
-	m.betRepo = betRepo
-}
-
-func (m *MockUnitOfWork) SetGroupWagerRepository(groupWagerRepo GroupWagerRepository) {
-	m.groupWagerRepo = groupWagerRepo
-}
-
-func (m *MockUnitOfWork) SetGuildSettingsRepository(guildSettingsRepo GuildSettingsRepository) {
-	m.guildSettingsRepo = guildSettingsRepo
-}
-
-// MockUnitOfWorkFactory is a mock implementation of service.UnitOfWorkFactory
-type MockUnitOfWorkFactory struct {
-	mock.Mock
-}
-
-func (m *MockUnitOfWorkFactory) Create() UnitOfWork {
-	args := m.Called()
-	return args.Get(0).(UnitOfWork)
-}
 
 // MockGroupWagerRepository is a mock implementation of GroupWagerRepository
 type MockGroupWagerRepository struct {
@@ -327,11 +245,18 @@ func (m *MockGroupWagerRepository) GetWagersPendingResolution(ctx context.Contex
 	return args.Get(0).([]*models.GroupWager), args.Error(1)
 }
 
+func (m *MockGroupWagerRepository) GetGuildsWithActiveWagers(ctx context.Context) ([]int64, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]int64), args.Error(1)
+}
+
 // MockEventPublisher is a mock implementation of EventPublisher for testing
-type MockEventPublisher struct{}
+type MockEventPublisher struct {
+	mock.Mock
+}
 
 func (m *MockEventPublisher) Publish(event events.Event) {
-	// No-op for testing
+	m.Called(event)
 }
 
 // MockGuildSettingsRepository is a mock implementation of GuildSettingsRepository

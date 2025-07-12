@@ -9,40 +9,36 @@ import (
 
 // userService implements the UserService interface
 type userService struct {
-	uowFactory UnitOfWorkFactory
+	userRepo          UserRepository
+	balanceHistoryRepo BalanceHistoryRepository
+	eventPublisher    EventPublisher
 }
 
 // NewUserService creates a new user service
-func NewUserService(uowFactory UnitOfWorkFactory) UserService {
+func NewUserService(userRepo UserRepository, balanceHistoryRepo BalanceHistoryRepository, eventPublisher EventPublisher) UserService {
 	return &userService{
-		uowFactory: uowFactory,
+		userRepo:          userRepo,
+		balanceHistoryRepo: balanceHistoryRepo,
+		eventPublisher:    eventPublisher,
 	}
 }
 
 // GetOrCreateUser retrieves an existing user or creates a new one with initial balance
 func (s *userService) GetOrCreateUser(ctx context.Context, discordID int64, username string) (*models.User, error) {
-	// Create unit of work
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback() // No-op if already committed
-
 	// First try to get existing user
-	user, err := uow.UserRepository().GetByDiscordID(ctx, discordID)
+	user, err := s.userRepo.GetByDiscordID(ctx, discordID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing user: %w", err)
 	}
 
 	// User exists, return it
 	if user != nil {
-		// No need to commit since we didn't make changes
 		return user, nil
 	}
 
 	// User doesn't exist, create new one with initial balance
 	// Database unique constraint on discord_id prevents duplicate users
-	user, err = uow.UserRepository().Create(ctx, discordID, username, InitialBalance)
+	user, err = s.userRepo.Create(ctx, discordID, username, InitialBalance)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
@@ -50,6 +46,7 @@ func (s *userService) GetOrCreateUser(ctx context.Context, discordID int64, user
 	// Record initial balance in history
 	history := &models.BalanceHistory{
 		DiscordID:       discordID,
+		GuildID:         0, // Will be set by repository from UoW's guild scope
 		BalanceBefore:   0,
 		BalanceAfter:    InitialBalance,
 		ChangeAmount:    InitialBalance,
@@ -59,14 +56,10 @@ func (s *userService) GetOrCreateUser(ctx context.Context, discordID int64, user
 		},
 	}
 
-	if err := RecordBalanceChange(ctx, uow, history); err != nil {
+	if err := RecordBalanceChange(ctx, s.balanceHistoryRepo, s.eventPublisher, history); err != nil {
 		return nil, fmt.Errorf("failed to record initial balance: %w", err)
 	}
 
-	// Commit the transaction
-	if err := uow.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
-	}
 
 	return user, nil
 }
@@ -74,15 +67,8 @@ func (s *userService) GetOrCreateUser(ctx context.Context, discordID int64, user
 
 // GetCurrentHighRoller returns the user with the highest balance
 func (s *userService) GetCurrentHighRoller(ctx context.Context) (*models.User, error) {
-	// Create unit of work
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback() // No-op if already committed
-
 	// Get all users
-	users, err := uow.UserRepository().GetAll(ctx)
+	users, err := s.userRepo.GetAll(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get users: %w", err)
 	}
@@ -98,6 +84,93 @@ func (s *userService) GetCurrentHighRoller(ctx context.Context) (*models.User, e
 		}
 	}
 
-	// No need to commit since we didn't make changes
 	return highRoller, nil
+}
+
+// TransferBetweenUsers transfers amount from sender to recipient
+func (s *userService) TransferBetweenUsers(ctx context.Context, fromDiscordID, toDiscordID int64, amount int64, fromUsername, toUsername string) error {
+	// Validate inputs
+	if amount <= 0 {
+		return fmt.Errorf("transfer amount must be positive")
+	}
+	if fromDiscordID == toDiscordID {
+		return fmt.Errorf("cannot transfer to yourself")
+	}
+
+	// Get sender user
+	fromUser, err := s.userRepo.GetByDiscordID(ctx, fromDiscordID)
+	if err != nil {
+		return fmt.Errorf("failed to get sender user: %w", err)
+	}
+	if fromUser == nil {
+		return fmt.Errorf("sender user not found")
+	}
+
+	// Check if sender has sufficient balance
+	if fromUser.Balance < amount {
+		return fmt.Errorf("insufficient balance: have %d, need %d", fromUser.Balance, amount)
+	}
+
+	// Get recipient user
+	toUser, err := s.userRepo.GetByDiscordID(ctx, toDiscordID)
+	if err != nil {
+		return fmt.Errorf("failed to get recipient user: %w", err)
+	}
+	if toUser == nil {
+		return fmt.Errorf("recipient user not found")
+	}
+
+	// Calculate new balances
+	newFromBalance := fromUser.Balance - amount
+	newToBalance := toUser.Balance + amount
+
+	// Deduct amount from sender
+	if err := s.userRepo.DeductBalance(ctx, fromDiscordID, amount); err != nil {
+		return fmt.Errorf("failed to deduct transfer amount: %w", err)
+	}
+
+	// Add amount to recipient
+	if err := s.userRepo.AddBalance(ctx, toDiscordID, amount); err != nil {
+		return fmt.Errorf("failed to add transfer amount: %w", err)
+	}
+
+	// Create balance history record for sender (outgoing transfer)
+	fromHistory := &models.BalanceHistory{
+		DiscordID:       fromDiscordID,
+		GuildID:         0, // Will be set by repository from UoW's guild scope
+		BalanceBefore:   fromUser.Balance,
+		BalanceAfter:    newFromBalance,
+		ChangeAmount:    -amount,
+		TransactionType: models.TransactionTypeTransferOut,
+		TransactionMetadata: map[string]any{
+			"recipient_discord_id": toDiscordID,
+			"recipient_username":   toUsername,
+			"transfer_amount":      amount,
+		},
+	}
+
+	if err := RecordBalanceChange(ctx, s.balanceHistoryRepo, s.eventPublisher, fromHistory); err != nil {
+		return fmt.Errorf("failed to record sender balance change: %w", err)
+	}
+
+	// Create balance history record for recipient (incoming transfer)
+	toHistory := &models.BalanceHistory{
+		DiscordID:       toDiscordID,
+		GuildID:         0, // Will be set by repository from UoW's guild scope
+		BalanceBefore:   toUser.Balance,
+		BalanceAfter:    newToBalance,
+		ChangeAmount:    amount,
+		TransactionType: models.TransactionTypeTransferIn,
+		TransactionMetadata: map[string]any{
+			"sender_discord_id": fromDiscordID,
+			"sender_username":   fromUsername,
+			"transfer_amount":   amount,
+		},
+	}
+
+	if err := RecordBalanceChange(ctx, s.balanceHistoryRepo, s.eventPublisher, toHistory); err != nil {
+		return fmt.Errorf("failed to record recipient balance change: %w", err)
+	}
+
+	return nil
 }

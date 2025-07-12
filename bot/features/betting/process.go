@@ -3,8 +3,10 @@ package betting
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"gambler/bot/common"
+	"gambler/service"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -12,11 +14,33 @@ import (
 
 // processBetAndUpdateMessage processes a bet and updates the Discord message
 func (f *Feature) processBetAndUpdateMessage(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, session *BetSession, betAmount int64, responseType discordgo.InteractionResponseType) error {
+	// Create guild-scoped unit of work for bet placement
+	uow, err := f.createUnitOfWork(ctx, i)
+	if err != nil {
+		log.Errorf("Error creating unit of work for bet: %v", err)
+		return fmt.Errorf("unable to create transaction: %w", err)
+	}
+	defer uow.Rollback()
+
+	// Instantiate gambling service with repositories from UnitOfWork
+	gamblingService := service.NewGamblingService(
+		uow.UserRepository(),
+		uow.BetRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
 	// Place the bet (swap the order - PlaceBet expects amount first, then odds)
-	result, err := f.gamblingService.PlaceBet(ctx, session.UserID, session.LastOdds, betAmount)
+	result, err := gamblingService.PlaceBet(ctx, session.UserID, session.LastOdds, betAmount)
 	if err != nil {
 		log.Errorf("Error placing bet for user %d: %v", session.UserID, err)
 		return fmt.Errorf("unable to place bet: %w", err)
+	}
+
+	// Commit the bet transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Error committing bet transaction: %v", err)
+		return fmt.Errorf("unable to commit bet: %w", err)
 	}
 
 	// Update session with new balance and bet info
@@ -55,7 +79,7 @@ func (f *Feature) processBetAndUpdateMessage(ctx context.Context, s *discordgo.S
 	}
 
 	// Get display name for logging
-	displayName := common.GetDisplayNameInt64(s, f.guildID, session.UserID)
+	displayName := common.GetDisplayNameInt64(s, i.GuildID, session.UserID)
 
 	// Log the bet
 	if result.Won {
@@ -76,6 +100,76 @@ func (f *Feature) processBetAndUpdateMessage(ctx context.Context, s *discordgo.S
 	return nil
 }
 
+// processRepeatBet handles repeating bets with multipliers (half, same, double)
+func (f *Feature) processRepeatBet(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, multiplier float64) error {
+	// Get user session
+	discordID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
+	if err != nil {
+		log.Errorf("Error parsing Discord ID: %v", err)
+		return fmt.Errorf("invalid user ID: %w", err)
+	}
+
+	session := getBetSession(discordID)
+	if session == nil || session.LastAmount == 0 {
+		return fmt.Errorf("no previous bet to repeat")
+	}
+
+	// Calculate new bet amount
+	newAmount := int64(float64(session.LastAmount) * multiplier)
+	if newAmount < 1 {
+		newAmount = 1
+	}
+
+	// Validate new amount
+	if err := validateBetAmount(newAmount, session.CurrentBalance); err != nil {
+		return fmt.Errorf("bet validation failed: %w", err)
+	}
+
+	// Create guild-scoped unit of work
+	uow, err := f.createUnitOfWork(ctx, i)
+	if err != nil {
+		log.Errorf("Error creating unit of work: %v", err)
+		return fmt.Errorf("unable to create transaction: %w", err)
+	}
+	defer uow.Rollback()
+
+	// Instantiate gambling service with repositories from UnitOfWork
+	gamblingService := service.NewGamblingService(
+		uow.UserRepository(),
+		uow.BetRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
+	// Check daily limit
+	remaining, err := gamblingService.CheckDailyLimit(ctx, discordID, newAmount)
+	if err != nil {
+		cfg := f.config
+		nextReset := service.GetNextResetTime(cfg.DailyLimitResetHour)
+
+		var errorMsg string
+		if remaining <= 0 {
+			errorMsg = fmt.Sprintf("Daily gambling limit of %s bits reached. Try again %s",
+				common.FormatBalance(cfg.DailyGambleLimit),
+				common.FormatDiscordTimestamp(nextReset, "R"))
+		} else {
+			errorMsg = fmt.Sprintf("Bet would exceed daily limit. You have %s bits remaining (resets %s)",
+				common.FormatBalance(remaining),
+				common.FormatDiscordTimestamp(nextReset, "R"))
+		}
+		return fmt.Errorf("daily limit exceeded: %s", errorMsg)
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Error committing transaction: %v", err)
+		return fmt.Errorf("unable to commit transaction: %w", err)
+	}
+
+	// Process bet and update message
+	return f.processBetAndUpdateMessage(ctx, s, i, session, newAmount, discordgo.InteractionResponseUpdateMessage)
+}
+
 // validateBetAmount validates the bet amount against balance and limits
 func validateBetAmount(amount int64, balance int64) error {
 	if amount <= 0 {
@@ -88,4 +182,3 @@ func validateBetAmount(amount int64, balance int64) error {
 
 	return nil
 }
-

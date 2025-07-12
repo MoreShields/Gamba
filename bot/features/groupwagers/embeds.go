@@ -164,7 +164,7 @@ func CreateGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEm
 		}
 
 		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
-			Name:   fmt.Sprintf("Option %d: %s%s", option.OptionOrder+1, option.OptionText, statusLabel),
+			Name:   fmt.Sprintf("%s%s", option.OptionText, statusLabel),
 			Value:  fieldValue,
 			Inline: false,
 		})

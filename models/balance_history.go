@@ -32,6 +32,7 @@ const (
 type BalanceHistory struct {
 	ID                  int64           `db:"id"`
 	DiscordID           int64           `db:"discord_id"`
+	GuildID             int64           `db:"guild_id"`
 	BalanceBefore       int64           `db:"balance_before"`
 	BalanceAfter        int64           `db:"balance_after"`
 	ChangeAmount        int64           `db:"change_amount"`

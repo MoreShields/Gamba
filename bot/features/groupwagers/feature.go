@@ -12,19 +12,15 @@ import (
 
 // Feature represents the group wagers feature
 type Feature struct {
-	session           *discordgo.Session
-	groupWagerService service.GroupWagerService
-	userService       service.UserService
-	guildID           string
+	session    *discordgo.Session
+	uowFactory service.UnitOfWorkFactory
 }
 
 // NewFeature creates a new group wagers feature instance
-func NewFeature(session *discordgo.Session, groupWagerService service.GroupWagerService, userService service.UserService, guildID string) *Feature {
+func NewFeature(session *discordgo.Session, uowFactory service.UnitOfWorkFactory) *Feature {
 	return &Feature{
-		session:           session,
-		groupWagerService: groupWagerService,
-		userService:       userService,
-		guildID:           guildID,
+		session:    session,
+		uowFactory: uowFactory,
 	}
 }
 

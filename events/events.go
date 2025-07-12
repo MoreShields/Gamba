@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"gambler/models"
+	log "github.com/sirupsen/logrus"
 )
 
 // EventType represents different types of events in the system
@@ -26,6 +27,7 @@ type Event interface {
 // BalanceChangeEvent represents a balance change that occurred
 type BalanceChangeEvent struct {
 	UserID          int64
+	GuildID         int64
 	OldBalance      int64
 	NewBalance      int64
 	TransactionType models.TransactionType
@@ -111,6 +113,11 @@ func (b *Bus) Subscribe(eventType EventType, handler Handler) {
 		b.handlers[eventType] = make([]Handler, 0)
 	}
 	b.handlers[eventType] = append(b.handlers[eventType], handler)
+	
+	log.WithFields(log.Fields{
+		"eventType":    eventType,
+		"handlerCount": len(b.handlers[eventType]),
+	}).Debug("Subscribed handler to event type on main event bus")
 }
 
 // Emit publishes an event to all registered handlers
@@ -120,11 +127,29 @@ func (b *Bus) Emit(ctx context.Context, event Event) {
 	copy(handlers, b.handlers[event.Type()])
 	b.mu.RUnlock()
 
+	log.WithFields(log.Fields{
+		"eventType":    event.Type(),
+		"handlerCount": len(handlers),
+	}).Debug("Emitting event to handlers on main event bus")
+
 	// Call handlers asynchronously to avoid blocking
-	for _, handler := range handlers {
-		go func(h Handler) {
+	for i, handler := range handlers {
+		go func(h Handler, handlerIndex int) {
+			log.WithFields(log.Fields{
+				"eventType":    event.Type(),
+				"handlerIndex": handlerIndex,
+			}).Debug("Calling event handler")
+			defer func() {
+				if r := recover(); r != nil {
+					log.WithFields(log.Fields{
+						"eventType":    event.Type(),
+						"handlerIndex": handlerIndex,
+						"panic":        r,
+					}).Error("Event handler panicked")
+				}
+			}()
 			h(ctx, event)
-		}(handler)
+		}(handler, i)
 	}
 }
 
@@ -140,15 +165,31 @@ func NewTransactionalBus(real *Bus) *TransactionalBus {
 }
 
 func (b *TransactionalBus) Publish(e Event) {
+	log.WithFields(log.Fields{
+		"eventType":    e.Type(),
+		"pendingCount": len(b.pending),
+	}).Debug("Adding event to transactional bus pending queue")
 	b.pending = append(b.pending, e)
 }
 
 // called after successful DB commit
 func (b *TransactionalBus) Flush(ctx context.Context) error {
+	log.WithFields(log.Fields{
+		"pendingEventCount": len(b.pending),
+	}).Debug("Flushing pending events from transactional bus to main event bus")
+	
+	// Use background context for event emission to avoid issues with transaction context expiration
+	// Events should be processed independently of the transaction lifecycle
+	eventCtx := context.Background()
+	
 	for _, ev := range b.pending {
-		b.real.Emit(ctx, ev)
+		log.WithFields(log.Fields{
+			"eventType": ev.Type(),
+		}).Debug("Emitting event to main event bus")
+		b.real.Emit(eventCtx, ev)
 	}
 	b.pending = nil
+	log.Debug("All pending events flushed, transactional bus cleared")
 	return nil
 }
 

@@ -10,13 +10,21 @@ import (
 )
 
 type wagerService struct {
-	uowFactory UnitOfWorkFactory
+	userRepo           UserRepository
+	wagerRepo          WagerRepository
+	wagerVoteRepo      WagerVoteRepository
+	balanceHistoryRepo BalanceHistoryRepository
+	eventPublisher     EventPublisher
 }
 
 // NewWagerService creates a new wager service
-func NewWagerService(uowFactory UnitOfWorkFactory) WagerService {
+func NewWagerService(userRepo UserRepository, wagerRepo WagerRepository, wagerVoteRepo WagerVoteRepository, balanceHistoryRepo BalanceHistoryRepository, eventPublisher EventPublisher) WagerService {
 	return &wagerService{
-		uowFactory: uowFactory,
+		userRepo:           userRepo,
+		wagerRepo:          wagerRepo,
+		wagerVoteRepo:      wagerVoteRepo,
+		balanceHistoryRepo: balanceHistoryRepo,
+		eventPublisher:     eventPublisher,
 	}
 }
 
@@ -33,15 +41,8 @@ func (s *wagerService) ProposeWager(ctx context.Context, proposerID, targetID in
 		return nil, fmt.Errorf("wager condition cannot be empty")
 	}
 
-	// Create unit of work
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback()
-
 	// Check if both users exist and have sufficient available balance
-	proposer, err := uow.UserRepository().GetByDiscordID(ctx, proposerID)
+	proposer, err := s.userRepo.GetByDiscordID(ctx, proposerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get proposer: %w", err)
 	}
@@ -52,7 +53,7 @@ func (s *wagerService) ProposeWager(ctx context.Context, proposerID, targetID in
 		return nil, fmt.Errorf("insufficient balance: have %d available, need %d", proposer.AvailableBalance, amount)
 	}
 
-	target, err := uow.UserRepository().GetByDiscordID(ctx, targetID)
+	target, err := s.userRepo.GetByDiscordID(ctx, targetID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get target: %w", err)
 	}
@@ -74,13 +75,8 @@ func (s *wagerService) ProposeWager(ctx context.Context, proposerID, targetID in
 		ChannelID:         &channelID,
 	}
 
-	if err := uow.WagerRepository().Create(ctx, wager); err != nil {
+	if err := s.wagerRepo.Create(ctx, wager); err != nil {
 		return nil, fmt.Errorf("failed to create wager: %w", err)
-	}
-
-	// Commit the transaction
-	if err := uow.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return wager, nil
@@ -88,15 +84,9 @@ func (s *wagerService) ProposeWager(ctx context.Context, proposerID, targetID in
 
 // RespondToWager handles accepting or declining a wager
 func (s *wagerService) RespondToWager(ctx context.Context, wagerID int64, responderID int64, accept bool) (*models.Wager, error) {
-	// Create unit of work
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback()
 
 	// Get the wager
-	wager, err := uow.WagerRepository().GetByID(ctx, wagerID)
+	wager, err := s.wagerRepo.GetByID(ctx, wagerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get wager: %w", err)
 	}
@@ -116,7 +106,7 @@ func (s *wagerService) RespondToWager(ctx context.Context, wagerID int64, respon
 	now := time.Now()
 	if accept {
 		// Double-check both users still have sufficient balance
-		proposer, err := uow.UserRepository().GetByDiscordID(ctx, wager.ProposerDiscordID)
+		proposer, err := s.userRepo.GetByDiscordID(ctx, wager.ProposerDiscordID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get proposer: %w", err)
 		}
@@ -124,7 +114,7 @@ func (s *wagerService) RespondToWager(ctx context.Context, wagerID int64, respon
 			return nil, fmt.Errorf("proposer no longer has sufficient balance")
 		}
 
-		target, err := uow.UserRepository().GetByDiscordID(ctx, wager.TargetDiscordID)
+		target, err := s.userRepo.GetByDiscordID(ctx, wager.TargetDiscordID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get target: %w", err)
 		}
@@ -139,13 +129,8 @@ func (s *wagerService) RespondToWager(ctx context.Context, wagerID int64, respon
 	}
 
 	// Update the wager
-	if err := uow.WagerRepository().Update(ctx, wager); err != nil {
+	if err := s.wagerRepo.Update(ctx, wager); err != nil {
 		return nil, fmt.Errorf("failed to update wager: %w", err)
-	}
-
-	// Commit the transaction
-	if err := uow.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return wager, nil
@@ -153,15 +138,9 @@ func (s *wagerService) RespondToWager(ctx context.Context, wagerID int64, respon
 
 // CastVote records or updates a vote on a wager
 func (s *wagerService) CastVote(ctx context.Context, wagerID int64, voterID int64, voteForID int64) (*models.WagerVote, *models.VoteCount, error) {
-	// Create unit of work
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return nil, nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback()
 
 	// Get the wager
-	wager, err := uow.WagerRepository().GetByID(ctx, wagerID)
+	wager, err := s.wagerRepo.GetByID(ctx, wagerID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get wager: %w", err)
 	}
@@ -187,12 +166,12 @@ func (s *wagerService) CastVote(ctx context.Context, wagerID int64, voterID int6
 		VoteForDiscordID: voteForID,
 	}
 
-	if err := uow.WagerVoteRepository().CreateOrUpdate(ctx, vote); err != nil {
+	if err := s.wagerVoteRepo.CreateOrUpdate(ctx, vote); err != nil {
 		return nil, nil, fmt.Errorf("failed to record vote: %w", err)
 	}
 
 	// Get updated vote counts
-	voteCounts, err := uow.WagerVoteRepository().GetVoteCounts(ctx, wagerID)
+	voteCounts, err := s.wagerVoteRepo.GetVoteCounts(ctx, wagerID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get vote counts: %w", err)
 	}
@@ -202,22 +181,17 @@ func (s *wagerService) CastVote(ctx context.Context, wagerID int64, voterID int6
 		winnerID := voteCounts.GetMajorityWinnerID(wager.ProposerDiscordID, wager.TargetDiscordID)
 		if winnerID != 0 {
 			// Resolve the wager
-			if err := s.resolveWager(ctx, uow, wager, winnerID); err != nil {
+			if err := s.resolveWager(ctx, wager, winnerID); err != nil {
 				return nil, nil, fmt.Errorf("failed to resolve wager: %w", err)
 			}
 		}
-	}
-
-	// Commit the transaction
-	if err := uow.Commit(); err != nil {
-		return nil, nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return vote, voteCounts, nil
 }
 
 // resolveWager handles the resolution of a wager (called within a transaction)
-func (s *wagerService) resolveWager(ctx context.Context, uow UnitOfWork, wager *models.Wager, winnerID int64) error {
+func (s *wagerService) resolveWager(ctx context.Context, wager *models.Wager, winnerID int64) error {
 	// Determine loser
 	loserID := wager.GetOpponent(winnerID)
 	if loserID == 0 {
@@ -225,24 +199,24 @@ func (s *wagerService) resolveWager(ctx context.Context, uow UnitOfWork, wager *
 	}
 
 	// Get current balances
-	winner, err := uow.UserRepository().GetByDiscordID(ctx, winnerID)
+	winner, err := s.userRepo.GetByDiscordID(ctx, winnerID)
 	if err != nil {
 		return fmt.Errorf("failed to get winner: %w", err)
 	}
 
-	loser, err := uow.UserRepository().GetByDiscordID(ctx, loserID)
+	loser, err := s.userRepo.GetByDiscordID(ctx, loserID)
 	if err != nil {
 		return fmt.Errorf("failed to get loser: %w", err)
 	}
 
 	// Transfer funds from loser to winner
 	// First, deduct from loser
-	if err := uow.UserRepository().DeductBalance(ctx, loserID, wager.Amount); err != nil {
+	if err := s.userRepo.DeductBalance(ctx, loserID, wager.Amount); err != nil {
 		return fmt.Errorf("failed to deduct from loser: %w", err)
 	}
 
 	// Then, add to winner
-	if err := uow.UserRepository().AddBalance(ctx, winnerID, wager.Amount); err != nil {
+	if err := s.userRepo.AddBalance(ctx, winnerID, wager.Amount); err != nil {
 		return fmt.Errorf("failed to add to winner: %w", err)
 	}
 
@@ -263,7 +237,7 @@ func (s *wagerService) resolveWager(ctx context.Context, uow UnitOfWork, wager *
 		RelatedType: relatedTypePtr(models.RelatedTypeWager),
 	}
 
-	if err := RecordBalanceChange(ctx, uow, winnerHistory); err != nil {
+	if err := RecordBalanceChange(ctx, s.balanceHistoryRepo, s.eventPublisher, winnerHistory); err != nil {
 		return fmt.Errorf("failed to record winner balance change: %w", err)
 	}
 
@@ -284,7 +258,7 @@ func (s *wagerService) resolveWager(ctx context.Context, uow UnitOfWork, wager *
 		RelatedType: relatedTypePtr(models.RelatedTypeWager),
 	}
 
-	if err := RecordBalanceChange(ctx, uow, loserHistory); err != nil {
+	if err := RecordBalanceChange(ctx, s.balanceHistoryRepo, s.eventPublisher, loserHistory); err != nil {
 		return fmt.Errorf("failed to record loser balance change: %w", err)
 	}
 
@@ -296,7 +270,7 @@ func (s *wagerService) resolveWager(ctx context.Context, uow UnitOfWork, wager *
 	wager.LoserBalanceHistoryID = &loserHistory.ID
 	wager.ResolvedAt = &now
 
-	if err := uow.WagerRepository().Update(ctx, wager); err != nil {
+	if err := s.wagerRepo.Update(ctx, wager); err != nil {
 		return fmt.Errorf("failed to update resolved wager: %w", err)
 	}
 
@@ -305,13 +279,8 @@ func (s *wagerService) resolveWager(ctx context.Context, uow UnitOfWork, wager *
 
 // GetWagerByID retrieves a wager by ID
 func (s *wagerService) GetWagerByID(ctx context.Context, wagerID int64) (*models.Wager, error) {
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback()
 
-	wager, err := uow.WagerRepository().GetByID(ctx, wagerID)
+	wager, err := s.wagerRepo.GetByID(ctx, wagerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get wager: %w", err)
 	}
@@ -321,13 +290,8 @@ func (s *wagerService) GetWagerByID(ctx context.Context, wagerID int64) (*models
 
 // GetWagerByMessageID retrieves a wager by message ID
 func (s *wagerService) GetWagerByMessageID(ctx context.Context, messageID int64) (*models.Wager, error) {
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback()
 
-	wager, err := uow.WagerRepository().GetByMessageID(ctx, messageID)
+	wager, err := s.wagerRepo.GetByMessageID(ctx, messageID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get wager: %w", err)
 	}
@@ -337,13 +301,8 @@ func (s *wagerService) GetWagerByMessageID(ctx context.Context, messageID int64)
 
 // GetActiveWagersByUser returns active wagers for a user
 func (s *wagerService) GetActiveWagersByUser(ctx context.Context, discordID int64) ([]*models.Wager, error) {
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback()
 
-	wagers, err := uow.WagerRepository().GetActiveByUser(ctx, discordID)
+	wagers, err := s.wagerRepo.GetActiveByUser(ctx, discordID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get active wagers: %w", err)
 	}
@@ -353,13 +312,8 @@ func (s *wagerService) GetActiveWagersByUser(ctx context.Context, discordID int6
 
 // CancelWager cancels a proposed wager
 func (s *wagerService) CancelWager(ctx context.Context, wagerID int64, cancellerID int64) error {
-	uow := s.uowFactory.Create()
-	if err := uow.Begin(ctx); err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback()
 
-	wager, err := uow.WagerRepository().GetByID(ctx, wagerID)
+	wager, err := s.wagerRepo.GetByID(ctx, wagerID)
 	if err != nil {
 		return fmt.Errorf("failed to get wager: %w", err)
 	}
@@ -379,12 +333,8 @@ func (s *wagerService) CancelWager(ctx context.Context, wagerID int64, canceller
 	}
 
 	wager.State = models.WagerStateDeclined
-	if err := uow.WagerRepository().Update(ctx, wager); err != nil {
+	if err := s.wagerRepo.Update(ctx, wager); err != nil {
 		return fmt.Errorf("failed to update wager: %w", err)
-	}
-
-	if err := uow.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil

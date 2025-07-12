@@ -12,7 +12,8 @@ import (
 )
 
 type betRepository struct {
-	q queryable
+	q       queryable
+	guildID int64
 }
 
 // NewBetRepository creates a new bet repository
@@ -25,14 +26,23 @@ func newBetRepositoryWithTx(tx queryable) service.BetRepository {
 	return &betRepository{q: tx}
 }
 
+// newBetRepository creates a new bet repository with a transaction and guild scope
+func newBetRepository(tx queryable, guildID int64) service.BetRepository {
+	return &betRepository{
+		q:       tx,
+		guildID: guildID,
+	}
+}
+
 func (r *betRepository) Create(ctx context.Context, bet *models.Bet) error {
 	query := `
-		INSERT INTO bets (discord_id, amount, win_probability, won, win_amount, balance_history_id)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO bets (discord_id, guild_id, amount, win_probability, won, win_amount, balance_history_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id, created_at`
 
 	err := r.q.QueryRow(ctx, query, 
-		bet.DiscordID, 
+		bet.DiscordID,
+		r.guildID, // Use repository's guild scope
 		bet.Amount, 
 		bet.WinProbability, 
 		bet.Won, 
@@ -49,14 +59,15 @@ func (r *betRepository) Create(ctx context.Context, bet *models.Bet) error {
 
 func (r *betRepository) GetByID(ctx context.Context, id int64) (*models.Bet, error) {
 	query := `
-		SELECT id, discord_id, amount, win_probability, won, win_amount, balance_history_id, created_at
+		SELECT id, discord_id, guild_id, amount, win_probability, won, win_amount, balance_history_id, created_at
 		FROM bets
-		WHERE id = $1`
+		WHERE id = $1 AND guild_id = $2`
 
 	var bet models.Bet
-	err := r.q.QueryRow(ctx, query, id).Scan(
+	err := r.q.QueryRow(ctx, query, id, r.guildID).Scan(
 		&bet.ID,
 		&bet.DiscordID,
+		&bet.GuildID,
 		&bet.Amount,
 		&bet.WinProbability,
 		&bet.Won,
@@ -77,13 +88,13 @@ func (r *betRepository) GetByID(ctx context.Context, id int64) (*models.Bet, err
 
 func (r *betRepository) GetByUser(ctx context.Context, discordID int64, limit int) ([]*models.Bet, error) {
 	query := `
-		SELECT id, discord_id, amount, win_probability, won, win_amount, balance_history_id, created_at
+		SELECT id, discord_id, guild_id, amount, win_probability, won, win_amount, balance_history_id, created_at
 		FROM bets
-		WHERE discord_id = $1
+		WHERE discord_id = $1 AND guild_id = $2
 		ORDER BY created_at DESC
-		LIMIT $2`
+		LIMIT $3`
 
-	rows, err := r.q.Query(ctx, query, discordID, limit)
+	rows, err := r.q.Query(ctx, query, discordID, r.guildID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query bets: %w", err)
 	}
@@ -95,6 +106,7 @@ func (r *betRepository) GetByUser(ctx context.Context, discordID int64, limit in
 		err := rows.Scan(
 			&bet.ID,
 			&bet.DiscordID,
+			&bet.GuildID,
 			&bet.Amount,
 			&bet.WinProbability,
 			&bet.Won,
@@ -123,10 +135,10 @@ func (r *betRepository) GetStats(ctx context.Context, discordID int64) (*models.
 			COALESCE(MAX(CASE WHEN won = true THEN win_amount ELSE 0 END), 0) as biggest_win,
 			COALESCE(MAX(CASE WHEN won = false THEN amount ELSE 0 END), 0) as biggest_loss
 		FROM bets
-		WHERE discord_id = $1`
+		WHERE discord_id = $1 AND guild_id = $2`
 
 	var stats models.BetStats
-	err := r.q.QueryRow(ctx, query, discordID).Scan(
+	err := r.q.QueryRow(ctx, query, discordID, r.guildID).Scan(
 		&stats.TotalBets,
 		&stats.TotalWins,
 		&stats.TotalLosses,
@@ -146,12 +158,12 @@ func (r *betRepository) GetStats(ctx context.Context, discordID int64) (*models.
 
 func (r *betRepository) GetByUserSince(ctx context.Context, discordID int64, since time.Time) ([]*models.Bet, error) {
 	query := `
-		SELECT id, discord_id, amount, win_probability, won, win_amount, balance_history_id, created_at
+		SELECT id, discord_id, guild_id, amount, win_probability, won, win_amount, balance_history_id, created_at
 		FROM bets
-		WHERE discord_id = $1 AND created_at >= $2
+		WHERE discord_id = $1 AND guild_id = $2 AND created_at >= $3
 		ORDER BY created_at DESC`
 
-	rows, err := r.q.Query(ctx, query, discordID, since)
+	rows, err := r.q.Query(ctx, query, discordID, r.guildID, since)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query bets since %v: %w", since, err)
 	}
@@ -163,6 +175,7 @@ func (r *betRepository) GetByUserSince(ctx context.Context, discordID int64, sin
 		err := rows.Scan(
 			&bet.ID,
 			&bet.DiscordID,
+			&bet.GuildID,
 			&bet.Amount,
 			&bet.WinProbability,
 			&bet.Won,
