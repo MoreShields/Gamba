@@ -12,32 +12,20 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// handleGamble handles the main /gamble command logic
-func (f *Feature) handleGamble(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	ctx := context.Background()
-
+// prepareGambleData gets user data and prepares embed/components for gambling
+func (f *Feature) prepareGambleData(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) (*discordgo.MessageEmbed, []discordgo.MessageComponent, int64, error) {
 	// Parse user ID
 	discordID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
 	if err != nil {
 		log.Errorf("Error parsing Discord ID %s: %v", i.Member.User.ID, err)
-		common.RespondWithError(s, i, "Unable to process request. Please try again.")
-		return
-	}
-
-	// Extract guild ID from interaction
-	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
-	if err != nil {
-		log.Errorf("Error parsing guild ID %s: %v", i.GuildID, err)
-		common.RespondWithError(s, i, "Unable to process request. Please try again.")
-		return
+		return nil, nil, 0, fmt.Errorf("invalid user ID: %w", err)
 	}
 
 	// Create guild-scoped unit of work
-	uow := f.uowFactory.CreateForGuild(guildID)
-	if err := uow.Begin(ctx); err != nil {
-		log.Errorf("Error beginning transaction: %v", err)
-		common.RespondWithError(s, i, "Unable to process request. Please try again.")
-		return
+	uow, err := f.createUnitOfWork(ctx, i)
+	if err != nil {
+		log.Errorf("Error creating unit of work: %v", err)
+		return nil, nil, 0, fmt.Errorf("unable to create transaction: %w", err)
 	}
 	defer uow.Rollback()
 
@@ -58,8 +46,7 @@ func (f *Feature) handleGamble(s *discordgo.Session, i *discordgo.InteractionCre
 	user, err := userService.GetOrCreateUser(ctx, discordID, i.Member.User.Username)
 	if err != nil {
 		log.Errorf("Error getting/creating user %d: %v", discordID, err)
-		common.RespondWithError(s, i, "Unable to process request. Please try again.")
-		return
+		return nil, nil, 0, fmt.Errorf("unable to get user: %w", err)
 	}
 
 	// Check daily limit
@@ -68,23 +55,42 @@ func (f *Feature) handleGamble(s *discordgo.Session, i *discordgo.InteractionCre
 		// Format error message with Discord timestamp for reset time
 		cfg := f.config
 		nextReset := service.GetNextResetTime(cfg.DailyLimitResetHour)
-		common.RespondWithError(s, i, fmt.Sprintf("Daily gambling limit of %s bits reached. Try again %s",
+		return nil, nil, 0, fmt.Errorf("daily gambling limit of %s bits reached. Try again %s",
 			common.FormatBalance(cfg.DailyGambleLimit),
-			common.FormatDiscordTimestamp(nextReset, "R")))
-
-		return
+			common.FormatDiscordTimestamp(nextReset, "R"))
 	}
 
 	// Commit the transaction
 	if err := uow.Commit(); err != nil {
 		log.Errorf("Error committing transaction: %v", err)
-		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return nil, nil, 0, fmt.Errorf("unable to commit transaction: %w", err)
+	}
+
+	// Create initial embed and components
+	embed := buildInitialBetEmbed(user.AvailableBalance, remaining)
+	components := CreateInitialComponents()
+
+	return embed, components, user.AvailableBalance, nil
+}
+
+// handleGamble handles the main /gamble command logic
+func (f *Feature) handleGamble(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	ctx := context.Background()
+
+	// Prepare gamble data
+	embed, components, balance, err := f.prepareGambleData(ctx, s, i)
+	if err != nil {
+		common.RespondWithError(s, i, err.Error())
 		return
 	}
 
-	// Create initial embed
-	embed := buildInitialBetEmbed(user.AvailableBalance, remaining)
-	components := CreateInitialComponents()
+	// Parse user ID for session creation
+	discordID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
+	if err != nil {
+		log.Errorf("Error parsing Discord ID %s: %v", i.Member.User.ID, err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
 
 	// Send initial response (public message)
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -107,7 +113,7 @@ func (f *Feature) handleGamble(s *discordgo.Session, i *discordgo.InteractionCre
 		return
 	}
 
-	createBetSession(discordID, msg.ID, msg.ChannelID, user.AvailableBalance)
+	createBetSession(discordID, msg.ID, msg.ChannelID, balance)
 }
 
 // handleComponentInteraction handles button clicks for betting

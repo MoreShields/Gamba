@@ -105,7 +105,10 @@ func (f *Feature) processRepeatBet(ctx context.Context, s *discordgo.Session, i 
 	session := getBetSession(discordID)
 	if session == nil || session.LastAmount == 0 {
 		// No session found - show odds selection instead
-		f.handleGamble(s, i)
+		// Since interaction is already acknowledged, we use update instead of respond
+		if err := f.showOddsSelectionUpdate(ctx, s, i); err != nil {
+			return fmt.Errorf("unable to show odds selection: %w", err)
+		}
 		return nil
 	}
 
@@ -163,6 +166,41 @@ func (f *Feature) processRepeatBet(ctx context.Context, s *discordgo.Session, i 
 
 	// Process bet and update existing message
 	return f.processBetAndUpdateMessage(ctx, s, i, session, newAmount)
+}
+
+// showOddsSelectionUpdate updates an already-acknowledged interaction with odds selection
+func (f *Feature) showOddsSelectionUpdate(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	// Prepare gamble data
+	embed, components, balance, err := f.prepareGambleData(ctx, s, i)
+	if err != nil {
+		return err
+	}
+
+	// Parse user ID for session creation
+	discordID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
+	if err != nil {
+		log.Errorf("Error parsing Discord ID %s: %v", i.Member.User.ID, err)
+		return fmt.Errorf("invalid user ID: %w", err)
+	}
+
+	// Get the message from the interaction to create session
+	msg, err := s.InteractionResponse(i.Interaction)
+	if err != nil {
+		log.Errorf("Error getting interaction response: %v", err)
+		return fmt.Errorf("unable to get message: %w", err)
+	}
+
+	// Create new betting session
+	createBetSession(discordID, msg.ID, msg.ChannelID, balance)
+
+	// Update message with odds selection
+	err = common.UpdateMessage(s, i, embed, components)
+	if err != nil {
+		log.Errorf("Error updating message with odds selection: %v", err)
+		return fmt.Errorf("unable to update message: %w", err)
+	}
+
+	return nil
 }
 
 // validateBetAmount validates the bet amount against balance and limits
