@@ -106,6 +106,19 @@ func (b *Bot) registerCommands() error {
 						},
 					},
 				},
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "cancel",
+					Description: "Cancel an active group wager",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionInteger,
+							Name:        "id",
+							Description: "Group wager ID to cancel",
+							Required:    true,
+						},
+					},
+				},
 			},
 		},
 		{

@@ -275,7 +275,8 @@ func TestGamblingService_PlaceBet_TransactionRollback(t *testing.T) {
 	mockBetRepo.On("GetByUserSince", ctx, int64(123456), mock.AnythingOfType("time.Time")).Return([]*models.Bet{}, nil)
 
 	mockUserRepo.On("GetByDiscordID", ctx, int64(123456)).Return(existingUser, nil)
-	mockUserRepo.On("UpdateBalance", ctx, int64(123456), int64(10010)).Return(nil) // Balance 10000 + 10 win = 10010
+	// Accept any balance update - we're testing rollback, not the specific win/loss outcome
+	mockUserRepo.On("UpdateBalance", ctx, int64(123456), mock.AnythingOfType("int64")).Return(nil)
 
 	mockBalanceHistoryRepo.On("Record", ctx, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
 		history := args.Get(1).(*models.BalanceHistory)

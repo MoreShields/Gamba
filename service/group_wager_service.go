@@ -11,11 +11,11 @@ import (
 )
 
 type groupWagerService struct {
-	config                   *config.Config
-	groupWagerRepo           GroupWagerRepository
-	userRepo                 UserRepository
-	balanceHistoryRepo       BalanceHistoryRepository
-	eventPublisher           EventPublisher
+	config             *config.Config
+	groupWagerRepo     GroupWagerRepository
+	userRepo           UserRepository
+	balanceHistoryRepo BalanceHistoryRepository
+	eventPublisher     EventPublisher
 }
 
 // NewGroupWagerService creates a new group wager service
@@ -101,7 +101,6 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int6
 	if err := s.groupWagerRepo.CreateWithOptions(ctx, groupWager, wagerOptions); err != nil {
 		return nil, fmt.Errorf("failed to create group wager with options: %w", err)
 	}
-
 
 	return &models.GroupWagerDetail{
 		Wager:        groupWager,
@@ -233,7 +232,6 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 	if err := s.groupWagerRepo.Update(ctx, groupWager); err != nil {
 		return nil, fmt.Errorf("failed to update group wager pot: %w", err)
 	}
-
 
 	return participant, nil
 }
@@ -451,7 +449,6 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 		ChannelID:    groupWager.ChannelID,
 	})
 
-
 	return &models.GroupWagerResult{
 		GroupWager:    groupWager,
 		WinningOption: winningOption,
@@ -537,12 +534,12 @@ func (s *groupWagerService) TransitionExpiredWagers(ctx context.Context) error {
 	for _, wager := range expiredWagers {
 		oldState := wager.State
 		wager.State = models.GroupWagerStatePendingResolution
-		
+
 		// Update the wager
 		if err := s.groupWagerRepo.Update(ctx, wager); err != nil {
 			return fmt.Errorf("failed to update wager %d to pending_resolution: %w", wager.ID, err)
 		}
-		
+
 		// Publish state change event
 		s.eventPublisher.Publish(events.GroupWagerStateChangeEvent{
 			GroupWagerID: wager.ID,
@@ -552,6 +549,48 @@ func (s *groupWagerService) TransitionExpiredWagers(ctx context.Context) error {
 			ChannelID:    wager.ChannelID,
 		})
 	}
+
+	return nil
+}
+
+// CancelGroupWager cancels an active group wager
+func (s *groupWagerService) CancelGroupWager(ctx context.Context, groupWagerID int64, cancellerID int64) error {
+	// Get the group wager
+	groupWager, err := s.groupWagerRepo.GetByID(ctx, groupWagerID)
+	if err != nil {
+		return fmt.Errorf("failed to get group wager: %w", err)
+	}
+	if groupWager == nil {
+		return fmt.Errorf("group wager not found")
+	}
+
+	// Check if canceller is authorized (creator or resolver)
+	if cancellerID != groupWager.CreatorDiscordID && !s.IsResolver(cancellerID) {
+		return fmt.Errorf("only the creator or a resolver can cancel a group wager")
+	}
+
+	// Check if wager can be cancelled (only active or pending_resolution states)
+	if groupWager.State != models.GroupWagerStateActive && groupWager.State != models.GroupWagerStatePendingResolution {
+		return fmt.Errorf("can only cancel active or pending resolution group wagers")
+	}
+
+	// Update state to cancelled
+	oldState := groupWager.State
+	groupWager.State = models.GroupWagerStateCancelled
+
+	// Save the update
+	if err := s.groupWagerRepo.Update(ctx, groupWager); err != nil {
+		return fmt.Errorf("failed to update group wager: %w", err)
+	}
+
+	// Publish state change event
+	s.eventPublisher.Publish(events.GroupWagerStateChangeEvent{
+		GroupWagerID: groupWager.ID,
+		OldState:     string(oldState),
+		NewState:     string(groupWager.State),
+		MessageID:    groupWager.MessageID,
+		ChannelID:    groupWager.ChannelID,
+	})
 
 	return nil
 }

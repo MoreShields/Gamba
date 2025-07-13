@@ -38,6 +38,8 @@ func (f *Feature) HandleCommand(s *discordgo.Session, i *discordgo.InteractionCr
 		f.handleGroupWagerCreate(s, i)
 	case "resolve":
 		f.handleGroupWagerResolve(s, i)
+	case "cancel":
+		f.handleGroupWagerCancel(s, i)
 	default:
 		common.RespondWithError(s, i, "Unknown subcommand.")
 	}

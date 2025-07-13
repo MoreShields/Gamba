@@ -10,21 +10,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
     
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: gambler
-          POSTGRES_PASSWORD: testpassword
-          POSTGRES_DB: gambler_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -53,6 +38,7 @@ jobs:
     - name: Run integration tests
       env:
         ENVIRONMENT: test
+        TESTCONTAINERS_RYUK_DISABLED: true
       run: go test -v ./repository/...
 
     - name: Upload test coverage

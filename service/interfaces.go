@@ -223,6 +223,9 @@ type GroupWagerService interface {
 	
 	// TransitionExpiredWagers finds and transitions expired active wagers to pending_resolution
 	TransitionExpiredWagers(ctx context.Context) error
+
+	// CancelGroupWager cancels an active group wager
+	CancelGroupWager(ctx context.Context, groupWagerID int64, cancellerID int64) error
 }
 
 // GuildSettingsRepository defines the interface for guild settings data access

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"gambler/bot/common"
+	"gambler/models"
 	"gambler/service"
 	"strconv"
 	"strings"
@@ -453,6 +454,123 @@ func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Int
 		})
 		if err != nil {
 			log.Printf("Error updating resolved group wager message: %v", err)
+		}
+	}
+}
+
+// handleGroupWagerCancel handles the /groupwager cancel subcommand
+func (f *Feature) handleGroupWagerCancel(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	ctx := context.Background()
+	options := i.ApplicationCommandData().Options[0].Options
+
+	var groupWagerID int64
+	for _, opt := range options {
+		if opt.Name == "id" {
+			groupWagerID = opt.IntValue()
+			break
+		}
+	}
+
+	// Get canceller ID
+	cancellerID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
+	if err != nil {
+		log.Printf("Error parsing canceller ID: %v", err)
+		common.RespondWithError(s, i, "Unable to process request.")
+		return
+	}
+
+	// Parse guild ID
+	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
+	if err != nil {
+		log.Printf("Error parsing guild ID: %v", err)
+		common.RespondWithError(s, i, "Unable to process request.")
+		return
+	}
+
+	// Defer response
+	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+	})
+	if err != nil {
+		log.Printf("Error deferring cancel response: %v", err)
+		return
+	}
+
+	// Create unit of work
+	uow := f.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(ctx); err != nil {
+		log.Printf("Error beginning transaction: %v", err)
+		common.FollowUpWithError(s, i, "Unable to process request.")
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate group wager service with repositories from UnitOfWork
+	groupWagerService := service.NewGroupWagerService(
+		uow.GroupWagerRepository(),
+		uow.UserRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
+	// Get the group wager details before cancellation for the message update
+	detail, err := groupWagerService.GetGroupWagerDetail(ctx, groupWagerID)
+	if err != nil {
+		log.Printf("Error getting group wager detail: %v", err)
+		common.FollowUpWithError(s, i, fmt.Sprintf("Failed to find group wager: %v", err))
+		return
+	}
+
+	// Store the original state info
+	originalCondition := detail.Wager.Condition
+	messageID := detail.Wager.MessageID
+	channelID := detail.Wager.ChannelID
+
+	// Cancel the wager
+	err = groupWagerService.CancelGroupWager(ctx, groupWagerID, cancellerID)
+	if err != nil {
+		log.Printf("Error cancelling group wager: %v", err)
+		common.FollowUpWithError(s, i, fmt.Sprintf("Failed to cancel wager: %v", err))
+		return
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Printf("Error committing transaction: %v", err)
+		common.FollowUpWithError(s, i, "Failed to save cancellation.")
+		return
+	}
+
+	// Create success message
+	message := fmt.Sprintf(
+		"**Group Wager Cancelled**\n\nCondition: %s\nAll bets have been refunded.",
+		originalCondition,
+	)
+
+	_, err = s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
+		Content: message,
+	})
+	if err != nil {
+		log.Printf("Error sending cancel message: %v", err)
+	}
+
+	// Update the original wager message to show it's cancelled
+	if messageID != 0 && channelID != 0 {
+		// Update the state in the existing detail object
+		detail.Wager.State = models.GroupWagerStateCancelled
+
+		// Create updated embed and components
+		embed := CreateGroupWagerEmbed(detail)
+		components := CreateGroupWagerComponents(detail)
+		// Update the original message
+		_, err = s.ChannelMessageEditComplex(&discordgo.MessageEdit{
+			Channel:    strconv.FormatInt(channelID, 10),
+			ID:         strconv.FormatInt(messageID, 10),
+			Embeds:     &[]*discordgo.MessageEmbed{embed},
+			Components: &components,
+		})
+		if err != nil {
+			log.Printf("Error updating cancelled group wager message: %v", err)
 		}
 	}
 }
