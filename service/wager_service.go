@@ -177,7 +177,12 @@ func (s *wagerService) CastVote(ctx context.Context, wagerID int64, voterID int6
 	}
 
 	// Check if we have a majority winner
-	if voteCounts.HasMajority() {
+	userCount, err := s.userRepo.GetAll(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to fetch users when tallying wager vote counts")
+	}
+	majorityThreshold := len(userCount)/2 + 1
+	if voteCounts.TotalVotes > majorityThreshold {
 		winnerID := voteCounts.GetMajorityWinnerID(wager.ProposerDiscordID, wager.TargetDiscordID)
 		if winnerID != 0 {
 			// Resolve the wager

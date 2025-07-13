@@ -9,17 +9,17 @@ import (
 
 // userService implements the UserService interface
 type userService struct {
-	userRepo          UserRepository
+	userRepo           UserRepository
 	balanceHistoryRepo BalanceHistoryRepository
-	eventPublisher    EventPublisher
+	eventPublisher     EventPublisher
 }
 
 // NewUserService creates a new user service
 func NewUserService(userRepo UserRepository, balanceHistoryRepo BalanceHistoryRepository, eventPublisher EventPublisher) UserService {
 	return &userService{
-		userRepo:          userRepo,
+		userRepo:           userRepo,
 		balanceHistoryRepo: balanceHistoryRepo,
-		eventPublisher:    eventPublisher,
+		eventPublisher:     eventPublisher,
 	}
 }
 
@@ -60,10 +60,8 @@ func (s *userService) GetOrCreateUser(ctx context.Context, discordID int64, user
 		return nil, fmt.Errorf("failed to record initial balance: %w", err)
 	}
 
-
 	return user, nil
 }
-
 
 // GetCurrentHighRoller returns the user with the highest balance
 func (s *userService) GetCurrentHighRoller(ctx context.Context) (*models.User, error) {

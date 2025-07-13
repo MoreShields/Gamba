@@ -22,11 +22,6 @@ func NewUserRepository(db *database.DB) *UserRepository {
 	return &UserRepository{q: db.Pool}
 }
 
-// newUserRepositoryWithTx creates a new user repository with a transaction
-func newUserRepositoryWithTx(tx queryable) *UserRepository {
-	return &UserRepository{q: tx}
-}
-
 // newUserRepository creates a new user repository with a transaction and guild scope
 func newUserRepository(tx queryable, guildID int64) *UserRepository {
 	return &UserRepository{
@@ -155,7 +150,6 @@ func (r *UserRepository) UpdateBalance(ctx context.Context, discordID int64, new
 		SET balance = $1, updated_at = NOW()
 		WHERE discord_id = $2 AND guild_id = $3
 	`
-
 	result, err := r.q.Exec(ctx, query, newBalance, discordID, r.guildID)
 	if err != nil {
 		return fmt.Errorf("failed to update balance for user %d in guild %d: %w", discordID, r.guildID, err)
@@ -228,8 +222,6 @@ func (r *UserRepository) GetUsersWithPositiveBalance(ctx context.Context) ([]*mo
 
 	return users, nil
 }
-
-
 
 // GetAll returns all users in the current guild
 func (r *UserRepository) GetAll(ctx context.Context) ([]*models.User, error) {
