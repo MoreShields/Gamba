@@ -12,8 +12,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// processBetAndUpdateMessage processes a bet and sends the result message
-func (f *Feature) processBetAndUpdateMessage(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, session *BetSession, betAmount int64, useFollowUp bool) error {
+// processBetAndUpdateMessage processes a bet and updates the message with results
+func (f *Feature) processBetAndUpdateMessage(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, session *BetSession, betAmount int64) error {
 	// Create guild-scoped unit of work for bet placement
 	uow, err := f.createUnitOfWork(ctx, i)
 	if err != nil {
@@ -54,32 +54,24 @@ func (f *Feature) processBetAndUpdateMessage(ctx context.Context, s *discordgo.S
 	}
 
 	// Get display name for embed and logging
-	displayName := common.GetDisplayNameInt64(s, i.GuildID, session.UserID)
+	displayName := common.GetDisplayNameInt64(s, i.GuildID, updatedSession.UserID)
 
 	// Create result embed based on win/loss
 	var embed *discordgo.MessageEmbed
 	if result.Won {
-		embed = buildWinEmbed(result, session.LastOdds, updatedSession, session.UserID)
+		embed = buildWinEmbed(result, updatedSession.LastOdds, updatedSession, updatedSession.UserID)
 	} else {
-		embed = buildLossEmbed(result, session.LastOdds, updatedSession, session.UserID)
+		embed = buildLossEmbed(result, updatedSession.LastOdds, updatedSession, updatedSession.UserID)
 	}
 
 	// Create action buttons for next bet
 	components := CreateActionButtons(betAmount, result.NewBalance)
 
-	// Send the response - public follow-up for bet results, otherwise update
-	if useFollowUp {
-		_, err = common.FollowUpWithEmbed(s, i, embed, components, false)
-		if err != nil {
-			log.Errorf("Error sending bet result follow-up: %v", err)
-			return fmt.Errorf("unable to send follow-up: %w", err)
-		}
-	} else {
-		err = common.UpdateMessage(s, i, embed, components)
-		if err != nil {
-			log.Errorf("Error updating bet message: %v", err)
-			return fmt.Errorf("unable to update message: %w", err)
-		}
+	// Update the original message with bet results
+	err = common.UpdateMessage(s, i, embed, components)
+	if err != nil {
+		log.Errorf("Error updating bet message: %v", err)
+		return fmt.Errorf("unable to update message: %w", err)
 	}
 
 	// Log the bet
@@ -87,14 +79,14 @@ func (f *Feature) processBetAndUpdateMessage(ctx context.Context, s *discordgo.S
 		log.Infof("Bet WON: %s wagered %s at %.0f%% odds, won %s. New balance: %s",
 			displayName,
 			common.FormatBalance(betAmount),
-			session.LastOdds*100,
+			updatedSession.LastOdds*100,
 			common.FormatBalance(result.WinAmount),
 			common.FormatBalance(result.NewBalance))
 	} else {
 		log.Infof("Bet LOST: %s wagered %s at %.0f%% odds. New balance: %s",
 			displayName,
 			common.FormatBalance(betAmount),
-			session.LastOdds*100,
+			updatedSession.LastOdds*100,
 			common.FormatBalance(result.NewBalance))
 	}
 
@@ -112,7 +104,9 @@ func (f *Feature) processRepeatBet(ctx context.Context, s *discordgo.Session, i 
 
 	session := getBetSession(discordID)
 	if session == nil || session.LastAmount == 0 {
-		return fmt.Errorf("no previous bet to repeat")
+		// No session found - show odds selection instead
+		f.handleGamble(s, i)
+		return nil
 	}
 
 	// Calculate new bet amount
@@ -167,8 +161,8 @@ func (f *Feature) processRepeatBet(ctx context.Context, s *discordgo.Session, i 
 		return fmt.Errorf("unable to commit transaction: %w", err)
 	}
 
-	// Process bet and send public follow-up
-	return f.processBetAndUpdateMessage(ctx, s, i, session, newAmount, true)
+	// Process bet and update existing message
+	return f.processBetAndUpdateMessage(ctx, s, i, session, newAmount)
 }
 
 // validateBetAmount validates the bet amount against balance and limits

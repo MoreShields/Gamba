@@ -86,13 +86,12 @@ func (f *Feature) handleGamble(s *discordgo.Session, i *discordgo.InteractionCre
 	embed := buildInitialBetEmbed(user.AvailableBalance, remaining)
 	components := CreateInitialComponents()
 
-	// Send initial response
+	// Send initial response (public message)
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Embeds:     []*discordgo.MessageEmbed{embed},
 			Components: components,
-			Flags:      discordgo.MessageFlagsEphemeral,
 		},
 	})
 
@@ -305,17 +304,17 @@ func (f *Feature) handleBetModal(s *discordgo.Session, i *discordgo.InteractionC
 		return
 	}
 
-	// First acknowledge the modal with a deferred response (public so follow-ups can be public)
+	// Acknowledge the modal with a deferred update to the original message
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+		Type: discordgo.InteractionResponseDeferredMessageUpdate,
 	})
 	if err != nil {
 		log.Errorf("Error deferring modal response: %v", err)
 		return
 	}
 
-	// Process bet and send public follow-up
-	if err := f.processBetAndUpdateMessage(ctx, s, i, session, betAmount, true); err != nil {
+	// Process bet and update the original message
+	if err := f.processBetAndUpdateMessage(ctx, s, i, session, betAmount); err != nil {
 		common.UpdateMessageWithError(s, i, "Unable to place bet. Please try again.")
 	}
 }
@@ -378,7 +377,7 @@ func (f *Feature) handleNewBet(s *discordgo.Session, i *discordgo.InteractionCre
 		updateSessionBalance(session.UserID, user.Balance, false)
 	}
 
-	// Show odds selection again as ephemeral
+	// Show odds selection again as public message
 	embed := buildInitialBetEmbed(user.Balance, remaining)
 	components := CreateInitialComponents()
 
@@ -387,7 +386,6 @@ func (f *Feature) handleNewBet(s *discordgo.Session, i *discordgo.InteractionCre
 		Data: &discordgo.InteractionResponseData{
 			Embeds:     []*discordgo.MessageEmbed{embed},
 			Components: components,
-			Flags:      discordgo.MessageFlagsEphemeral,
 		},
 	})
 
@@ -415,12 +413,9 @@ func (f *Feature) handleHalveBet(s *discordgo.Session, i *discordgo.InteractionC
 func (f *Feature) handleRepeatBet(s *discordgo.Session, i *discordgo.InteractionCreate, multiplier float64) {
 	ctx := context.Background()
 
-	// First acknowledge the button interaction (ephemeral so follow-ups are ephemeral)
+	// Acknowledge the button interaction with a deferred update (no new message)
 	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Flags: discordgo.MessageFlagsEphemeral,
-		},
+		Type: discordgo.InteractionResponseDeferredMessageUpdate,
 	})
 	if err != nil {
 		log.Errorf("Error deferring repeat bet response: %v", err)
@@ -430,8 +425,6 @@ func (f *Feature) handleRepeatBet(s *discordgo.Session, i *discordgo.Interaction
 	if err := f.processRepeatBet(ctx, s, i, multiplier); err != nil {
 		// Handle specific error types with user-friendly messages
 		switch {
-		case fmt.Sprintf("%v", err) == "no previous bet to repeat":
-			common.UpdateMessageWithError(s, i, "No previous bet to repeat.")
 		case fmt.Sprintf("%v", err)[:4] == "bet ":
 			// Bet validation error - show as ephemeral
 			common.UpdateMessageWithError(s, i, err.Error()[19:]) // Remove "bet validation failed: " prefix
