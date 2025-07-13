@@ -68,10 +68,9 @@ func buildLossEmbed(result *models.BetResult, odds float64, session *BetSession,
 	fields := []*discordgo.MessageEmbedField{
 		{
 			Name: "",
-			Value: fmt.Sprintf("• Bet: **%s** at %d%% odds\n• Lost: **%s**",
+			Value: fmt.Sprintf("• Bet: **%s** at %d%% odds",
 				common.FormatBalance(result.BetAmount),
 				percentage,
-				common.FormatBalance(result.BetAmount),
 			),
 			Inline: false,
 		},

@@ -437,7 +437,7 @@ func TestGroupWagerService_ResolveGroupWager(t *testing.T) {
 	t.Run("successful resolution with winners and losers", func(t *testing.T) {
 		// Setup
 		service, mockUserRepo, mockGroupWagerRepo, mockBalanceHistoryRepo, mockEventPublisher := createTestGroupWagerService()
-		
+
 		// Set resolver IDs in config
 		service.(*groupWagerService).config.ResolverDiscordIDs = []int64{999999}
 
@@ -449,7 +449,7 @@ func TestGroupWagerService_ResolveGroupWager(t *testing.T) {
 		groupWager := createTestGroupWager(groupWagerID, models.GroupWagerStateActive, 5000)
 		option1 := createTestGroupWagerOption(winningOptionID, groupWagerID, "Winning Option", 0, 3000)
 		option2 := createTestGroupWagerOption(20, groupWagerID, "Losing Option", 1, 2000)
-		
+
 		// Create participants
 		winner1 := createTestParticipant(1, groupWagerID, 111111, winningOptionID, 2000)
 		winner2 := createTestParticipant(2, groupWagerID, 222222, winningOptionID, 1000)
@@ -504,8 +504,8 @@ func TestGroupWagerService_ResolveGroupWager(t *testing.T) {
 		// Mock event publishing
 		mockEventPublisher.On("Publish", mock.AnythingOfType("events.BalanceChangeEvent")).Return().Times(4)
 		mockEventPublisher.On("Publish", mock.MatchedBy(func(e events.GroupWagerStateChangeEvent) bool {
-			return e.GroupWagerID == groupWagerID && 
-				e.OldState == string(models.GroupWagerStateActive) && 
+			return e.GroupWagerID == groupWagerID &&
+				e.OldState == string(models.GroupWagerStateActive) &&
 				e.NewState == string(models.GroupWagerStateResolved)
 		})).Return()
 
@@ -522,7 +522,7 @@ func TestGroupWagerService_ResolveGroupWager(t *testing.T) {
 
 		// Mock group wager state update
 		mockGroupWagerRepo.On("Update", mock.Anything, mock.MatchedBy(func(gw *models.GroupWager) bool {
-			return gw.ID == groupWagerID && 
+			return gw.ID == groupWagerID &&
 				gw.State == models.GroupWagerStateResolved &&
 				gw.ResolverDiscordID != nil && *gw.ResolverDiscordID == resolverID &&
 				gw.WinningOptionID != nil && *gw.WinningOptionID == winningOptionID &&
@@ -553,7 +553,7 @@ func TestGroupWagerService_ResolveGroupWager(t *testing.T) {
 	t.Run("user not authorized to resolve", func(t *testing.T) {
 		// Setup
 		service, mockUserRepo, mockGroupWagerRepo, mockBalanceHistoryRepo, mockEventPublisher := createTestGroupWagerService()
-		
+
 		// Set resolver IDs without our test user
 		service.(*groupWagerService).config.ResolverDiscordIDs = []int64{999999}
 
@@ -575,7 +575,7 @@ func TestGroupWagerService_ResolveGroupWager(t *testing.T) {
 	t.Run("group wager not found", func(t *testing.T) {
 		// Setup
 		service, mockUserRepo, mockGroupWagerRepo, mockBalanceHistoryRepo, mockEventPublisher := createTestGroupWagerService()
-		
+
 		// Set resolver IDs
 		service.(*groupWagerService).config.ResolverDiscordIDs = []int64{999999}
 
@@ -600,7 +600,7 @@ func TestGroupWagerService_ResolveGroupWager(t *testing.T) {
 	t.Run("group wager already resolved", func(t *testing.T) {
 		// Setup
 		service, mockUserRepo, mockGroupWagerRepo, mockBalanceHistoryRepo, mockEventPublisher := createTestGroupWagerService()
-		
+
 		// Set resolver IDs
 		service.(*groupWagerService).config.ResolverDiscordIDs = []int64{999999}
 
@@ -628,7 +628,7 @@ func TestGroupWagerService_ResolveGroupWager(t *testing.T) {
 	t.Run("invalid winning option ID", func(t *testing.T) {
 		// Setup
 		service, mockUserRepo, mockGroupWagerRepo, mockBalanceHistoryRepo, mockEventPublisher := createTestGroupWagerService()
-		
+
 		// Set resolver IDs
 		service.(*groupWagerService).config.ResolverDiscordIDs = []int64{999999}
 
@@ -640,13 +640,13 @@ func TestGroupWagerService_ResolveGroupWager(t *testing.T) {
 		groupWager := createTestGroupWager(groupWagerID, models.GroupWagerStateActive, 5000)
 		option1 := createTestGroupWagerOption(10, groupWagerID, "Option 1", 0, 3000)
 		option2 := createTestGroupWagerOption(20, groupWagerID, "Option 2", 1, 2000)
-		
+
 		// Create participants to meet minimum requirements
 		participant1 := createTestParticipant(1, groupWagerID, 111111, option1.ID, 2000)
 		participant2 := createTestParticipant(2, groupWagerID, 222222, option1.ID, 1000)
 		participant3 := createTestParticipant(3, groupWagerID, 333333, option2.ID, 2000)
-		
-		detail := createTestGroupWagerDetail(groupWager, []*models.GroupWagerOption{option1, option2}, 
+
+		detail := createTestGroupWagerDetail(groupWager, []*models.GroupWagerOption{option1, option2},
 			[]*models.GroupWagerParticipant{participant1, participant2, participant3})
 
 		// Setup mocks
@@ -667,7 +667,7 @@ func TestGroupWagerService_ResolveGroupWager(t *testing.T) {
 	t.Run("no participants on winning option", func(t *testing.T) {
 		// Setup
 		service, mockUserRepo, mockGroupWagerRepo, mockBalanceHistoryRepo, mockEventPublisher := createTestGroupWagerService()
-		
+
 		// Set resolver IDs
 		service.(*groupWagerService).config.ResolverDiscordIDs = []int64{999999}
 
@@ -679,13 +679,13 @@ func TestGroupWagerService_ResolveGroupWager(t *testing.T) {
 		groupWager := createTestGroupWager(groupWagerID, models.GroupWagerStateActive, 5000)
 		option1 := createTestGroupWagerOption(winningOptionID, groupWagerID, "Winning Option", 0, 0) // No participants
 		option2 := createTestGroupWagerOption(20, groupWagerID, "Losing Option", 1, 5000)
-		
+
 		// Need at least 3 participants on option2 to meet minimum
 		participant1 := createTestParticipant(1, groupWagerID, 111111, option2.ID, 2000)
 		participant2 := createTestParticipant(2, groupWagerID, 222222, option2.ID, 2000)
 		participant3 := createTestParticipant(3, groupWagerID, 333333, option2.ID, 1000)
-		
-		detail := createTestGroupWagerDetail(groupWager, []*models.GroupWagerOption{option1, option2}, 
+
+		detail := createTestGroupWagerDetail(groupWager, []*models.GroupWagerOption{option1, option2},
 			[]*models.GroupWagerParticipant{participant1, participant2, participant3})
 
 		// Setup mocks
@@ -706,7 +706,7 @@ func TestGroupWagerService_ResolveGroupWager(t *testing.T) {
 	t.Run("balance update failure rolls back", func(t *testing.T) {
 		// Setup
 		service, mockUserRepo, mockGroupWagerRepo, mockBalanceHistoryRepo, mockEventPublisher := createTestGroupWagerService()
-		
+
 		// Set resolver IDs
 		service.(*groupWagerService).config.ResolverDiscordIDs = []int64{999999}
 
@@ -718,12 +718,12 @@ func TestGroupWagerService_ResolveGroupWager(t *testing.T) {
 		groupWager := createTestGroupWager(groupWagerID, models.GroupWagerStateActive, 4000)
 		option1 := createTestGroupWagerOption(winningOptionID, groupWagerID, "Winning Option", 0, 3000)
 		option2 := createTestGroupWagerOption(20, groupWagerID, "Losing Option", 1, 1000)
-		
+
 		winner1 := createTestParticipant(1, groupWagerID, 111111, winningOptionID, 2000)
 		winner2 := createTestParticipant(2, groupWagerID, 222222, winningOptionID, 1000)
 		loser := createTestParticipant(3, groupWagerID, 333333, option2.ID, 1000)
-		
-		detail := createTestGroupWagerDetail(groupWager, []*models.GroupWagerOption{option1, option2}, 
+
+		detail := createTestGroupWagerDetail(groupWager, []*models.GroupWagerOption{option1, option2},
 			[]*models.GroupWagerParticipant{winner1, winner2, loser})
 
 		winnerUser := createTestUser(111111, 10000)
@@ -749,11 +749,37 @@ func TestGroupWagerService_ResolveGroupWager(t *testing.T) {
 	})
 }
 
+func TestGroupWagerService_CreateGroupWager(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("duplicate options are rejected", func(t *testing.T) {
+		// Setup
+		service, mockUserRepo, mockGroupWagerRepo, mockBalanceHistoryRepo, mockEventPublisher := createTestGroupWagerService()
+
+		creatorID := int64(111111)
+		condition := "Test condition"
+		options := []string{"Option 1", "Option 2", "option 1"} // duplicate with different case
+		votingPeriodMinutes := 60
+
+		// Execute - no user lookup should happen because validation fails first
+		result, err := service.CreateGroupWager(ctx, creatorID, condition, options, votingPeriodMinutes, 0, 0)
+
+		// Verify
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "duplicate option found")
+		assert.Contains(t, err.Error(), "option 1")
+
+		// No expectations needed since validation fails before any repository calls
+		assertAllMockExpectations(t, mockUserRepo, mockGroupWagerRepo, mockBalanceHistoryRepo, mockEventPublisher)
+	})
+}
+
 func TestGroupWagerService_IsResolver(t *testing.T) {
 	t.Run("user is resolver", func(t *testing.T) {
 		// Setup
 		service, _, _, _, _ := createTestGroupWagerService()
-		
+
 		// Set resolver IDs
 		service.(*groupWagerService).config.ResolverDiscordIDs = []int64{111111, 222222, 333333}
 
@@ -766,7 +792,7 @@ func TestGroupWagerService_IsResolver(t *testing.T) {
 	t.Run("user is not resolver", func(t *testing.T) {
 		// Setup
 		service, _, _, _, _ := createTestGroupWagerService()
-		
+
 		// Set resolver IDs
 		service.(*groupWagerService).config.ResolverDiscordIDs = []int64{111111, 222222, 333333}
 
@@ -779,7 +805,7 @@ func TestGroupWagerService_IsResolver(t *testing.T) {
 	t.Run("empty resolver list", func(t *testing.T) {
 		// Setup
 		service, _, _, _, _ := createTestGroupWagerService()
-		
+
 		// Set empty resolver list
 		service.(*groupWagerService).config.ResolverDiscordIDs = []int64{}
 

@@ -93,9 +93,17 @@ func (f *Feature) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo
 	// Parse options (one per line)
 	optionLines := strings.Split(optionsText, "\n")
 	var options []string
+	optionMap := make(map[string]bool)
 	for _, line := range optionLines {
 		line = strings.TrimSpace(line)
 		if line != "" {
+			// Check for duplicates (case-insensitive)
+			lowerOption := strings.ToLower(line)
+			if optionMap[lowerOption] {
+				common.RespondWithError(s, i, fmt.Sprintf("Duplicate option found: '%s'. Each option must be unique.", line))
+				return
+			}
+			optionMap[lowerOption] = true
 			options = append(options, line)
 		}
 	}

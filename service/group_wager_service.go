@@ -6,6 +6,7 @@ import (
 	"gambler/config"
 	"gambler/events"
 	"gambler/models"
+	"strings"
 	"time"
 )
 
@@ -44,6 +45,16 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int6
 	}
 	if votingPeriodMinutes < 5 || votingPeriodMinutes > 10080 {
 		return nil, fmt.Errorf("voting period must be between 5 minutes and 168 hours (10080 minutes)")
+	}
+
+	// Check for duplicate options (case-insensitive)
+	optionMap := make(map[string]bool)
+	for _, option := range options {
+		lowerOption := strings.ToLower(strings.TrimSpace(option))
+		if optionMap[lowerOption] {
+			return nil, fmt.Errorf("duplicate option found: '%s'. Each option must be unique", option)
+		}
+		optionMap[lowerOption] = true
 	}
 
 	// Check if creator exists
