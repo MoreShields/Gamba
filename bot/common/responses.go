@@ -147,3 +147,19 @@ func UpdateMessageWithError(s *discordgo.Session, i *discordgo.InteractionCreate
 		log.Errorf("Error editing interaction response: %v", err)
 	}
 }
+
+// PinMessage pins a message in a channel
+func PinMessage(s *discordgo.Session, channelID string, messageID string) {
+	err := s.ChannelMessagePin(channelID, messageID)
+	if err != nil {
+		log.Warnf("Failed to pin message %s in channel %s: %v", messageID, channelID, err)
+	}
+}
+
+// UnpinMessage unpins a message in a channel
+func UnpinMessage(s *discordgo.Session, channelID string, messageID string) {
+	err := s.ChannelMessageUnpin(channelID, messageID)
+	if err != nil {
+		log.Warnf("Failed to unpin message %s in channel %s: %v", messageID, channelID, err)
+	}
+}

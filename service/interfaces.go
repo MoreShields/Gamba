@@ -148,6 +148,9 @@ type WagerService interface {
 	// CancelWager cancels a proposed wager
 	CancelWager(ctx context.Context, wagerID int64, cancellerID int64) error
 
+	// UpdateMessageIDs updates the message and channel IDs for a wager
+	UpdateMessageIDs(ctx context.Context, wagerID int64, messageID int64, channelID int64) error
+
 	// BothParticipantsAgree checks if both participants have voted for the same winner
 	// Returns the winner's Discord ID if they agree, 0 otherwise
 	BothParticipantsAgree(wager *models.Wager, voteCounts *models.VoteCount) int64

@@ -150,8 +150,10 @@ func (r *WagerRepository) Update(ctx context.Context, wager *models.Wager) error
 		    winner_discord_id = $3,
 		    winner_balance_history_id = $4,
 		    loser_balance_history_id = $5,
-		    accepted_at = $6,
-		    resolved_at = $7
+		    message_id = $6,
+		    channel_id = $7,
+		    accepted_at = $8,
+		    resolved_at = $9
 		WHERE id = $1
 	`
 
@@ -161,6 +163,8 @@ func (r *WagerRepository) Update(ctx context.Context, wager *models.Wager) error
 		wager.WinnerDiscordID,
 		wager.WinnerBalanceHistoryID,
 		wager.LoserBalanceHistoryID,
+		wager.MessageID,
+		wager.ChannelID,
 		wager.AcceptedAt,
 		wager.ResolvedAt,
 	)

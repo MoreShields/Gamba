@@ -417,8 +417,23 @@ func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Int
 		log.Printf("Error sending resolve message: %v", err)
 	}
 
-	// Update the original wager message to show it's resolved
+	// Unpin and update the original wager message to show it's resolved
 	if result.GroupWager.MessageID != 0 && result.GroupWager.ChannelID != 0 {
+		// Unpin the message first
+		messageIDStr := strconv.FormatInt(result.GroupWager.MessageID, 10)
+		channelIDStr := strconv.FormatInt(result.GroupWager.ChannelID, 10)
+		common.UnpinMessage(s, channelIDStr, messageIDStr)
+		
+		// Send notification message with link to resolved group wager
+		notificationContent := fmt.Sprintf("🏆 **Group Wager Resolved!** %s won with %s!\n[View resolved wager](https://discord.com/channels/%s/%s/%s)", 
+			result.WinningOption.OptionText, common.FormatBalance(result.TotalPot), i.GuildID, channelIDStr, messageIDStr)
+		
+		log.Printf("Discord link: https://discord.com/channels/%s/%s/%s", i.GuildID, channelIDStr, messageIDStr)
+		
+		_, err = s.ChannelMessageSend(channelIDStr, notificationContent)
+		if err != nil {
+			log.Printf("Error sending group wager resolution notification: %v", err)
+		}
 		// Get updated wager details
 		uow2 := f.uowFactory.CreateForGuild(guildID)
 		if err := uow2.Begin(ctx); err != nil {
@@ -554,8 +569,12 @@ func (f *Feature) handleGroupWagerCancel(s *discordgo.Session, i *discordgo.Inte
 		log.Printf("Error sending cancel message: %v", err)
 	}
 
-	// Update the original wager message to show it's cancelled
+	// Unpin and update the original wager message to show it's cancelled
 	if messageID != 0 && channelID != 0 {
+		// Unpin the message first
+		messageIDStr := strconv.FormatInt(messageID, 10)
+		channelIDStr := strconv.FormatInt(channelID, 10)
+		common.UnpinMessage(s, channelIDStr, messageIDStr)
 		// Update the state in the existing detail object
 		detail.Wager.State = models.GroupWagerStateCancelled
 

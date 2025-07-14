@@ -104,7 +104,7 @@ func buildLossEmbed(result *models.BetResult, odds float64, session *BetSession,
 	}
 
 	return &discordgo.MessageEmbed{
-		Description: fmt.Sprintf(":HoldThisL: **<@%d>** :HoldThisL:\nBalance: %s", userID, common.FormatBalance(result.NewBalance)),
+		Description: fmt.Sprintf("🤡 **<@%d>** 🤡\nBalance: %s", userID, common.FormatBalance(result.NewBalance)),
 		Color:       common.ColorDanger,
 		Fields:      fields,
 		Footer: &discordgo.MessageEmbedFooter{

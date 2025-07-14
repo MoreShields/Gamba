@@ -179,13 +179,6 @@ func (f *Feature) handleWagerConditionModal(s *discordgo.Session, i *discordgo.I
 		return
 	}
 
-	// Commit the transaction
-	if err := uow.Commit(); err != nil {
-		log.Errorf("Error committing transaction: %v", err)
-		common.UpdateMessageWithError(s, i, "Unable to process request. Please try again.")
-		return
-	}
-
 	// Get server-specific display names
 	proposerName := common.GetDisplayNameInt64(s, i.GuildID, proposerID)
 	targetName := common.GetDisplayNameInt64(s, i.GuildID, targetID)
@@ -200,16 +193,31 @@ func (f *Feature) handleWagerConditionModal(s *discordgo.Session, i *discordgo.I
 	})
 	if err != nil {
 		log.Printf("Error editing interaction response: %v", err)
+		// Still commit the wager even if message sending failed
+		if err := uow.Commit(); err != nil {
+			log.Errorf("Error committing transaction: %v", err)
+		}
 		return
 	}
 
-	// Update the wager with the message ID
+	// Update the wager with the message ID in the same transaction
 	if msg != nil && msg.ID != "" {
 		messageID, _ := strconv.ParseInt(msg.ID, 10, 64)
-		wager.MessageID = &messageID
-		// Note: In a production system, you'd want to update this in the database
-		// For now, the message ID will be available in the interaction context
+		channelIDParsed, _ := strconv.ParseInt(msg.ChannelID, 10, 64)
+
+		if err := wagerService.UpdateMessageIDs(context.Background(), wager.ID, messageID, channelIDParsed); err != nil {
+			log.Errorf("Error updating wager message IDs: %v", err)
+		}
 	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Error committing transaction: %v", err)
+		common.UpdateMessageWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+
+	// Message will be pinned when the wager is accepted
 }
 
 // handleWagerList handles the /wager list subcommand
@@ -343,10 +351,16 @@ func (f *Feature) handleWagerCancel(s *discordgo.Session, i *discordgo.Interacti
 		return
 	}
 
-	// Try to delete the wager message if we have the IDs
+	// Try to unpin and delete the wager message if we have the IDs
 	if wager.MessageID != nil && wager.ChannelID != nil {
 		messageID := strconv.FormatInt(*wager.MessageID, 10)
 		channelID := strconv.FormatInt(*wager.ChannelID, 10)
+
+		// Only unpin if the wager was accepted
+		if wager.State == models.WagerStateVoting {
+			common.UnpinMessage(s, channelID, messageID)
+		}
+
 		err = s.ChannelMessageDelete(channelID, messageID)
 		if err != nil {
 			log.Printf("Error deleting wager message: %v", err)
@@ -477,6 +491,15 @@ func (f *Feature) handleWagerResponse(s *discordgo.Session, i *discordgo.Interac
 	var components []discordgo.MessageComponent
 
 	if accept {
+		// Wager was accepted - pin the message
+		if wager.MessageID != nil && wager.ChannelID != nil {
+			messageID := strconv.FormatInt(*wager.MessageID, 10)
+			channelID := strconv.FormatInt(*wager.ChannelID, 10)
+			common.PinMessage(s, channelID, messageID)
+		} else {
+			log.Warnf("Cannot pin wager %d - MessageID: %v, ChannelID: %v", wager.ID, wager.MessageID, wager.ChannelID)
+		}
+
 		// Show voting interface
 		voteCounts := &models.VoteCount{} // Start with 0 votes
 		embed = BuildWagerVotingEmbed(wager, proposerName, targetName, voteCounts)
@@ -577,34 +600,18 @@ func (f *Feature) handleWagerVote(s *discordgo.Session, i *discordgo.Interaction
 		return
 	}
 
-	// Commit the transaction
-	if err := uow.Commit(); err != nil {
-		log.Errorf("Error committing transaction: %v", err)
+	// Get updated wager state before committing
+	wager, err := wagerService.GetWagerByID(context.Background(), wagerID)
+	if err != nil {
+		log.Printf("Error getting wager after vote: %v", err)
 		common.FollowUpWithError(s, i, "Unable to process request. Please try again.")
 		return
 	}
 
-	// Create new UnitOfWork to get updated wager state
-	uow2 := f.uowFactory.CreateForGuild(guildID)
-	if err := uow2.Begin(context.Background()); err != nil {
-		log.Printf("Error beginning transaction for wager state fetch: %v", err)
-		return
-	}
-	defer uow2.Rollback()
-
-	// Instantiate wager service for fetching updated state
-	wagerService2 := service.NewWagerService(
-		uow2.UserRepository(),
-		uow2.WagerRepository(),
-		uow2.WagerVoteRepository(),
-		uow2.BalanceHistoryRepository(),
-		uow2.EventBus(),
-	)
-
-	// Get updated wager state
-	wager, err := wagerService2.GetWagerByID(context.Background(), wagerID)
-	if err != nil {
-		log.Printf("Error getting wager after vote: %v", err)
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Error committing transaction: %v", err)
+		common.FollowUpWithError(s, i, "Unable to process request. Please try again.")
 		return
 	}
 
@@ -617,7 +624,29 @@ func (f *Feature) handleWagerVote(s *discordgo.Session, i *discordgo.Interaction
 	var components []discordgo.MessageComponent
 
 	if wager.State == models.WagerStateResolved {
-		// Wager has been resolved
+		// Wager has been resolved - unpin the message and send notification
+		if wager.MessageID != nil && wager.ChannelID != nil {
+			messageID := strconv.FormatInt(*wager.MessageID, 10)
+			channelID := strconv.FormatInt(*wager.ChannelID, 10)
+			common.UnpinMessage(s, channelID, messageID)
+
+			// Send notification message with link to resolved wager
+			winnerName := proposerName
+			if wager.WinnerDiscordID != nil && *wager.WinnerDiscordID == wager.TargetDiscordID {
+				winnerName = targetName
+			}
+
+			notificationContent := fmt.Sprintf("🏆 **Wager Resolved!** %s won the wager for %s bits!\n[View resolved wager](https://discord.com/channels/%s/%s/%s)",
+				winnerName, common.FormatBalance(wager.Amount), i.GuildID, channelID, messageID)
+
+			log.Printf("Discord link: https://discord.com/channels/%s/%s/%s", i.GuildID, channelID, messageID)
+
+			_, err = s.ChannelMessageSend(channelID, notificationContent)
+			if err != nil {
+				log.Printf("Error sending wager resolution notification: %v", err)
+			}
+		}
+
 		winnerName := proposerName
 		loserName := targetName
 		if wager.WinnerDiscordID != nil && *wager.WinnerDiscordID == wager.TargetDiscordID {

@@ -348,6 +348,26 @@ func (s *wagerService) CancelWager(ctx context.Context, wagerID int64, canceller
 	return nil
 }
 
+// UpdateMessageIDs updates the message and channel IDs for a wager
+func (s *wagerService) UpdateMessageIDs(ctx context.Context, wagerID int64, messageID int64, channelID int64) error {
+	wager, err := s.wagerRepo.GetByID(ctx, wagerID)
+	if err != nil {
+		return fmt.Errorf("failed to get wager: %w", err)
+	}
+	if wager == nil {
+		return fmt.Errorf("wager not found")
+	}
+
+	wager.MessageID = &messageID
+	wager.ChannelID = &channelID
+
+	if err := s.wagerRepo.Update(ctx, wager); err != nil {
+		return fmt.Errorf("failed to update wager: %w", err)
+	}
+
+	return nil
+}
+
 // Helper function to get a pointer to a RelatedType
 func relatedTypePtr(rt models.RelatedType) *models.RelatedType {
 	return &rt
