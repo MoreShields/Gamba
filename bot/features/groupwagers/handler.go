@@ -231,13 +231,6 @@ func (f *Feature) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo
 		return
 	}
 
-	// Commit the transaction
-	if err := uow.Commit(); err != nil {
-		log.Printf("Error committing transaction: %v", err)
-		common.FollowUpWithError(s, i, "Failed to save group wager.")
-		return
-	}
-
 	// Create the embed
 	embed := CreateGroupWagerEmbed(groupWagerDetail)
 	components := CreateGroupWagerComponents(groupWagerDetail)
@@ -249,6 +242,7 @@ func (f *Feature) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo
 	})
 	if err != nil {
 		log.Printf("Error sending group wager message: %v", err)
+		// Rollback is handled by defer
 		return
 	}
 
@@ -264,30 +258,23 @@ func (f *Feature) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo
 		return
 	}
 
-	// Update the group wager with the message IDs
-	uow2 := f.uowFactory.CreateForGuild(guildID)
-	if err := uow2.Begin(ctx); err != nil {
-		log.Errorf("failed to begin transaction for message ID update: %s", err)
-		return
-	}
-	defer uow2.Rollback()
-
-	// Instantiate group wager service with repositories from UnitOfWork
-	groupWagerService2 := service.NewGroupWagerService(
-		uow2.GroupWagerRepository(),
-		uow2.UserRepository(),
-		uow2.BalanceHistoryRepository(),
-		uow2.EventBus(),
-	)
-
-	if err := groupWagerService2.UpdateMessageIDs(ctx, groupWagerDetail.Wager.ID, messageID, channelID); err != nil {
+	// Update message IDs in the same transaction
+	if err := groupWagerService.UpdateMessageIDs(ctx, groupWagerDetail.Wager.ID, messageID, channelID); err != nil {
 		log.Errorf("failed to update group wager message IDs: %s", err)
+		// TODO: Consider deleting the Discord message here since DB update failed
 		return
 	}
 
-	if err := uow2.Commit(); err != nil {
-		log.Errorf("failed to commit message ID update: %s", err)
+	// Commit the transaction after all operations succeed
+	if err := uow.Commit(); err != nil {
+		log.Printf("Error committing transaction: %v", err)
+		common.FollowUpWithError(s, i, "Failed to save group wager.")
+		// TODO: Consider deleting the Discord message here since commit failed
+		return
 	}
+
+	// Pin the group wager message
+	common.PinMessage(s, msg.ChannelID, msg.ID)
 
 }
 
@@ -313,36 +300,6 @@ func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Int
 	if err != nil {
 		log.Printf("Error parsing resolver ID: %v", err)
 		common.RespondWithError(s, i, "Unable to process request.")
-		return
-	}
-
-	// Create temporary UnitOfWork for resolver check (if needed)
-	tempGuildID, err := strconv.ParseInt(i.GuildID, 10, 64)
-	if err != nil {
-		log.Printf("Error parsing guild ID for resolver check: %v", err)
-		common.RespondWithError(s, i, "Unable to process request.")
-		return
-	}
-
-	tempUow := f.uowFactory.CreateForGuild(tempGuildID)
-	if err := tempUow.Begin(ctx); err != nil {
-		log.Printf("Error beginning transaction for resolver check: %v", err)
-		common.RespondWithError(s, i, "Unable to process request.")
-		return
-	}
-	defer tempUow.Rollback()
-
-	// Instantiate group wager service for resolver check
-	tempGroupWagerService := service.NewGroupWagerService(
-		tempUow.GroupWagerRepository(),
-		tempUow.UserRepository(),
-		tempUow.BalanceHistoryRepository(),
-		tempUow.EventBus(),
-	)
-
-	// Check if user is a resolver
-	if !tempGroupWagerService.IsResolver(resolverID) {
-		common.RespondWithError(s, i, "You are not authorized to resolve group wagers.")
 		return
 	}
 
@@ -388,6 +345,13 @@ func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Int
 		return
 	}
 
+	// Get updated wager details for the UI update
+	updatedDetail, err := groupWagerService.GetGroupWagerDetail(ctx, groupWagerID)
+	if err != nil {
+		log.Printf("Error getting updated group wager detail: %v", err)
+		// Continue with the rest of the flow even if we can't get updated details
+	}
+
 	// Commit the transaction
 	if err := uow.Commit(); err != nil {
 		log.Printf("Error committing transaction: %v", err)
@@ -423,52 +387,33 @@ func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Int
 		messageIDStr := strconv.FormatInt(result.GroupWager.MessageID, 10)
 		channelIDStr := strconv.FormatInt(result.GroupWager.ChannelID, 10)
 		common.UnpinMessage(s, channelIDStr, messageIDStr)
-		
+
 		// Send notification message with link to resolved group wager
-		notificationContent := fmt.Sprintf("🏆 **Group Wager Resolved!** %s won with %s!\n[View resolved wager](https://discord.com/channels/%s/%s/%s)", 
+		notificationContent := fmt.Sprintf("🏆 **Group Wager Resolved!** %s won with %s!\n[View resolved wager](https://discord.com/channels/%s/%s/%s)",
 			result.WinningOption.OptionText, common.FormatBalance(result.TotalPot), i.GuildID, channelIDStr, messageIDStr)
-		
+
 		log.Printf("Discord link: https://discord.com/channels/%s/%s/%s", i.GuildID, channelIDStr, messageIDStr)
-		
+
 		_, err = s.ChannelMessageSend(channelIDStr, notificationContent)
 		if err != nil {
 			log.Printf("Error sending group wager resolution notification: %v", err)
 		}
-		// Get updated wager details
-		uow2 := f.uowFactory.CreateForGuild(guildID)
-		if err := uow2.Begin(ctx); err != nil {
-			log.Printf("Error beginning transaction for detail fetch: %v", err)
-			return
-		}
-		defer uow2.Rollback()
 
-		// Instantiate group wager service with repositories from UnitOfWork
-		groupWagerService2 := service.NewGroupWagerService(
-			uow2.GroupWagerRepository(),
-			uow2.UserRepository(),
-			uow2.BalanceHistoryRepository(),
-			uow2.EventBus(),
-		)
+		// Create updated embed and components if we have the updated detail
+		if updatedDetail != nil {
+			embed := CreateGroupWagerEmbed(updatedDetail)
+			components := CreateGroupWagerComponents(updatedDetail) // Will be empty since wager is resolved
 
-		updatedDetail, err := groupWagerService2.GetGroupWagerDetail(ctx, groupWagerID)
-		if err != nil {
-			log.Printf("Error getting updated group wager detail: %v", err)
-			return
-		}
-
-		// Create updated embed and components
-		embed := CreateGroupWagerEmbed(updatedDetail)
-		components := CreateGroupWagerComponents(updatedDetail) // Will be empty since wager is resolved
-
-		// Update the original message
-		_, err = s.ChannelMessageEditComplex(&discordgo.MessageEdit{
-			Channel:    strconv.FormatInt(result.GroupWager.ChannelID, 10),
-			ID:         strconv.FormatInt(result.GroupWager.MessageID, 10),
-			Embeds:     &[]*discordgo.MessageEmbed{embed},
-			Components: &components,
-		})
-		if err != nil {
-			log.Printf("Error updating resolved group wager message: %v", err)
+			// Update the original message
+			_, err = s.ChannelMessageEditComplex(&discordgo.MessageEdit{
+				Channel:    strconv.FormatInt(result.GroupWager.ChannelID, 10),
+				ID:         strconv.FormatInt(result.GroupWager.MessageID, 10),
+				Embeds:     &[]*discordgo.MessageEmbed{embed},
+				Components: &components,
+			})
+			if err != nil {
+				log.Printf("Error updating resolved group wager message: %v", err)
+			}
 		}
 	}
 }
