@@ -147,11 +147,11 @@ func (f *Feature) processRepeatBet(ctx context.Context, s *discordgo.Session, i 
 
 		var errorMsg string
 		if remaining <= 0 {
-			errorMsg = fmt.Sprintf("Daily gambling limit of %s bits reached. Try again %s",
+			errorMsg = fmt.Sprintf(" Daily gambling limit of %s bits reached. Try again %s",
 				common.FormatBalance(cfg.DailyGambleLimit),
 				common.FormatDiscordTimestamp(nextReset, "R"))
 		} else {
-			errorMsg = fmt.Sprintf("Bet would exceed daily limit. You have %s bits remaining (resets %s)",
+			errorMsg = fmt.Sprintf(" Bet would exceed daily limit. You have %s bits remaining (resets %s)",
 				common.FormatBalance(remaining),
 				common.FormatDiscordTimestamp(nextReset, "R"))
 		}

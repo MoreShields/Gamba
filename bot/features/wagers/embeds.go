@@ -66,33 +66,32 @@ func BuildWagerDeclinedEmbed(wager *models.Wager, proposerName, targetName strin
 
 // BuildWagerVotingEmbed creates an embed for a wager in voting state
 func BuildWagerVotingEmbed(wager *models.Wager, proposerName, targetName string, voteCounts *models.VoteCount) *discordgo.MessageEmbed {
-	// Calculate vote percentages
-	proposerPercent := 0
-	targetPercent := 0
-	if voteCounts.TotalVotes > 0 {
-		proposerPercent = (voteCounts.ProposerVotes * 100) / voteCounts.TotalVotes
-		targetPercent = (voteCounts.TargetVotes * 100) / voteCounts.TotalVotes
+	// Determine voting status for each participant
+	proposerStatus := "⏳ Pending"
+	targetStatus := "⏳ Pending"
+
+	if voteCounts.ProposerVoted {
+		if voteCounts.ProposerVotes > 0 {
+			proposerStatus = fmt.Sprintf("✅ Voted for %s", proposerName)
+		} else {
+			proposerStatus = fmt.Sprintf("✅ Voted for %s", targetName)
+		}
 	}
 
-	// Create vote bars
-	proposerBar := createVoteBar(proposerPercent)
-	targetBar := createVoteBar(targetPercent)
+	if voteCounts.TargetVoted {
+		if voteCounts.TargetVotes > 0 {
+			targetStatus = fmt.Sprintf("✅ Voted for %s", targetName)
+		} else {
+			targetStatus = fmt.Sprintf("✅ Voted for %s", proposerName)
+		}
+	}
 
 	embed := &discordgo.MessageEmbed{
 		Title:       "🗳️ Wager Voting",
-		Description: fmt.Sprintf("**%s** vs **%s**\nCommunity voting is now open!", proposerName, targetName),
+		Description: fmt.Sprintf("**%s** vs **%s** \n💰 %s bits\n", proposerName, targetName, common.FormatBalance(wager.Amount)),
 		Color:       common.ColorSuccess,
 		Fields: []*discordgo.MessageEmbedField{
-			{
-				Name:   "💰 Amount",
-				Value:  common.FormatBalance(wager.Amount),
-				Inline: true,
-			},
-			{
-				Name:   "📊 Total Votes",
-				Value:  fmt.Sprintf("%d", voteCounts.TotalVotes),
-				Inline: true,
-			},
+
 			{
 				Name:   "📜 Condition",
 				Value:  wager.Condition,
@@ -100,30 +99,36 @@ func BuildWagerVotingEmbed(wager *models.Wager, proposerName, targetName string,
 			},
 			{
 				Name:   fmt.Sprintf("👤 %s", proposerName),
-				Value:  fmt.Sprintf("%s\n%d votes (%d%%)", proposerBar, voteCounts.ProposerVotes, proposerPercent),
-				Inline: false,
+				Value:  proposerStatus,
+				Inline: true,
 			},
 			{
 				Name:   fmt.Sprintf("👤 %s", targetName),
-				Value:  fmt.Sprintf("%s\n%d votes (%d%%)", targetBar, voteCounts.TargetVotes, targetPercent),
-				Inline: false,
+				Value:  targetStatus,
+				Inline: true,
 			},
 		},
 		Footer: &discordgo.MessageEmbedFooter{
-			Text: fmt.Sprintf("Wager ID: %d • Majority wins", wager.ID),
+			Text: fmt.Sprintf("Wager ID: %d • Both participants must agree", wager.ID),
 		},
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
-	// Add majority indicator if applicable
-	if voteCounts.HasMajority() {
+	// Add agreement indicator if both participants agree
+	if voteCounts.BothParticipantsAgree() {
 		winnerName := proposerName
 		if voteCounts.TargetVotes > voteCounts.ProposerVotes {
 			winnerName = targetName
 		}
 		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
-			Name:   "🏆 Majority Reached",
-			Value:  fmt.Sprintf("**%s** has majority! Resolving wager...", winnerName),
+			Name:   "🏆 Both Participants Agree",
+			Value:  fmt.Sprintf("**%s** wins!", winnerName),
+			Inline: false,
+		})
+	} else if voteCounts.BothParticipantsVoted() {
+		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
+			Name:   "⚖️ Participants Disagree",
+			Value:  "Both participants have voted but disagree on the winner. Wager remains open.",
 			Inline: false,
 		})
 	}
@@ -133,13 +138,6 @@ func BuildWagerVotingEmbed(wager *models.Wager, proposerName, targetName string,
 
 // BuildWagerResolvedEmbed creates an embed for a resolved wager
 func BuildWagerResolvedEmbed(wager *models.Wager, proposerName, targetName, winnerName, loserName string, finalVotes *models.VoteCount) *discordgo.MessageEmbed {
-	winnerVotes := finalVotes.ProposerVotes
-	loserVotes := finalVotes.TargetVotes
-	if wager.WinnerDiscordID != nil && *wager.WinnerDiscordID == wager.TargetDiscordID {
-		winnerVotes = finalVotes.TargetVotes
-		loserVotes = finalVotes.ProposerVotes
-	}
-
 	embed := &discordgo.MessageEmbed{
 		Title:       "🏆 Wager Resolved",
 		Description: fmt.Sprintf("**%s** wins the wager against **%s**!", winnerName, loserName),
@@ -148,11 +146,6 @@ func BuildWagerResolvedEmbed(wager *models.Wager, proposerName, targetName, winn
 			{
 				Name:   "💰 Amount Won",
 				Value:  common.FormatBalance(wager.Amount),
-				Inline: true,
-			},
-			{
-				Name:   "🗳️ Final Vote",
-				Value:  fmt.Sprintf("%d - %d", winnerVotes, loserVotes),
 				Inline: true,
 			},
 			{
@@ -168,23 +161,6 @@ func BuildWagerResolvedEmbed(wager *models.Wager, proposerName, targetName, winn
 	}
 
 	return embed
-}
-
-// createVoteBar creates a visual representation of vote percentage
-func createVoteBar(percentage int) string {
-	const barLength = 10
-	filledBars := (percentage * barLength) / 100
-	emptyBars := barLength - filledBars
-
-	bar := ""
-	for i := 0; i < filledBars; i++ {
-		bar += "█"
-	}
-	for i := 0; i < emptyBars; i++ {
-		bar += "░"
-	}
-
-	return bar
 }
 
 // BuildWagerListEmbed creates an embed showing a user's active wagers

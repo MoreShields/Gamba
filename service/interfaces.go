@@ -133,7 +133,7 @@ type WagerService interface {
 	// RespondToWager handles accepting or declining a wager
 	RespondToWager(ctx context.Context, wagerID int64, responderID int64, accept bool) (*models.Wager, error)
 
-	// CastVote records or updates a vote on a wager
+	// CastVote records or updates a participant's vote on a wager
 	CastVote(ctx context.Context, wagerID int64, voterID int64, voteForID int64) (*models.WagerVote, *models.VoteCount, error)
 
 	// GetWagerByID retrieves a wager by ID
@@ -147,6 +147,10 @@ type WagerService interface {
 
 	// CancelWager cancels a proposed wager
 	CancelWager(ctx context.Context, wagerID int64, cancellerID int64) error
+
+	// BothParticipantsAgree checks if both participants have voted for the same winner
+	// Returns the winner's Discord ID if they agree, 0 otherwise
+	BothParticipantsAgree(wager *models.Wager, voteCounts *models.VoteCount) int64
 }
 
 // EventPublisher defines the interface for publishing events

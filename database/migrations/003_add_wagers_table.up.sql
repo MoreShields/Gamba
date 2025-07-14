@@ -26,7 +26,7 @@ CREATE TABLE wagers (
     )
 );
 
--- Create wager_votes table to track community votes
+-- Create wager_votes table to track participant votes
 CREATE TABLE wager_votes (
     id BIGSERIAL PRIMARY KEY,
     wager_id BIGINT NOT NULL REFERENCES wagers(id) ON DELETE CASCADE,

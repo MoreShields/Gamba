@@ -58,8 +58,8 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 		uow.BetRepository(),
 	)
 
-	// Get scoreboard entries (top 10)
-	entries, err := statsService.GetScoreboard(ctx, 10)
+	// Get scoreboard entries
+	entries, err := statsService.GetScoreboard(ctx, 0)
 	if err != nil {
 		log.Printf("Error getting scoreboard: %v", err)
 		common.RespondWithError(s, i, "Unable to retrieve scoreboard. Please try again.")

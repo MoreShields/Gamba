@@ -99,7 +99,7 @@ func (r *WagerVoteRepository) GetByWager(ctx context.Context, wagerID int64) ([]
 	return votes, nil
 }
 
-// GetVoteCounts returns the vote counts for a wager
+// GetVoteCounts returns the participant vote counts and status for a wager
 func (r *WagerVoteRepository) GetVoteCounts(ctx context.Context, wagerID int64) (*models.VoteCount, error) {
 	// First, get the wager to know who the participants are
 	wagerQuery := `
@@ -117,12 +117,14 @@ func (r *WagerVoteRepository) GetVoteCounts(ctx context.Context, wagerID int64) 
 		return nil, fmt.Errorf("failed to get wager: %w", err)
 	}
 	
-	// Now count the votes
+	// Now count the participant votes and check their voting status
 	countQuery := `
 		SELECT 
 			COUNT(*) FILTER (WHERE vote_for_discord_id = $2) as proposer_votes,
 			COUNT(*) FILTER (WHERE vote_for_discord_id = $3) as target_votes,
-			COUNT(*) as total_votes
+			COUNT(*) as total_votes,
+			COUNT(*) FILTER (WHERE voter_discord_id = $2) > 0 as proposer_voted,
+			COUNT(*) FILTER (WHERE voter_discord_id = $3) > 0 as target_voted
 		FROM wager_votes
 		WHERE wager_id = $1
 	`
@@ -132,6 +134,8 @@ func (r *WagerVoteRepository) GetVoteCounts(ctx context.Context, wagerID int64) 
 		&voteCounts.ProposerVotes,
 		&voteCounts.TargetVotes,
 		&voteCounts.TotalVotes,
+		&voteCounts.ProposerVoted,
+		&voteCounts.TargetVoted,
 	)
 	
 	if err != nil {

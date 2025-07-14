@@ -136,7 +136,7 @@ func (s *wagerService) RespondToWager(ctx context.Context, wagerID int64, respon
 	return wager, nil
 }
 
-// CastVote records or updates a vote on a wager
+// CastVote records or updates a participant's vote on a wager
 func (s *wagerService) CastVote(ctx context.Context, wagerID int64, voterID int64, voteForID int64) (*models.WagerVote, *models.VoteCount, error) {
 
 	// Get the wager
@@ -152,8 +152,8 @@ func (s *wagerService) CastVote(ctx context.Context, wagerID int64, voterID int6
 	if wager.State != models.WagerStateVoting {
 		return nil, nil, fmt.Errorf("wager is not open for voting")
 	}
-	if wager.IsParticipant(voterID) {
-		return nil, nil, fmt.Errorf("participants cannot vote on their own wager")
+	if !wager.IsParticipant(voterID) {
+		return nil, nil, fmt.Errorf("only participants can settle their own wager")
 	}
 	if !wager.IsParticipant(voteForID) {
 		return nil, nil, fmt.Errorf("can only vote for one of the participants")
@@ -176,23 +176,22 @@ func (s *wagerService) CastVote(ctx context.Context, wagerID int64, voterID int6
 		return nil, nil, fmt.Errorf("failed to get vote counts: %w", err)
 	}
 
-	// Check if we have a majority winner
-	userCount, err := s.userRepo.GetAll(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to fetch users when tallying wager vote counts")
-	}
-	majorityThreshold := len(userCount)/2 + 1
-	if voteCounts.TotalVotes > majorityThreshold {
-		winnerID := voteCounts.GetMajorityWinnerID(wager.ProposerDiscordID, wager.TargetDiscordID)
-		if winnerID != 0 {
-			// Resolve the wager
-			if err := s.resolveWager(ctx, wager, winnerID); err != nil {
-				return nil, nil, fmt.Errorf("failed to resolve wager: %w", err)
-			}
+	// Check if both participants have agreed on a winner
+	winnerID := s.BothParticipantsAgree(wager, voteCounts)
+	if winnerID != 0 {
+		// Resolve the wager
+		if err := s.resolveWager(ctx, wager, winnerID); err != nil {
+			return nil, nil, fmt.Errorf("failed to resolve wager: %w", err)
 		}
 	}
 
 	return vote, voteCounts, nil
+}
+
+// BothParticipantsAgree checks if both participants have voted for the same winner
+// Returns the winner's Discord ID if they agree, 0 otherwise
+func (s *wagerService) BothParticipantsAgree(wager *models.Wager, voteCounts *models.VoteCount) int64 {
+	return voteCounts.GetAgreedWinnerID(wager.ProposerDiscordID, wager.TargetDiscordID)
 }
 
 // resolveWager handles the resolution of a wager (called within a transaction)

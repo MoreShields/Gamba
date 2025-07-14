@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// WagerVote represents a community vote on a wager
+// WagerVote represents a participant vote on a wager
 type WagerVote struct {
 	ID               int64     `db:"id"`
 	WagerID          int64     `db:"wager_id"`
@@ -20,6 +20,8 @@ type VoteCount struct {
 	ProposerVotes int
 	TargetVotes   int
 	TotalVotes    int
+	ProposerVoted bool
+	TargetVoted   bool
 }
 
 // GetWinnerID returns the discord ID of the current winner based on votes
@@ -34,18 +36,23 @@ func (vc *VoteCount) GetWinnerID(proposerID, targetID int64) int64 {
 	return 0 // Tied
 }
 
-// HasMajority checks if either participant has a majority of votes
-func (vc *VoteCount) HasMajority() bool {
-	if vc.TotalVotes == 0 {
-		return false
-	}
-	majorityThreshold := vc.TotalVotes/2 + 1
-	return vc.ProposerVotes >= majorityThreshold || vc.TargetVotes >= majorityThreshold
+// BothParticipantsVoted checks if both participants have cast votes
+func (vc *VoteCount) BothParticipantsVoted() bool {
+	return vc.ProposerVoted && vc.TargetVoted
 }
 
-// GetMajorityWinnerID returns the winner ID if they have a majority, 0 otherwise
-func (vc *VoteCount) GetMajorityWinnerID(proposerID, targetID int64) int64 {
-	if !vc.HasMajority() {
+// BothParticipantsAgree checks if both participants voted for the same person
+func (vc *VoteCount) BothParticipantsAgree() bool {
+	if !vc.BothParticipantsVoted() {
+		return false
+	}
+	// Both participants agree if one has 2 votes and the other has 0
+	return (vc.ProposerVotes == 2 && vc.TargetVotes == 0) || (vc.ProposerVotes == 0 && vc.TargetVotes == 2)
+}
+
+// GetAgreedWinnerID returns the winner ID if both participants agree, 0 otherwise
+func (vc *VoteCount) GetAgreedWinnerID(proposerID, targetID int64) int64 {
+	if !vc.BothParticipantsAgree() {
 		return 0
 	}
 	return vc.GetWinnerID(proposerID, targetID)
