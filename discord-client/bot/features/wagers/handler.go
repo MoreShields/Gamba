@@ -93,7 +93,6 @@ func (f *Feature) handleWagerPropose(s *discordgo.Session, i *discordgo.Interact
 		common.RespondWithError(s, i, "Unable to process request. Please try again.")
 		return
 	}
-	log.Info("finished Creating users")
 
 	// Show modal for condition input
 	modal := BuildWagerConditionModal(proposerID, targetID, amount)
