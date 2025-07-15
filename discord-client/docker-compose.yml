@@ -29,6 +29,7 @@ services:
       RESOLVER_DISCORD_IDS: ${RESOLVER_DISCORD_IDS}
       
     restart: unless-stopped
+    network_mode: host  # Access host's postgres instance
     depends_on:
       migrate:
         condition: service_completed_successfully
