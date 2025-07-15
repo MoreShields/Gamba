@@ -51,6 +51,9 @@ clean: ## Clean build artifacts for all services
 	$(MAKE) -C api clean
 	$(MAKE) -C discord-client clean
 
+clean-venv: ## Remove Python virtual environment
+	rm -rf venv/
+
 # Database commands (delegate to discord-client)
 db-shell: ## Connect to the development database shell
 	docker-compose -f discord-client/docker-compose.dev.yml exec postgres psql -U gambler -d gambler_db
