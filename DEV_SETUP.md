@@ -1,8 +1,6 @@
-# Gambler Discord Bot
+# Development Setup
 
-A fun gambling game Discord bot where players can bet with custom odds.
-
-## Development Setup
+## Quick Start
 
 ```bash
 # Copy environment configuration

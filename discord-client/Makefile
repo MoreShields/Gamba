@@ -6,11 +6,9 @@ help: ## Show this help message
 	@echo 'Targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-dev: ## Start development environment with hot reload and postgres
-	docker-compose -f docker-compose.dev.yml up
-
-down: ## Stop all development containers
-	docker-compose -f docker-compose.dev.yml down
+dev: ## Start development environment (use root 'make dev' instead)
+	@echo "Please use 'make dev' from the project root directory instead"
+	@exit 1
 
 prod: ## Build and run production container (requires external postgres)
 	docker-compose up --build
@@ -33,15 +31,13 @@ test-integration: ## Run integration tests with testcontainers
 clean: ## Clean build artifacts
 	rm -rf bin/ tmp/
 
-db-shell: ## Connect to the development database shell
-	docker-compose -f docker-compose.dev.yml exec postgres psql -U gambler -d gambler_db
+db-shell: ## Connect to the development database shell (use root Makefile instead)
+	@echo "Please use 'make db-shell SERVICE=discord' from the project root directory instead"
+	@exit 1
 
-db-drop: ## Drop the development database
-	docker-compose -f docker-compose.dev.yml exec postgres dropdb -U gambler gambler_db
-	docker-compose -f docker-compose.dev.yml exec postgres createdb -U gambler gambler_db
-
-logs: ## View bot logs (dev)
-	docker-compose -f docker-compose.dev.yml logs -f bot
+logs: ## View bot logs (use root Makefile instead)
+	@echo "Please use 'make logs SERVICE=discord' from the project root directory instead"
+	@exit 1
 
 migrate-up: ## Run pending database migrations (production)
 	docker run --rm --env-file .env gambler:latest ./gambler migrate up 

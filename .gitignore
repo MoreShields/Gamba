@@ -29,6 +29,11 @@ discord-client/tmp/
 
 # Protobuf generated files
 api/gen/
+lol-tracker/src/lol_tracker/proto/
+
+# Python protobuf files (anywhere in the project)
+**/*_pb2.py
+**/*_pb2_grpc.py
 
 # python
 /venv

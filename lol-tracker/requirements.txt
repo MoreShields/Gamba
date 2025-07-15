@@ -1,0 +1,31 @@
+# Core dependencies
+asyncio
+aiohttp>=3.9.0
+asyncpg>=0.29.0
+
+# Protocol Buffers
+protobuf>=4.25.0
+grpcio>=1.60.0
+grpcio-tools>=1.60.0
+
+# Database
+sqlalchemy[asyncio]>=2.0.0
+alembic>=1.13.0
+
+# HTTP client for Riot API
+httpx>=0.25.0
+
+# Configuration and environment
+python-dotenv>=1.0.0
+
+# Logging and monitoring
+structlog>=23.2.0
+
+# Development dependencies (will be moved to requirements-dev.txt later)
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.12.0
+black>=23.0.0
+isort>=5.12.0
+flake8>=6.0.0
+mypy>=1.7.0
