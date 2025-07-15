@@ -39,9 +39,8 @@ func BuildScoreboardEmbed(entry []*models.ScoreboardEntry, session *discordgo.Se
 			medal = fmt.Sprintf("%d.", i+1)
 		}
 
-		displayName := common.GetDisplayNameInt64(session, guildID, user.DiscordID)
-		lines = append(lines, fmt.Sprintf("%s **%s** - %s",
-			medal, displayName, common.FormatBalance(user.TotalBalance)))
+		lines = append(lines, fmt.Sprintf("%s <@%d> - %s",
+			medal, user.DiscordID, common.FormatBalance(user.TotalBalance)))
 	}
 
 	embed.Description = strings.Join(lines, "\n")
