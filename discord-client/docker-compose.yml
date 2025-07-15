@@ -1,4 +1,5 @@
 services:
+  container_name: discord-client-migrate
   migrate:
     image: ghcr.io/moreshields/gamba:latest
     environment:
@@ -9,6 +10,7 @@ services:
     restart: "no"  # Run once and exit
 
   bot:
+    container_name: discord_client
     image: ghcr.io/moreshields/gamba:latest
     environment:
       # Discord configuration

@@ -56,7 +56,7 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 WORKDIR /app
 
 # Copy generated protobuf files
-COPY --from=builder /generated/proto/ ./src/lol_tracker/proto/
+COPY --from=builder /generated/proto/ ./lol_tracker/proto/
 
 # Change ownership to app user
 RUN chown -R appuser:appuser /app
@@ -65,7 +65,7 @@ RUN chown -R appuser:appuser /app
 USER appuser
 
 # Set Python path
-ENV PYTHONPATH=/app/src
+ENV PYTHONPATH=/app
 
 # For development, we'll mount the source code
 CMD ["python", "-m", "lol_tracker.main"]
@@ -93,10 +93,10 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 WORKDIR /app
 
 # Copy application code
-COPY lol-tracker/src/ ./src/
+COPY lol-tracker/lol_tracker/ ./lol_tracker/
 
 # Copy generated protobuf files
-COPY --from=builder /generated/proto/ ./src/lol_tracker/proto/
+COPY --from=builder /generated/proto/ ./lol_tracker/proto/
 
 # Change ownership to app user
 RUN chown -R appuser:appuser /app
@@ -105,7 +105,7 @@ RUN chown -R appuser:appuser /app
 USER appuser
 
 # Set Python path
-ENV PYTHONPATH=/app/src
+ENV PYTHONPATH=/app
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
