@@ -1,6 +1,6 @@
 services:
-  container_name: discord-client-migrate
   migrate:
+    container_name: discord-client-migrate
     image: ghcr.io/moreshields/gamba:latest
     environment:
       # Database configuration - use host's postgres in production
