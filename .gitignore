@@ -21,9 +21,14 @@ go.work
 
 # Application specific
 /bin/
+discord-client/bin/
 
 # Air tmp directory
 /tmp/
+discord-client/tmp/
+
+# Protobuf generated files
+api/gen/
 
 # python
 /venv

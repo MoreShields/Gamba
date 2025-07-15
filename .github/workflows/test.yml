@@ -17,25 +17,41 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.21'
+        go-version: '1.24.4'
+
+    - name: Install protobuf compiler
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y protobuf-compiler
+
+    - name: Install Go protobuf tools
+      run: |
+        go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+        go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
     - name: Cache Go modules
       uses: actions/cache@v4
       with:
         path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        key: ${{ runner.os }}-go-${{ hashFiles('discord-client/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-
 
+    - name: Generate protobuf code
+      run: make proto
+
     - name: Download dependencies
+      working-directory: discord-client
       run: go mod download
 
     - name: Run unit tests
+      working-directory: discord-client
       env:
         ENVIRONMENT: test
       run: go test -v -short ./...
 
     - name: Run integration tests
+      working-directory: discord-client
       env:
         ENVIRONMENT: test
         TESTCONTAINERS_RYUK_DISABLED: true

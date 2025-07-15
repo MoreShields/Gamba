@@ -1,0 +1,43 @@
+services:
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - ../.env
+    environment:
+      # Database configuration - use host's postgres in production
+      DATABASE_URL: ${DATABASE_URL}
+    command: ["./gambler", "migrate", "up"]
+    network_mode: host  # Access host's postgres instance
+    restart: "no"  # Run once and exit
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - ../.env
+    environment:
+      # Discord configuration
+      DISCORD_TOKEN: ${DISCORD_TOKEN}
+      
+      # Database configuration - use host's postgres in production
+      DATABASE_URL: ${DATABASE_URL}
+      
+      # Bot configuration
+      STARTING_BALANCE: ${STARTING_BALANCE:-100000}
+      HIGH_ROLLER_ROLE_ID: ${HIGH_ROLLER_ROLE_ID}
+      HIGH_ROLLER_ENABLED: ${HIGH_ROLLER_ENABLED}
+      
+      # Environment
+      ENVIRONMENT: production
+
+      # group wager resolver user IDs
+      RESOLVER_DISCORD_IDS: ${RESOLVER_DISCORD_IDS}
+      
+    restart: unless-stopped
+    network_mode: host  # Access host's postgres instance
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
