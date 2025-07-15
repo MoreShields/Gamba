@@ -5,6 +5,8 @@ on:
     workflows: ["Build and Push Docker Image"]
     types:
       - completed
+    branches:
+      - main
 
 env:
   REGISTRY: ghcr.io
@@ -52,10 +54,10 @@ jobs:
           echo ${{ secrets.GITHUB_TOKEN }} | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
           
           # Pull latest image
-          docker-compose pull
+          docker-compose -f discord-client/docker-compose.yml pull
           
           # Stop current containers
-          docker-compose down
+          docker-compose -f discord-client/docker-compose.yml down
 
           echo $DATABASE_URL > db_url_env.txt
 
@@ -66,7 +68,7 @@ jobs:
           HIGH_ROLLER_ENABLED=$HIGH_ROLLER_ENABLED \
           HIGH_ROLLER_ROLE_ID=$HIGH_ROLLER_ROLE_ID \
           RESOLVER_DISCORD_IDS=$RESOLVER_DISCORD_IDS \
-          docker-compose up -d
+          docker-compose -f discord-client/docker-compose.yml up -d
           
           # Clean up old images
           docker image prune -f
@@ -78,15 +80,15 @@ jobs:
           cd ~/gamba
           
           # Check if bot container is running
-          if docker-compose ps bot | grep -q "Up"; then
+          if docker-compose -f discord-client/docker-compose.yml ps bot | grep -q "Up"; then
             echo "Deployment successful - bot container is running"
-            docker-compose ps
+            docker-compose -f discord-client/docker-compose.yml ps
           else
             echo "Deployment failed - bot container not running"
             echo "Migration logs:"
-            docker-compose logs migrate
+            docker-compose -f discord-client/docker-compose.yml logs migrate
             echo "Bot logs:"
-            docker-compose logs bot
+            docker-compose -f discord-client/docker-compose.yml logs bot
             exit 1
           fi
         EOF

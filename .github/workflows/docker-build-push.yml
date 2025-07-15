@@ -5,6 +5,8 @@ on:
     workflows: ["Run Tests"]
     types:
       - completed
+    branches:
+      - main
 
 env:
   REGISTRY: ghcr.io
@@ -13,7 +15,7 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     permissions:
       contents: read
       packages: write
@@ -21,6 +23,27 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.4'
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install protobuf compiler
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y protobuf-compiler
+
+    - name: Install protobuf tools
+      run: make -C api install-tools
+
+    - name: Generate protobuf code
+      run: make proto
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -47,7 +70,7 @@ jobs:
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
-        context: .
+        context: discord-client
         target: prod
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.meta.outputs.tags }}

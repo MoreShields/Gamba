@@ -1,0 +1,15 @@
+syntax = "proto3";
+package gambler.models;
+
+option go_package = "gambler/api/gen/go/models";
+
+import "google/protobuf/timestamp.proto";
+
+// Event envelope for message bus
+message EventEnvelope {
+  string event_id = 1;                 // Unique event ID
+  string event_type = 2;               // Event type identifier
+  google.protobuf.Timestamp timestamp = 3;
+  string source_service = 4;           // Service that emitted event
+  bytes payload = 5;                   // Serialized event data
+}

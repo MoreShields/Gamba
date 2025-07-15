@@ -1,0 +1,26 @@
+syntax = "proto3";
+package gambler.events;
+
+option go_package = "gambler/api/gen/go/events";
+
+import "google/protobuf/timestamp.proto";
+
+// Messages emitted from discord-bot
+message PlayerTrackingCommand {
+  oneof command {
+    StartTrackingPlayer start_tracking = 1;
+    StopTrackingPlayer stop_tracking = 2;
+  }
+}
+
+message StartTrackingPlayer {
+  string summoner_name = 1;            // Primary identifier
+  string region = 2;                   // Region (na1, euw1, etc.)
+  google.protobuf.Timestamp requested_at = 3;
+}
+
+message StopTrackingPlayer {
+  string summoner_name = 1;            // Primary identifier
+  string region = 2;                   // Region (na1, euw1, etc.)
+  google.protobuf.Timestamp requested_at = 3;
+}

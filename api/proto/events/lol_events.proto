@@ -1,0 +1,38 @@
+syntax = "proto3";
+package gambler.events;
+
+option go_package = "gambler/api/gen/go/events";
+
+import "google/protobuf/timestamp.proto";
+
+enum GameStatus {
+  GAME_STATUS_UNKNOWN = 0;             // Unknown/unset status
+  GAME_STATUS_NOT_IN_GAME = 1;         // Not currently playing
+  GAME_STATUS_IN_CHAMPION_SELECT = 2;  // In champion select. Might not be able to detect this with Riot API alone.
+  GAME_STATUS_IN_GAME = 3;             // Currently playing
+}
+
+// Events emitted from lol-tracker
+message LoLGameStateChanged {
+  string summoner_name = 1;            // Primary identifier
+  string region = 2;                   // Region
+  
+  GameStatus previous_status = 3;      // Previous game status
+  GameStatus current_status = 4;       // Current game status
+  
+  // Game metadata (populated when transitioning out of IN_GAME)
+  optional GameResult game_result = 5; // Win/loss info when game ends
+  google.protobuf.Timestamp event_time = 6; // When this change occurred
+  
+  // Optional game context
+  optional string game_id = 7;         // Riot game ID (when available)
+  optional string queue_type = 8;      // Ranked, Normal, ARAM, etc.
+}
+
+message GameResult {
+  bool won = 1;                        // Did the player win?
+  int32 duration_seconds = 2;          // Game duration
+  string queue_type = 3;               // Type of game
+  string champion_played = 4;          // Champion name
+  
+}
