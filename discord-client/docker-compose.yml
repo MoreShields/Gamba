@@ -28,6 +28,7 @@ services:
       # group wager resolver user IDs
       RESOLVER_DISCORD_IDS: ${RESOLVER_DISCORD_IDS}
       
+    network: host
     restart: unless-stopped
     depends_on:
       migrate:
