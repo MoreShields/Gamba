@@ -53,22 +53,13 @@ jobs:
           # Login to GitHub Container Registry
           echo ${{ secrets.GITHUB_TOKEN }} | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
           
-          # Pull latest image
-          docker-compose -f discord-client/docker-compose.yml pull
-          
-          # Stop current containers
-          docker-compose -f discord-client/docker-compose.yml down
-
-          echo $DATABASE_URL > db_url_env.txt
-
-          
-          # Start services with environment variables (migrations will run first due to depends_on)
+          # Deploy using Makefile target
           DATABASE_URL=$DATABASE_URL \
           DISCORD_TOKEN=$DISCORD_TOKEN \
           HIGH_ROLLER_ENABLED=$HIGH_ROLLER_ENABLED \
           HIGH_ROLLER_ROLE_ID=$HIGH_ROLLER_ROLE_ID \
           RESOLVER_DISCORD_IDS=$RESOLVER_DISCORD_IDS \
-          docker-compose -f discord-client/docker-compose.yml up -d
+          make deploy-discord
           
           # Clean up old images
           docker image prune -f
@@ -79,10 +70,12 @@ jobs:
         ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
           cd ~/gamba
           
+          # Verify deployment using Makefile target
+          make verify-deployment
+          
           # Check if bot container is running
           if docker-compose -f discord-client/docker-compose.yml ps bot | grep -q "Up"; then
             echo "Deployment successful - bot container is running"
-            docker-compose -f discord-client/docker-compose.yml ps
           else
             echo "Deployment failed - bot container not running"
             echo "Migration logs:"
