@@ -3,10 +3,11 @@ services:
     container_name: discord-client-migrate
     image: ghcr.io/moreshields/gamba:latest
     environment:
-      # Database configuration - use host's postgres in production
+      # Database configuration - use host.docker.internal to reach host postgres from docker bridge network.
       DATABASE_URL: ${DATABASE_URL}
     command: ["./gambler", "migrate", "up"]
-    network_mode: host  # Access host's postgres instance
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: "no"  # Run once and exit
 
   bot:
@@ -16,7 +17,7 @@ services:
       # Discord configuration
       DISCORD_TOKEN: ${DISCORD_TOKEN}
       
-      # Database configuration - use host's postgres in production
+      # Database configuration - use host.docker.internal to reach host postgres from docker bridge network.
       DATABASE_URL: ${DATABASE_URL}
       
       # Bot configuration
@@ -31,7 +32,8 @@ services:
       RESOLVER_DISCORD_IDS: ${RESOLVER_DISCORD_IDS}
       
     restart: unless-stopped
-    network_mode: host  # Access host's postgres instance
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       migrate:
         condition: service_completed_successfully
