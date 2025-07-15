@@ -46,7 +46,7 @@ func (r *UserRepository) GetByDiscordID(ctx context.Context, discordID int64) (*
 				 FROM wagers w 
 				 WHERE (w.proposer_discord_id = uga.discord_id OR w.target_discord_id = uga.discord_id)
 				   AND w.guild_id = uga.guild_id
-				   AND w.state IN ('proposed', 'voting')), 
+				   AND w.state = 'voting'), 
 				0
 			) - COALESCE(
 				(SELECT SUM(gwp.amount)
@@ -176,7 +176,7 @@ func (r *UserRepository) GetUsersWithPositiveBalance(ctx context.Context) ([]*mo
 				 FROM wagers w 
 				 WHERE (w.proposer_discord_id = uga.discord_id OR w.target_discord_id = uga.discord_id)
 				   AND w.guild_id = uga.guild_id
-				   AND w.state IN ('proposed', 'voting')), 
+				   AND w.state = 'voting'), 
 				0
 			) - COALESCE(
 				(SELECT SUM(gwp.amount)
@@ -237,7 +237,7 @@ func (r *UserRepository) GetAll(ctx context.Context) ([]*models.User, error) {
 				 FROM wagers w 
 				 WHERE (w.proposer_discord_id = uga.discord_id OR w.target_discord_id = uga.discord_id)
 				   AND w.guild_id = uga.guild_id
-				   AND w.state IN ('proposed', 'voting')), 
+				   AND w.state = 'voting'), 
 				0
 			) - COALESCE(
 				(SELECT SUM(gwp.amount)
