@@ -31,7 +31,7 @@ generate-go: ## Generate Go protobuf code
 	protoc -I=proto \
 		--go_out=gen/go --go_opt=paths=source_relative \
 		--go-grpc_out=gen/go --go-grpc_opt=paths=source_relative \
-		proto/events/*.proto proto/models/*.proto
+		proto/events/*.proto proto/models/*.proto proto/services/*.proto
 
 generate-python: ## Generate Python protobuf code
 	@echo "Generating Python protobuf code..."
@@ -39,7 +39,7 @@ generate-python: ## Generate Python protobuf code
 	../venv/bin/python -m grpc_tools.protoc -I=proto \
 		--python_out=gen/python \
 		--grpc_python_out=gen/python \
-		proto/events/*.proto proto/models/*.proto
+		proto/events/*.proto proto/models/*.proto proto/services/*.proto
 
 clean: ## Clean generated files
 	rm -rf gen/

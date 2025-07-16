@@ -1,4 +1,5 @@
 """Pytest configuration and fixtures for integration testing."""
+
 import asyncio
 import os
 from typing import AsyncGenerator
@@ -36,7 +37,7 @@ def postgres_container():
 async def test_config(postgres_container):
     """Create a test configuration with the container database URL."""
     database_url = os.environ["TEST_DATABASE_URL"]
-    
+
     config = Config(
         database_url=database_url,
         database_name="test",  # Use the database created by testcontainer
@@ -44,7 +45,7 @@ async def test_config(postgres_container):
         environment=Environment.CI,
         log_level="DEBUG",
     )
-    
+
     return config
 
 
@@ -53,12 +54,12 @@ async def db_manager(test_config: Config):
     """Create and initialize a database manager for testing (function-scoped for isolation)."""
     manager = DatabaseManager(test_config)
     await manager.initialize()
-    
+
     # Create tables for each test
     await manager.create_tables()
-    
+
     yield manager
-    
+
     # Cleanup - drop tables and close
     try:
         await manager.drop_tables()
@@ -74,7 +75,7 @@ async def db_session(db_manager: DatabaseManager) -> AsyncGenerator[AsyncSession
     async with db_manager.get_session() as session:
         # Start a transaction
         transaction = await session.begin()
-        
+
         try:
             yield session
         finally:
@@ -83,7 +84,9 @@ async def db_session(db_manager: DatabaseManager) -> AsyncGenerator[AsyncSession
 
 
 @pytest_asyncio.fixture
-async def clean_db_session(db_manager: DatabaseManager) -> AsyncGenerator[AsyncSession, None]:
+async def clean_db_session(
+    db_manager: DatabaseManager,
+) -> AsyncGenerator[AsyncSession, None]:
     """Create a database session that commits changes (for testing commit behavior)."""
     async with db_manager.get_session() as session:
         yield session

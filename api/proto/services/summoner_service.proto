@@ -1,0 +1,67 @@
+syntax = "proto3";
+package gambler.services;
+
+option go_package = "gambler/api/gen/go/services";
+
+import "google/protobuf/timestamp.proto";
+
+// Service for managing summoner tracking with immediate validation
+service SummonerTrackingService {
+  // Start tracking a summoner with immediate validation
+  rpc StartTrackingSummoner(StartTrackingSummonerRequest) returns (StartTrackingSummonerResponse);
+  
+  // Stop tracking a summoner
+  rpc StopTrackingSummoner(StopTrackingSummonerRequest) returns (StopTrackingSummonerResponse);
+}
+
+// Request to start tracking a summoner
+message StartTrackingSummonerRequest {
+  string summoner_name = 1;           // Summoner name to validate and track
+  string region = 2;                  // Region (na1, euw1, etc.)
+  google.protobuf.Timestamp requested_at = 3;
+}
+
+// Response to start tracking request
+message StartTrackingSummonerResponse {
+  bool success = 1;                   // Whether the request was successful
+  optional SummonerDetails summoner_details = 2;  // Validated summoner info
+  optional string error_message = 3;   // Error message if validation failed
+  optional ValidationError error_code = 4;  // Structured error code
+}
+
+// Request to stop tracking a summoner
+message StopTrackingSummonerRequest {
+  string summoner_name = 1;           // Summoner name to stop tracking
+  string region = 2;                  // Region (na1, euw1, etc.)
+  google.protobuf.Timestamp requested_at = 3;
+}
+
+// Response to stop tracking request
+message StopTrackingSummonerResponse {
+  bool success = 1;                   // Whether the request was successful
+  optional string error_message = 2;  // Error message if operation failed
+  optional ValidationError error_code = 3;  // Structured error code
+}
+
+// Validated summoner details from Riot API
+message SummonerDetails {
+  string puuid = 1;                   // Player UUID (persistent across regions)
+  string account_id = 2;              // Account ID (region-specific)
+  string summoner_id = 3;             // Summoner ID (region-specific)
+  string summoner_name = 4;           // Exact summoner name from API
+  int32 summoner_level = 5;           // Current summoner level
+  string region = 6;                  // Region where summoner was found
+  int64 last_updated = 7;             // Unix timestamp of last profile update
+}
+
+// Structured error codes for validation failures
+enum ValidationError {
+  VALIDATION_ERROR_UNKNOWN = 0;       // Unknown error
+  VALIDATION_ERROR_SUMMONER_NOT_FOUND = 1;  // Summoner does not exist
+  VALIDATION_ERROR_INVALID_REGION = 2;      // Invalid region specified
+  VALIDATION_ERROR_API_ERROR = 3;           // Riot API error
+  VALIDATION_ERROR_RATE_LIMITED = 4;        // Rate limit exceeded
+  VALIDATION_ERROR_ALREADY_TRACKED = 5;     // Summoner is already being tracked
+  VALIDATION_ERROR_NOT_TRACKED = 6;         // Summoner is not being tracked
+  VALIDATION_ERROR_INTERNAL_ERROR = 7;      // Internal service error
+}
