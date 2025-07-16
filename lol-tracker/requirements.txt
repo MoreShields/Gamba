@@ -11,12 +11,16 @@ grpcio-tools>=1.60.0
 # Database
 sqlalchemy[asyncio]>=2.0.0
 alembic>=1.13.0
+psycopg2-binary>=2.9.0
 
 # HTTP client for Riot API
 httpx>=0.25.0
 
+# Message bus (NATS with JetStream support)
+nats-py[jetstream]>=2.6.0
+
 # Configuration and environment
-python-dotenv>=1.0.0
+python-decouple>=3.8
 
 # Logging and monitoring
 structlog>=23.2.0

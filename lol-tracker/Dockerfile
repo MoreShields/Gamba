@@ -33,7 +33,7 @@ RUN mkdir -p ./generated/proto && \
         proto/events/*.proto proto/models/*.proto
 
 # Development stage
-FROM python:3.11-slim as development
+FROM python:3.11-slim as dev
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \

@@ -1,0 +1,101 @@
+services:
+  # NATS message broker with JetStream
+  nats:
+    image: nats:2.10-alpine
+    container_name: gambler-nats
+    command: ["-c", "/etc/nats/nats.conf"]
+    ports:
+      - "4222:4222"  # NATS client port
+      - "8222:8222"  # HTTP monitoring port
+    volumes:
+      - nats_data:/data
+      - ./nats.conf:/etc/nats/nats.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8222/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    profiles: ["nats", "lol"]
+
+  # Discord bot migration service
+  discord-migrate:
+    container_name: discord-migrate
+    image: ghcr.io/moreshields/gamba:latest
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    command: ["gambler", "migrate", "up"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: "no"
+    profiles: ["discord"]
+
+  # Discord bot service
+  discord-bot:
+    container_name: discord-bot
+    image: ghcr.io/moreshields/gamba:latest
+    environment:
+      # Discord configuration
+      DISCORD_TOKEN: ${DISCORD_TOKEN}
+      
+      # Database configuration
+      DATABASE_URL: ${DATABASE_URL}
+      
+      # Bot configuration
+      STARTING_BALANCE: ${STARTING_BALANCE:-100000}
+      HIGH_ROLLER_ROLE_ID: ${HIGH_ROLLER_ROLE_ID}
+      HIGH_ROLLER_ENABLED: ${HIGH_ROLLER_ENABLED}
+      RESOLVER_DISCORD_IDS: ${RESOLVER_DISCORD_IDS}
+      
+      # Environment
+      ENVIRONMENT: production
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      discord-migrate:
+        condition: service_completed_successfully
+    profiles: ["discord"]
+
+  # LoL Tracker service
+  lol-tracker:
+    container_name: lol-tracker
+    image: ghcr.io/moreshields/lol-tracker:latest
+    environment:
+      # Database configuration
+      DATABASE_URL: ${DATABASE_URL}
+      
+      # LoL Tracker configuration
+      RIOT_API_KEY: ${RIOT_API_KEY}
+      RIOT_API_BASE_URL: ${RIOT_API_BASE_URL:-https://na1.api.riotgames.com}
+      POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-60}
+      
+      # Message bus configuration
+      MESSAGE_BUS_URL: nats://nats:4222
+      
+      # Environment
+      ENVIRONMENT: production
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import asyncio; import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    profiles: ["lol"]
+
+volumes:
+  nats_data:
+
+networks:
+  default:
+    name: gambler-network

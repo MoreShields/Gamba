@@ -1,3 +1,4 @@
+-- Dev database setupC
 -- Create separate databases for each service
 CREATE DATABASE gambler_db;
 CREATE DATABASE lol_tracker_db;

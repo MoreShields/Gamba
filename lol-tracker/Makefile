@@ -1,4 +1,4 @@
-.PHONY: help build test clean dev install lint format proto run docker-build docker-run
+.PHONY: help build test clean dev install lint format proto run
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -6,51 +6,68 @@ help: ## Show this help message
 	@echo 'Targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
+# Virtual environment configuration
+VENV_DIR := $(shell if [ -d "../venv" ]; then echo "../venv"; else echo "./venv"; fi)
+PYTHON := $(VENV_DIR)/bin/python
+PIP := $(VENV_DIR)/bin/pip
+
 # Development setup
 install: ## Install dependencies in virtual environment
-	python3 -m venv venv
-	./venv/bin/pip install --upgrade pip
-	./venv/bin/pip install -r requirements-dev.txt
+	@if [ ! -d "../venv" ]; then \
+		echo "Creating local venv (parent venv not found)"; \
+		python3 -m venv venv; \
+		./venv/bin/pip install --upgrade pip; \
+		./venv/bin/pip install -r requirements-dev.txt; \
+	else \
+		echo "Using parent project venv"; \
+		$(PIP) install -r requirements-dev.txt; \
+	fi
 
 install-prod: ## Install production dependencies only
-	python3 -m venv venv
-	./venv/bin/pip install --upgrade pip
-	./venv/bin/pip install -r requirements.txt
+	@if [ ! -d "../venv" ]; then \
+		echo "Creating local venv (parent venv not found)"; \
+		python3 -m venv venv; \
+		./venv/bin/pip install --upgrade pip; \
+		./venv/bin/pip install -r requirements.txt; \
+	else \
+		echo "Using parent project venv"; \
+		$(PIP) install -r requirements.txt; \
+	fi
 
 # Code quality
 lint: ## Run linting checks
-	./venv/bin/flake8 src/ tests/
-	./venv/bin/mypy src/
+	$(PYTHON) -m flake8 lol_tracker/ tests/
+	$(PYTHON) -m mypy lol_tracker/
 
 format: ## Format code with black and isort
-	./venv/bin/black src/ tests/
-	./venv/bin/isort src/ tests/
+	$(PYTHON) -m black lol_tracker/ tests/
+	$(PYTHON) -m isort lol_tracker/ tests/
 
 format-check: ## Check if code is formatted correctly
-	./venv/bin/black --check src/ tests/
-	./venv/bin/isort --check-only src/ tests/
+	$(PYTHON) -m black --check lol_tracker/ tests/
+	$(PYTHON) -m isort --check-only lol_tracker/ tests/
 
 # Testing
 test: ## Run all tests
-	PYTHONPATH=src ./venv/bin/pytest tests/ -v
+	PYTHONPATH=. $(PYTHON) -m pytest tests/ -v
 
 test-unit: ## Run unit tests only
-	PYTHONPATH=src ./venv/bin/pytest tests/ -v -k "not integration"
+	PYTHONPATH=. $(PYTHON) -m pytest tests/ -v -m "not integration"
 
 test-integration: ## Run integration tests only
-	PYTHONPATH=src ./venv/bin/pytest tests/ -v -k "integration"
+	PYTHONPATH=. $(PYTHON) -m pytest tests/ -v -m "integration"
 
 test-cov: ## Run tests with coverage
-	PYTHONPATH=src ./venv/bin/pytest tests/ --cov=src/lol_tracker --cov-report=html --cov-report=term
+	PYTHONPATH=. $(PYTHON) -m pytest tests/ --cov=lol_tracker --cov-report=html --cov-report=term
 
 # Protocol Buffers
 proto: ## Generate Python protobuf code locally for development
 	@echo "Generating Python protobuf code for development..."
-	@mkdir -p src/lol_tracker/proto/events src/lol_tracker/proto/models
+	@mkdir -p lol_tracker/proto/events lol_tracker/proto/models
 	@if [ -d "../api/proto" ]; then \
-		./venv/bin/python -m grpc_tools.protoc -I=../api/proto \
-			--python_out=src/lol_tracker/proto \
-			--grpc_python_out=src/lol_tracker/proto \
+		$(PYTHON) -m grpc_tools.protoc -I=../api/proto \
+			--python_out=lol_tracker/proto \
+			--grpc_python_out=lol_tracker/proto \
 			../api/proto/events/*.proto ../api/proto/models/*.proto; \
 		echo "Generated protobuf files for local development"; \
 	else \
@@ -64,9 +81,9 @@ dev-local: ## Run the service locally in development mode
 		echo "Warning: .env file not found at project root. Copy .env.example to .env and configure."; \
 	fi
 	@if [ -f ../.env ]; then \
-		set -a; source ../.env; set +a; PYTHONPATH=src ./venv/bin/python -m lol_tracker.main; \
+		set -a; source ../.env; set +a; PYTHONPATH=. $(PYTHON) -m lol_tracker.main; \
 	else \
-		PYTHONPATH=src ./venv/bin/python -m lol_tracker.main; \
+		PYTHONPATH=. $(PYTHON) -m lol_tracker.main; \
 	fi
 
 dev: ## Start development environment (use root 'make dev' instead)
@@ -74,19 +91,6 @@ dev: ## Start development environment (use root 'make dev' instead)
 	@exit 1
 
 run: dev-local ## Alias for dev-local
-
-# Docker
-docker-build: ## Build Docker image
-	docker build -t lol-tracker:latest .
-
-docker-run: ## Run Docker container
-	docker run --rm -it \
-		--env-file ../.env \
-		-p 8080:8080 \
-		lol-tracker:latest
-
-prod: ## Build and run production container with docker-compose
-	docker-compose up --build
 
 # Utilities
 clean: ## Clean build artifacts and cache
@@ -102,6 +106,47 @@ clean: ## Clean build artifacts and cache
 clean-venv: ## Remove virtual environment
 	rm -rf venv/
 
+# Database migration commands
+migrate-up: ## Run pending database migrations (production)
+	$(PYTHON) -m alembic upgrade head
+
+migrate-down: ## Rollback last database migration (production)
+	$(PYTHON) -m alembic downgrade -1
+
+migrate-status: ## Check migration status (production)
+	$(PYTHON) -m alembic current
+
+migrate-up-dev: ## Run pending database migrations (local development)
+	@if [ -f ../.env ]; then \
+		set -a; source ../.env; set +a; $(PYTHON) -m alembic upgrade head; \
+	elif [ -f .env ]; then \
+		set -a; source .env; set +a; $(PYTHON) -m alembic upgrade head; \
+	else \
+		echo "Error: .env file not found. Create .env in project root or lol-tracker/ directory."; exit 1; \
+	fi
+
+migrate-down-dev: ## Rollback last database migration (local development)
+	@if [ -f ../.env ]; then \
+		set -a; source ../.env; set +a; $(PYTHON) -m alembic downgrade -1; \
+	elif [ -f .env ]; then \
+		set -a; source .env; set +a; $(PYTHON) -m alembic downgrade -1; \
+	else \
+		echo "Error: .env file not found. Create .env in project root or lol-tracker/ directory."; exit 1; \
+	fi
+
+migrate-status-dev: ## Check migration status (local development)
+	@if [ -f ../.env ]; then \
+		set -a; source ../.env; set +a; $(PYTHON) -m alembic current; \
+	elif [ -f .env ]; then \
+		set -a; source .env; set +a; $(PYTHON) -m alembic current; \
+	else \
+		echo "Error: .env file not found. Create .env in project root or lol-tracker/ directory."; exit 1; \
+	fi
+
+migrate-create: ## Create a new migration file (usage: make migrate-create NAME=add_feature)
+	@if [ -z "$(NAME)" ]; then echo "Usage: make migrate-create NAME=<migration_name>"; exit 1; fi
+	$(PYTHON) -m alembic revision --autogenerate -m "$(NAME)"
+
 # Build target for CI/CD
-build: install-prod proto lint test ## Build the service (install, generate proto, lint, test)
+build: install proto lint test ## Build the service (install, generate proto, lint, test)
 

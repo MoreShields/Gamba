@@ -1,4 +1,4 @@
-.PHONY: help dev down build test clean prod discord-client lol-tracker proto
+.PHONY: help dev down build test clean deploy proto
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -7,46 +7,44 @@ help: ## Show this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 # Development commands
-dev: ## Start complete development environment (discord-client + lol-tracker + postgres)
+dev: ## Start complete development environment (discord-client + lol-tracker + postgres + nats)
 	@if [ -f .env ]; then \
 		set -a; source .env; set +a; \
-		docker-compose -f docker-compose.dev.yml up; \
+		docker-compose -f docker-compose.yml -f docker-compose.dev.yml --profile discord --profile lol up; \
 	else \
 		echo "Warning: .env file not found. Some environment variables may not be set."; \
-		docker-compose -f docker-compose.dev.yml up; \
+		docker-compose -f docker-compose.yml -f docker-compose.dev.yml --profile discord --profile lol up; \
 	fi
 
 down: ## Stop all development containers
-	docker-compose -f docker-compose.dev.yml down
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml --profile discord --profile lol down
 
 
 # Production deployment commands (used by GitHub Actions)
-deploy-discord: ## Deploy Discord bot in production (used by GitHub Actions)
-	docker-compose -f discord-client/docker-compose.yml pull
-	docker-compose -f discord-client/docker-compose.yml down
-	docker-compose -f discord-client/docker-compose.yml up -d
-
-deploy-lol-tracker: ## Deploy LoL tracker in production (used by GitHub Actions)
-	docker-compose -f lol-tracker/docker-compose.yml pull
-	docker-compose -f lol-tracker/docker-compose.yml down
-	docker-compose -f lol-tracker/docker-compose.yml up -d
-
-deploy-all: ## Deploy all services in production
-	$(MAKE) deploy-discord
-	$(MAKE) deploy-lol-tracker
+deploy: ## Deploy all services in production
+	docker-compose -f docker-compose.yml --profile discord --profile lol pull
+	docker-compose -f docker-compose.yml --profile discord --profile lol down
+	docker-compose -f docker-compose.yml --profile discord --profile lol up -d
 
 verify-deployment: ## Verify production deployment status
-	@echo "=== Discord Bot Status ==="
-	@docker-compose -f discord-client/docker-compose.yml ps
+	@echo "=== All Services Status ==="
+	@docker-compose -f docker-compose.yml ps
 	@echo ""
-	@echo "=== LoL Tracker Status ==="
-	@docker-compose -f lol-tracker/docker-compose.yml ps || echo "LoL Tracker not deployed"
+	@echo "=== Discord Bot ==="
+	@docker-compose -f docker-compose.yml ps discord-bot discord-migrate || echo "Discord bot not deployed"
+	@echo ""
+	@echo "=== LoL Tracker ==="
+	@docker-compose -f docker-compose.yml ps lol-tracker nats || echo "LoL Tracker not deployed"
 
-prod-logs: ## View production logs (use SERVICE=discord|lol to specify)
-	@if [ "$(SERVICE)" = "lol" ]; then \
-		docker-compose -f lol-tracker/docker-compose.yml logs -f; \
+prod-logs: ## View production logs (use SERVICE=discord|lol|nats to specify)
+	@if [ "$(SERVICE)" = "discord" ]; then \
+		docker-compose -f docker-compose.yml logs -f discord-bot; \
+	elif [ "$(SERVICE)" = "lol" ]; then \
+		docker-compose -f docker-compose.yml logs -f lol-tracker; \
+	elif [ "$(SERVICE)" = "nats" ]; then \
+		docker-compose -f docker-compose.yml logs -f nats; \
 	else \
-		docker-compose -f discord-client/docker-compose.yml logs -f; \
+		docker-compose -f docker-compose.yml logs -f; \
 	fi
 
 # Protobuf commands
@@ -54,25 +52,31 @@ proto: ## Generate protobuf code for all services
 	$(MAKE) -C api generate
 
 # Build commands
-build: proto discord-client lol-tracker ## Build all services
+build: proto build-discord build-lol ## Build all services
 	@echo "All services built successfully"
 
-discord-client: ## Build discord client service
+build-discord: ## Build discord client service
 	$(MAKE) -C discord-client build
 
-lol-tracker: ## Build lol-tracker service
+build-lol: ## Build lol-tracker service
 	$(MAKE) -C lol-tracker build
 
 # Docker build commands (for CI/CD)
+docker-build: docker-build-discord docker-build-lol ## Build all Docker images
+
 docker-build-discord: ## Build Discord bot Docker image
 	docker build -f discord-client/Dockerfile --target prod discord-client
 
-docker-build-lol-tracker: ## Build LoL tracker Docker image
+docker-build-lol: ## Build LoL tracker Docker image
 	docker build -f lol-tracker/Dockerfile --target production .
 
 # Test commands
-test: ## Run tests for all services
+test: test-discord test-lol ## Run tests for all services
+
+test-discord: ## Run tests for discord service
 	$(MAKE) -C discord-client test
+
+test-lol: ## Run tests for lol service
 	$(MAKE) -C lol-tracker test
 
 test-unit: ## Run unit tests for all services
@@ -84,61 +88,91 @@ test-integration: ## Run integration tests for all services
 	$(MAKE) -C lol-tracker test-integration
 
 # Clean commands
-clean: ## Clean build artifacts for all services
+clean: clean-api clean-discord clean-lol ## Clean build artifacts for all services
+
+clean-api: ## Clean API artifacts
 	$(MAKE) -C api clean
+
+clean-discord: ## Clean discord service artifacts
 	$(MAKE) -C discord-client clean
+
+clean-lol: ## Clean lol service artifacts
 	$(MAKE) -C lol-tracker clean
+
+setup-venv: ## Create and setup Python virtual environment with all dev dependencies
+	@if [ ! -d "venv" ]; then \
+		echo "Creating Python virtual environment..."; \
+		python3 -m venv venv; \
+		./venv/bin/pip install --upgrade pip; \
+	fi
+	@echo "Installing lol-tracker dependencies..."
+	@./venv/bin/pip install -r lol-tracker/requirements-dev.txt
+	@echo "Virtual environment setup complete!"
 
 clean-venv: ## Remove Python virtual environment
 	rm -rf venv/
 
 # Database commands
-db-shell: ## Connect to the development database shell (use SERVICE=discord|lol to specify)
-	@if [ "$(SERVICE)" = "lol" ]; then \
-		docker-compose -f docker-compose.dev.yml exec postgres psql -U gambler -d lol_tracker_db; \
-	else \
-		docker-compose -f docker-compose.dev.yml exec postgres psql -U gambler -d discord_db; \
-	fi
+db-shell-discord: ## Connect to the discord database shell
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml exec postgres psql -U gambler -d gambler_db
 
-db-drop: ## Drop and recreate the development database (use SERVICE=discord|lol to specify)
-	@if [ "$(SERVICE)" = "lol" ]; then \
-		docker-compose -f docker-compose.dev.yml exec postgres dropdb -U gambler lol_tracker_db; \
-		docker-compose -f docker-compose.dev.yml exec postgres createdb -U gambler lol_tracker_db; \
-	else \
-		docker-compose -f docker-compose.dev.yml exec postgres dropdb -U gambler discord_db; \
-		docker-compose -f docker-compose.dev.yml exec postgres createdb -U gambler discord_db; \
-	fi
+db-shell-lol: ## Connect to the lol database shell
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml exec postgres psql -U gambler -d lol_tracker_db
 
-# Migration commands (delegate to discord-client)
-migrate-up: ## Run pending database migrations (production)
-	$(MAKE) -C discord-client migrate-up
+db-drop-discord: ## Drop and recreate the discord development database
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml exec postgres dropdb -U gambler gambler_db
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml exec postgres createdb -U gambler gambler_db
 
-migrate-down: ## Rollback last database migration (production)
-	$(MAKE) -C discord-client migrate-down
+db-drop-lol: ## Drop and recreate the lol development database
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml exec postgres dropdb -U gambler lol_tracker_db
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml exec postgres createdb -U gambler lol_tracker_db
 
-migrate-status: ## Check migration status (production)
-	$(MAKE) -C discord-client migrate-status
-
-migrate-up-dev: ## Run pending database migrations (local development)
+# Migration commands
+migrate-dev-up-discord: ## Run pending database migrations for discord service (local development)
 	$(MAKE) -C discord-client migrate-up-dev
 
-migrate-down-dev: ## Rollback last database migration (local development)
-	$(MAKE) -C discord-client migrate-down-dev
+migrate-dev-up-lol: ## Run pending database migrations for lol service (local development)
+	$(MAKE) setup-venv
+	$(MAKE) -C lol-tracker migrate-up-dev
 
-migrate-status-dev: ## Check migration status (local development)
-	$(MAKE) -C discord-client migrate-status-dev
+migrate-up-discord: ## Run pending database migrations for discord service (production)
+	$(MAKE) -C discord-client migrate-up
 
-migrate-create: ## Create a new migration file (usage: make migrate-create NAME=add_feature)
+migrate-up-lol: ## Run pending database migrations for lol service (production)
+	$(MAKE) setup-venv
+	$(MAKE) -C lol-tracker migrate-up
+
+migrate-down-discord: ## Rollback last database migration for discord service
+	$(MAKE) -C discord-client migrate-down
+
+migrate-down-lol: ## Rollback last database migration for lol service
+	$(MAKE) setup-venv
+	$(MAKE) -C lol-tracker migrate-down
+
+migrate-status-discord: ## Check migration status for discord service
+	$(MAKE) -C discord-client migrate-status
+
+migrate-status-lol: ## Check migration status for lol service
+	$(MAKE) setup-venv
+	$(MAKE) -C lol-tracker migrate-status
+
+migrate-create-discord: ## Create a new migration file for discord service (usage: make migrate-create-discord NAME=add_feature)
 	$(MAKE) -C discord-client migrate-create NAME=$(NAME)
 
+migrate-create-lol: ## Create a new migration file for lol service (usage: make migrate-create-lol NAME=add_feature)
+	$(MAKE) setup-venv
+	$(MAKE) -C lol-tracker migrate-create NAME=$(NAME)
+
 # Logging
-logs: ## View service logs (use SERVICE=discord|lol|postgres to specify, or all if not specified)
+logs: ## View service logs (use SERVICE=discord|lol|postgres|nats to specify, or all if not specified)
 	@if [ "$(SERVICE)" = "discord" ]; then \
-		docker-compose -f docker-compose.dev.yml logs -f discord-bot; \
+		docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f discord-bot; \
 	elif [ "$(SERVICE)" = "lol" ]; then \
-		docker-compose -f docker-compose.dev.yml logs -f lol-tracker; \
+		docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f lol-tracker; \
 	elif [ "$(SERVICE)" = "postgres" ]; then \
-		docker-compose -f docker-compose.dev.yml logs -f postgres; \
+		docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f postgres; \
+	elif [ "$(SERVICE)" = "nats" ]; then \
+		docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f nats; \
 	else \
-		docker-compose -f docker-compose.dev.yml logs -f; \
+		docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f; \
 	fi
