@@ -221,6 +221,16 @@ func (m *MockGroupWagerRepository) UpdateOptionTotal(ctx context.Context, option
 	return args.Error(0)
 }
 
+func (m *MockGroupWagerRepository) UpdateOptionOdds(ctx context.Context, optionID int64, oddsMultiplier float64) error {
+	args := m.Called(ctx, optionID, oddsMultiplier)
+	return args.Error(0)
+}
+
+func (m *MockGroupWagerRepository) UpdateAllOptionOdds(ctx context.Context, groupWagerID int64, oddsMultipliers map[int64]float64) error {
+	args := m.Called(ctx, groupWagerID, oddsMultipliers)
+	return args.Error(0)
+}
+
 func (m *MockGroupWagerRepository) GetStats(ctx context.Context, discordID int64) (*models.GroupWagerStats, error) {
 	args := m.Called(ctx, discordID)
 	return args.Get(0).(*models.GroupWagerStats), args.Error(1)
