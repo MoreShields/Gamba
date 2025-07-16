@@ -192,6 +192,8 @@ type GroupWagerRepository interface {
 
 	// Option operations
 	UpdateOptionTotal(ctx context.Context, optionID int64, totalAmount int64) error
+	UpdateOptionOdds(ctx context.Context, optionID int64, oddsMultiplier float64) error
+	UpdateAllOptionOdds(ctx context.Context, groupWagerID int64, oddsMultipliers map[int64]float64) error
 	
 	// Stats operations
 	GetStats(ctx context.Context, discordID int64) (*models.GroupWagerStats, error)
@@ -205,7 +207,7 @@ type GroupWagerRepository interface {
 // GroupWagerService defines the interface for group wager operations
 type GroupWagerService interface {
 	// CreateGroupWager creates a new group wager with options
-	CreateGroupWager(ctx context.Context, creatorID int64, condition string, options []string, votingPeriodMinutes int, messageID, channelID int64) (*models.GroupWagerDetail, error)
+	CreateGroupWager(ctx context.Context, creatorID int64, condition string, options []string, votingPeriodMinutes int, messageID, channelID int64, wagerType models.GroupWagerType, oddsMultipliers []float64) (*models.GroupWagerDetail, error)
 
 	// PlaceBet allows a user to place or update their bet on a group wager option
 	PlaceBet(ctx context.Context, groupWagerID int64, userID int64, optionID int64, amount int64) (*models.GroupWagerParticipant, error)

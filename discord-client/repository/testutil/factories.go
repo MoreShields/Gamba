@@ -56,6 +56,7 @@ func CreateTestGroupWager(creatorID int64, condition string) *models.GroupWager 
 		CreatorDiscordID:    creatorID,
 		Condition:           condition,
 		State:               models.GroupWagerStateActive,
+		WagerType:           models.GroupWagerTypePool, // Default to pool
 		TotalPot:            0,
 		MinParticipants:     2,
 		VotingPeriodMinutes: 60,
@@ -65,6 +66,18 @@ func CreateTestGroupWager(creatorID int64, condition string) *models.GroupWager 
 		ChannelID:           789012,
 		CreatedAt:           time.Now(),
 	}
+}
+
+// CreateTestGroupWagerWithType creates a test group wager with specific type
+func CreateTestGroupWagerWithType(creatorID int64, condition string, wagerType models.GroupWagerType) *models.GroupWager {
+	wager := CreateTestGroupWager(creatorID, condition)
+	wager.WagerType = wagerType
+	return wager
+}
+
+// CreateTestHouseWager creates a test house group wager
+func CreateTestHouseWager(creatorID int64, condition string) *models.GroupWager {
+	return CreateTestGroupWagerWithType(creatorID, condition, models.GroupWagerTypeHouse)
 }
 
 // CreateTestGroupWagerResolved creates a resolved test group wager
@@ -80,12 +93,20 @@ func CreateTestGroupWagerResolved(creatorID int64, condition string, resolverID 
 // CreateTestGroupWagerOption creates a test group wager option
 func CreateTestGroupWagerOption(groupWagerID int64, text string, order int16) *models.GroupWagerOption {
 	return &models.GroupWagerOption{
-		GroupWagerID: groupWagerID,
-		OptionText:   text,
-		OptionOrder:  order,
-		TotalAmount:  0,
-		CreatedAt:    time.Now(),
+		GroupWagerID:   groupWagerID,
+		OptionText:     text,
+		OptionOrder:    order,
+		TotalAmount:    0,
+		OddsMultiplier: 0, // Default to 0 for pool wagers
+		CreatedAt:      time.Now(),
 	}
+}
+
+// CreateTestGroupWagerOptionWithOdds creates a test group wager option with specific odds
+func CreateTestGroupWagerOptionWithOdds(groupWagerID int64, text string, order int16, oddsMultiplier float64) *models.GroupWagerOption {
+	option := CreateTestGroupWagerOption(groupWagerID, text, order)
+	option.OddsMultiplier = oddsMultiplier
+	return option
 }
 
 // CreateTestGroupWagerParticipant creates a test group wager participant

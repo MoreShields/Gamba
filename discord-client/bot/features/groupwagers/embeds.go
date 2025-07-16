@@ -105,8 +105,8 @@ func CreateGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEm
 			percentage = float64(option.TotalAmount) * 100 / float64(detail.Wager.TotalPot)
 		}
 
-		// Calculate multiplier
-		multiplier := option.CalculateMultiplier(detail.Wager.TotalPot)
+		// Use stored multiplier for consistent display
+		multiplier := option.OddsMultiplier
 
 		// Build the visual bar graph line
 		multiplierEmoji := getMultiplierEmoji(multiplier)
