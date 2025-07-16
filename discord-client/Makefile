@@ -1,4 +1,4 @@
-.PHONY: help dev down build test clean prod
+.PHONY: help dev build test clean
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -10,14 +10,8 @@ dev: ## Start development environment (use root 'make dev' instead)
 	@echo "Please use 'make dev' from the project root directory instead"
 	@exit 1
 
-prod: ## Build and run production container (requires external postgres)
-	docker-compose up --build
-
 build: ## Build the application binary
 	go build -o bin/gambler main.go
-
-build-docker: ## Build production Docker image
-	docker build -t gambler:latest .
 
 test: ## Run all tests
 	go test -v ./...
@@ -31,13 +25,6 @@ test-integration: ## Run integration tests with testcontainers
 clean: ## Clean build artifacts
 	rm -rf bin/ tmp/
 
-db-shell: ## Connect to the development database shell (use root Makefile instead)
-	@echo "Please use 'make db-shell SERVICE=discord' from the project root directory instead"
-	@exit 1
-
-logs: ## View bot logs (use root Makefile instead)
-	@echo "Please use 'make logs SERVICE=discord' from the project root directory instead"
-	@exit 1
 
 migrate-up: ## Run pending database migrations (production)
 	docker run --rm --env-file .env gambler:latest ./gambler migrate up 

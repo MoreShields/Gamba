@@ -88,7 +88,7 @@ func handleBalanceAdjustment() error {
 	// Load configuration
 	cfg := config.Get()
 	// load infra
-	db, _ := database.NewConnection(context.Background(), cfg.DatabaseURL)
+	db, _ := database.NewConnection(context.Background(), cfg.GetDatabaseURL())
 	uowFactory := repository.NewUnitOfWorkFactory(db, events.NewBus())
 	uow := uowFactory.CreateForGuild(int64(guildId))
 	uow.Begin(ctx)

@@ -74,14 +74,14 @@ jobs:
           make verify-deployment
           
           # Check if bot container is running
-          if docker-compose -f discord-client/docker-compose.yml ps bot | grep -q "Up"; then
+          if docker-compose --profile discord ps discord-bot | grep -q "Up"; then
             echo "Deployment successful - bot container is running"
           else
             echo "Deployment failed - bot container not running"
             echo "Migration logs:"
-            docker-compose -f discord-client/docker-compose.yml logs migrate
+            docker-compose --profile discord logs discord-migrate
             echo "Bot logs:"
-            docker-compose -f discord-client/docker-compose.yml logs bot
+            docker-compose --profile discord logs discord-bot
             exit 1
           fi
         EOF

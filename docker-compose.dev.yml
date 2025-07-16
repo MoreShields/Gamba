@@ -1,5 +1,5 @@
 services:
-  # Single PostgreSQL instance with multiple databases
+  # PostgreSQL for development
   postgres:
     image: postgres:16-alpine
     container_name: gambler-postgres
@@ -18,91 +18,86 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - gambler-network
+    profiles: ["postgres", "discord", "lol"]
 
-  # Discord bot service
+  # NATS overrides for development
+  nats:
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Discord bot overrides for development
+  discord-migrate:
+    build:
+      context: ./discord-client
+      dockerfile: Dockerfile
+      target: prod
+    image: gambler-discord-migrate:dev
+    environment:
+      DATABASE_URL: postgres://gambler:gambler_dev_password@postgres:5432
+      DATABASE_NAME: gambler_db
+      ENVIRONMENT: development
+    working_dir: /app
+    command: ["gambler", "migrate", "up"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    extra_hosts: []
+    profiles: ["discord"]
+
   discord-bot:
-    container_name: discord-bot
     build:
       context: ./discord-client
       dockerfile: Dockerfile
       target: dev
+    image: gambler-discord-bot:dev
+    environment:
+      DATABASE_URL: postgres://gambler:gambler_dev_password@postgres:5432
+      DATABASE_NAME: gambler_db
+      ENVIRONMENT: development
+      LOG_LEVEL: debug
+      HIGH_ROLLER_ENABLED: true
+    volumes:
+      - ./discord-client:/app
+      - /app/tmp
+    working_dir: /app
+    command: air
+    stdin_open: true
+    tty: true
+    extra_hosts: []
+    profiles: ["discord"]
     depends_on:
       postgres:
         condition: service_healthy
-    env_file:
-      - .env
-    environment:
-      # Discord configuration
-      DISCORD_TOKEN: ${DISCORD_TOKEN}
-      
-      # Database configuration - use discord_db database
-      DATABASE_URL: postgres://gambler:gambler_dev_password@postgres:5432/gambler_db?sslmode=disable
-      
-      # Bot configuration
-      STARTING_BALANCE: ${STARTING_BALANCE:-100000}
-      HIGH_ROLLER_ROLE_ID: ${HIGH_ROLLER_ROLE_ID}
-      HIGH_ROLLER_ENABLED: true
-      RESOLVER_DISCORD_IDS: ${RESOLVER_DISCORD_IDS}
-      
-      # Environment
-      ENVIRONMENT: development
-      LOG_LEVEL: debug
-      
-    volumes:
-      - ./discord-client:/app
-      - /app/tmp  # Exclude tmp directory
-    working_dir: /app
-    command: air
-    restart: unless-stopped
-    stdin_open: true
-    tty: true
-    networks:
-      - gambler-network
+      discord-migrate:
+        condition: service_completed_successfully
 
-  # LoL Tracker service
+  # LoL Tracker overrides for development
   lol-tracker:
-    container_name: lol-tracker
     build:
       context: .
       dockerfile: lol-tracker/Dockerfile
-      target: development
-    depends_on:
-      postgres:
-        condition: service_healthy
-    env_file:
-      - .env
+      target: dev
     environment:
-      # LoL Tracker configuration
-      RIOT_API_KEY: ${RIOT_API_KEY}
-      RIOT_API_BASE_URL: ${RIOT_API_BASE_URL:-https://na1.api.riotgames.com}
-      POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-60}
-      
-      # Database configuration - use lol_tracker_db database
-      DATABASE_URL: postgres://gambler:gambler_dev_password@postgres:5432/lol_tracker_db?sslmode=disable
-      
-      # Message bus configuration
-      MESSAGE_BUS_URL: ${MESSAGE_BUS_URL}
-      
-      # Environment
+      DATABASE_URL: postgres://gambler:gambler_dev_password@postgres:5432
+      DATABASE_NAME: lol_tracker_db
       ENVIRONMENT: development
       LOG_LEVEL: debug
-      
     volumes:
-      - ./lol-tracker/src:/app/src
+      - ./lol-tracker/lol_tracker:/app/lol_tracker
       - ./lol-tracker/tests:/app/tests
     working_dir: /app
     command: python -m lol_tracker.main
-    restart: unless-stopped
     stdin_open: true
     tty: true
-    networks:
-      - gambler-network
+    extra_hosts: []
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    profiles: ["lol"]
 
 volumes:
   postgres_data:
-
-networks:
-  gambler-network:
-    driver: bridge

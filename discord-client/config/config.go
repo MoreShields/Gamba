@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	
+	"gambler/discord-client/database"
 )
 
 // Config holds all application configuration
@@ -15,7 +17,8 @@ type Config struct {
 	GuildID      string // Primary Discord guild ID
 
 	// Database configuration
-	DatabaseURL string
+	DatabaseURL  string
+	DatabaseName string
 
 	// Bot configuration
 	StartingBalance     int64
@@ -49,6 +52,11 @@ func Get() *Config {
 	return instance
 }
 
+// GetDatabaseURL constructs the full database URL by combining base URL and database name
+func (c *Config) GetDatabaseURL() string {
+	return database.ConstructDatabaseURL(c.DatabaseURL, c.DatabaseName)
+}
+
 // load loads configuration from environment variables
 func load() (*Config, error) {
 	config := &Config{
@@ -57,7 +65,8 @@ func load() (*Config, error) {
 		GuildID:      os.Getenv("GUILD_ID"),
 
 		// Database
-		DatabaseURL: os.Getenv("DATABASE_URL"),
+		DatabaseURL:  os.Getenv("DATABASE_URL"),
+		DatabaseName: os.Getenv("DATABASE_NAME"),
 
 		// Bot settings with defaults
 		StartingBalance:     100000,
@@ -108,6 +117,10 @@ func load() (*Config, error) {
 		}
 		if config.DatabaseURL == "" {
 			return nil, fmt.Errorf("DATABASE_URL is required")
+		}
+		// If DatabaseName is provided, ensure it's not empty
+		if config.DatabaseName != "" && strings.TrimSpace(config.DatabaseName) == "" {
+			return nil, fmt.Errorf("DATABASE_NAME cannot be empty when provided")
 		}
 	}
 

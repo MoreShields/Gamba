@@ -7,6 +7,9 @@ RUN apk add --no-cache git
 # Install air for hot reload
 RUN go install github.com/air-verse/air@latest
 
+# Ensure Go bin directory is in PATH
+ENV PATH="/go/bin:${PATH}"
+
 WORKDIR /app
 
 # Copy go mod files
@@ -46,8 +49,8 @@ RUN apk --no-cache add ca-certificates tzdata
 
 WORKDIR /root/
 
-# Copy the binary from builder
-COPY --from=builder /app/gambler .
+# Copy the binary from builder to a location in PATH
+COPY --from=builder /app/gambler /usr/local/bin/gambler
 
 # Run the binary
-CMD ["./gambler"]
+CMD ["gambler"]
