@@ -265,3 +265,45 @@ func (m *MockGuildSettingsRepository) UpdateGuildSettings(ctx context.Context, s
 	return args.Error(0)
 }
 
+// MockSummonerWatchRepository is a mock implementation of SummonerWatchRepository
+type MockSummonerWatchRepository struct {
+	mock.Mock
+}
+
+func (m *MockSummonerWatchRepository) CreateWatch(ctx context.Context, guildID int64, summonerName, region string) (*models.SummonerWatchDetail, error) {
+	args := m.Called(ctx, guildID, summonerName, region)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.SummonerWatchDetail), args.Error(1)
+}
+
+func (m *MockSummonerWatchRepository) GetWatchesByGuild(ctx context.Context, guildID int64) ([]*models.SummonerWatchDetail, error) {
+	args := m.Called(ctx, guildID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.SummonerWatchDetail), args.Error(1)
+}
+
+func (m *MockSummonerWatchRepository) GetGuildsWatchingSummoner(ctx context.Context, summonerName, region string) ([]*models.GuildSummonerWatch, error) {
+	args := m.Called(ctx, summonerName, region)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.GuildSummonerWatch), args.Error(1)
+}
+
+func (m *MockSummonerWatchRepository) DeleteWatch(ctx context.Context, guildID int64, summonerName, region string) error {
+	args := m.Called(ctx, guildID, summonerName, region)
+	return args.Error(0)
+}
+
+func (m *MockSummonerWatchRepository) GetWatch(ctx context.Context, guildID int64, summonerName, region string) (*models.SummonerWatchDetail, error) {
+	args := m.Called(ctx, guildID, summonerName, region)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.SummonerWatchDetail), args.Error(1)
+}
+
