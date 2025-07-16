@@ -1,4 +1,5 @@
 """Test data factories for creating test objects."""
+
 from datetime import datetime
 from typing import Optional
 
@@ -7,7 +8,7 @@ from lol_tracker.database.models import TrackedPlayer, GameState
 
 class TrackedPlayerFactory:
     """Factory for creating TrackedPlayer test instances."""
-    
+
     @staticmethod
     def create(
         summoner_name: str = "TestSummoner",
@@ -26,7 +27,7 @@ class TrackedPlayerFactory:
             summoner_id=summoner_id or f"test_summoner_{summoner_name}",
             is_active=is_active,
         )
-    
+
     @staticmethod
     def create_multiple(count: int, base_name: str = "Player") -> list[TrackedPlayer]:
         """Create multiple TrackedPlayer instances."""
@@ -43,7 +44,7 @@ class TrackedPlayerFactory:
 
 class GameStateFactory:
     """Factory for creating GameState test instances."""
-    
+
     @staticmethod
     def create(
         player_id: int,
@@ -70,7 +71,7 @@ class GameStateFactory:
             game_end_time=game_end_time,
             raw_api_response=raw_api_response,
         )
-    
+
     @staticmethod
     def create_game_sequence(player_id: int) -> list[GameState]:
         """Create a sequence of game states representing a typical game flow."""

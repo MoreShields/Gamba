@@ -25,12 +25,23 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy protobuf source files
 COPY api/proto/ ./proto/
 
-# Generate Python protobuf files
-RUN mkdir -p ./generated/proto && \
-    python -m grpc_tools.protoc -I=proto \
-        --python_out=./generated/proto \
-        --grpc_python_out=./generated/proto \
-        proto/events/*.proto proto/models/*.proto
+# Generate Python protobuf files with correct import paths
+RUN mkdir -p ./lol_tracker/proto && \
+    cd lol_tracker && \
+    python -m grpc_tools.protoc -I=../proto \
+        --python_out=proto \
+        --grpc_python_out=proto \
+        --pyi_out=proto \
+        ../proto/events/*.proto \
+        ../proto/models/*.proto \
+        ../proto/services/*.proto && \
+    touch proto/__init__.py && \
+    touch proto/events/__init__.py && \
+    touch proto/models/__init__.py && \
+    touch proto/services/__init__.py && \
+    find proto -name "*.py" -type f -exec sed -i 's/^from services import/from . import/g' {} \; && \
+    find proto -name "*.py" -type f -exec sed -i 's/^from events import/from . import/g' {} \; && \
+    find proto -name "*.py" -type f -exec sed -i 's/^from models import/from . import/g' {} \;
 
 # Development stage
 FROM python:3.11-slim AS dev
@@ -55,8 +66,8 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 # Create app directory
 WORKDIR /app
 
-# Copy generated protobuf files
-COPY --from=builder /generated/proto/ ./lol_tracker/proto/
+# Copy generated protobuf files with correct structure
+COPY --from=builder /lol_tracker/proto/ ./lol_tracker/proto/
 
 # Change ownership to app user
 RUN chown -R appuser:appuser /app
@@ -95,8 +106,8 @@ WORKDIR /app
 # Copy application code
 COPY lol-tracker/lol_tracker/ ./lol_tracker/
 
-# Copy generated protobuf files
-COPY --from=builder /generated/proto/ ./lol_tracker/proto/
+# Copy generated protobuf files with correct structure
+COPY --from=builder /lol_tracker/proto/ ./lol_tracker/proto/
 
 # Change ownership to app user
 RUN chown -R appuser:appuser /app

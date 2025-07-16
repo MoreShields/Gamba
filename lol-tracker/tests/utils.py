@@ -1,4 +1,5 @@
 """Test utility functions."""
+
 from typing import List
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,7 +31,9 @@ async def get_all_game_states(session: AsyncSession) -> List[GameState]:
     return list(result.scalars().all())
 
 
-async def get_game_states_for_player(session: AsyncSession, player_id: int) -> List[GameState]:
+async def get_game_states_for_player(
+    session: AsyncSession, player_id: int
+) -> List[GameState]:
     """Get all game states for a specific player."""
     result = await session.execute(
         select(GameState).where(GameState.player_id == player_id)
@@ -38,11 +41,13 @@ async def get_game_states_for_player(session: AsyncSession, player_id: int) -> L
     return list(result.scalars().all())
 
 
-def assert_player_equals(actual: TrackedPlayer, expected: TrackedPlayer, ignore_id: bool = True):
+def assert_player_equals(
+    actual: TrackedPlayer, expected: TrackedPlayer, ignore_id: bool = True
+):
     """Assert that two TrackedPlayer objects are equal."""
     if not ignore_id:
         assert actual.id == expected.id
-    
+
     assert actual.summoner_name == expected.summoner_name
     assert actual.region == expected.region
     assert actual.puuid == expected.puuid
@@ -51,11 +56,13 @@ def assert_player_equals(actual: TrackedPlayer, expected: TrackedPlayer, ignore_
     assert actual.is_active == expected.is_active
 
 
-def assert_game_state_equals(actual: GameState, expected: GameState, ignore_id: bool = True):
+def assert_game_state_equals(
+    actual: GameState, expected: GameState, ignore_id: bool = True
+):
     """Assert that two GameState objects are equal."""
     if not ignore_id:
         assert actual.id == expected.id
-    
+
     assert actual.player_id == expected.player_id
     assert actual.status == expected.status
     assert actual.game_id == expected.game_id

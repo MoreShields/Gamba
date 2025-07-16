@@ -21,26 +21,26 @@ async def main():
     """Main entry point for the LoL Tracker service."""
     # Load configuration
     config = Config.from_env()
-    
+
     # Set up logging
     logging.basicConfig(
         level=config.log_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
-    
+
     logger.info("Starting LoL Tracker service")
-    
+
     # Create and start the service
     service = LoLTrackerService(config)
-    
+
     # Handle graceful shutdown
     def signal_handler(sig, frame):
         logger.info(f"Received signal {sig}, shutting down gracefully...")
         asyncio.create_task(service.stop())
-    
+
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-    
+
     try:
         await service.start()
     except KeyboardInterrupt:

@@ -8,6 +8,10 @@ help: ## Show this help message
 
 # Development commands
 dev: ## Start complete development environment (discord-client + lol-tracker + postgres + nats)
+	@echo "Stopping and removing any existing containers..."
+	@docker-compose -f docker-compose.yml -f docker-compose.dev.yml --profile discord --profile lol down --remove-orphans 2>/dev/null || true
+	@echo "Removing any conflicting containers..."
+	@docker rm -f gambler-nats gambler-postgres discord-bot lol-tracker discord-migrate 2>/dev/null || true
 	@if [ -f .env ]; then \
 		set -a; source .env; set +a; \
 		docker-compose -f docker-compose.yml -f docker-compose.dev.yml --profile discord --profile lol up --build; \

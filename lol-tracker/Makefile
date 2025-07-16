@@ -63,12 +63,25 @@ test-cov: ## Run tests with coverage
 # Protocol Buffers
 proto: ## Generate Python protobuf code locally for development
 	@echo "Generating Python protobuf code for development..."
-	@mkdir -p lol_tracker/proto/events lol_tracker/proto/models
+	@rm -rf lol_tracker/proto
+	@mkdir -p lol_tracker/proto
 	@if [ -d "../api/proto" ]; then \
-		$(PYTHON) -m grpc_tools.protoc -I=../api/proto \
-			--python_out=lol_tracker/proto \
-			--grpc_python_out=lol_tracker/proto \
-			../api/proto/events/*.proto ../api/proto/models/*.proto; \
+		cd lol_tracker && ../$(PYTHON) -m grpc_tools.protoc \
+			-I../../api/proto \
+			--python_out=proto \
+			--grpc_python_out=proto \
+			--pyi_out=proto \
+			../../api/proto/events/*.proto \
+			../../api/proto/models/*.proto \
+			../../api/proto/services/*.proto && \
+		touch proto/__init__.py && \
+		touch proto/events/__init__.py && \
+		touch proto/models/__init__.py && \
+		touch proto/services/__init__.py && \
+		find proto -name "*.py" -type f -exec sed -i'' -e 's/^from services import/from . import/g' {} \; && \
+		find proto -name "*.py" -type f -exec sed -i'' -e 's/^from events import/from . import/g' {} \; && \
+		find proto -name "*.py" -type f -exec sed -i'' -e 's/^from models import/from . import/g' {} \; && \
+		find proto -name "*-e" -type f -delete; \
 		echo "Generated protobuf files for local development"; \
 	else \
 		echo "Error: ../api/proto not found. Proto source files are required."; \
