@@ -275,6 +275,21 @@ type SummonerWatchRepository interface {
 	GetWatch(ctx context.Context, guildID int64, summonerName, region string) (*models.SummonerWatchDetail, error)
 }
 
+// SummonerWatchService defines the interface for summoner watch operations
+type SummonerWatchService interface {
+	// AddWatch creates a new summoner watch for a guild
+	AddWatch(ctx context.Context, guildID int64, summonerName, region string) (*models.SummonerWatchDetail, error)
+
+	// RemoveWatch removes a summoner watch for a guild
+	RemoveWatch(ctx context.Context, guildID int64, summonerName, region string) error
+
+	// ListWatches returns all summoner watches for a specific guild
+	ListWatches(ctx context.Context, guildID int64) ([]*models.SummonerWatchDetail, error)
+
+	// GetWatchDetails retrieves a specific summoner watch for a guild
+	GetWatchDetails(ctx context.Context, guildID int64, summonerName, region string) (*models.SummonerWatchDetail, error)
+}
+
 // UnitOfWork defines the interface for transactional repository operations
 type UnitOfWork interface {
 	// Begin starts a new transaction
