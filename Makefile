@@ -10,10 +10,10 @@ help: ## Show this help message
 dev: ## Start complete development environment (discord-client + lol-tracker + postgres + nats)
 	@if [ -f .env ]; then \
 		set -a; source .env; set +a; \
-		docker-compose -f docker-compose.yml -f docker-compose.dev.yml --profile discord --profile lol up; \
+		docker-compose -f docker-compose.yml -f docker-compose.dev.yml --profile discord --profile lol up --build; \
 	else \
 		echo "Warning: .env file not found. Some environment variables may not be set."; \
-		docker-compose -f docker-compose.yml -f docker-compose.dev.yml --profile discord --profile lol up; \
+		docker-compose -f docker-compose.yml -f docker-compose.dev.yml --profile discord --profile lol up --build; \
 	fi
 
 down: ## Stop all development containers

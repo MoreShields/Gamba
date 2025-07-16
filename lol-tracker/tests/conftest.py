@@ -39,6 +39,7 @@ async def test_config(postgres_container):
     
     config = Config(
         database_url=database_url,
+        database_name="test",  # Use the database created by testcontainer
         riot_api_key="test_api_key",
         environment=Environment.CI,
         log_level="DEBUG",

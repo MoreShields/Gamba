@@ -24,6 +24,7 @@ services:
     image: ghcr.io/moreshields/gamba:latest
     environment:
       DATABASE_URL: ${DATABASE_URL}
+      DATABASE_NAME: gambler_db
     command: ["gambler", "migrate", "up"]
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -40,6 +41,7 @@ services:
       
       # Database configuration
       DATABASE_URL: ${DATABASE_URL}
+      DATABASE_NAME: gambler_db
       
       # Bot configuration
       STARTING_BALANCE: ${STARTING_BALANCE:-100000}
@@ -66,6 +68,7 @@ services:
     environment:
       # Database configuration
       DATABASE_URL: ${DATABASE_URL}
+      DATABASE_NAME: lol_tracker_db
       
       # LoL Tracker configuration
       RIOT_API_KEY: ${RIOT_API_KEY}

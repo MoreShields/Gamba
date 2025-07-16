@@ -28,7 +28,7 @@ class DatabaseManager:
         
         # Create async engine with proper connection pooling
         self._engine = create_async_engine(
-            self.config.database_url,
+            self.config.get_database_url(),
             echo=self.config.log_level == "DEBUG",
             poolclass=NullPool,  # Use NullPool for better connection management in async context
             pool_pre_ping=True,  # Verify connections before use

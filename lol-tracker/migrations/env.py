@@ -8,6 +8,7 @@ from alembic import context
 
 # Import our models so they're available for autogenerate
 from lol_tracker.database.models import Base
+from lol_tracker.config import Config
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -29,15 +30,18 @@ target_metadata = Base.metadata
 
 
 def get_database_url() -> str:
-    """Get database URL from environment variables."""
-    # Try LOL_TRACKER_DATABASE_URL first, fallback to DATABASE_URL
-    database_url = os.getenv("LOL_TRACKER_DATABASE_URL") or os.getenv("DATABASE_URL")
-    if not database_url:
-        raise ValueError("LOL_TRACKER_DATABASE_URL or DATABASE_URL environment variable is required")
+    """Get database URL from environment variables using Config class."""
+    # Create a config instance from environment
+    app_config = Config.from_env()
     
-    # Convert postgres:// to postgresql:// for modern SQLAlchemy
-    if database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql://", 1)
+    # Get the database URL from config
+    # Note: The Config.get_database_url() method returns postgresql+asyncpg://
+    # but Alembic needs the synchronous driver, so we need to fix the scheme
+    database_url = app_config.get_database_url()
+    
+    # Replace asyncpg with regular postgresql driver for Alembic
+    if database_url.startswith("postgresql+asyncpg://"):
+        database_url = database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
     
     return database_url
 

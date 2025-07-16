@@ -1,5 +1,5 @@
 # Multi-stage build for Python service
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -33,7 +33,7 @@ RUN mkdir -p ./generated/proto && \
         proto/events/*.proto proto/models/*.proto
 
 # Development stage
-FROM python:3.11-slim as dev
+FROM python:3.11-slim AS dev
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -71,7 +71,7 @@ ENV PYTHONPATH=/app
 CMD ["python", "-m", "lol_tracker.main"]
 
 # Production stage
-FROM python:3.11-slim as production
+FROM python:3.11-slim AS production
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \

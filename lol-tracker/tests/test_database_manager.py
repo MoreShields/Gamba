@@ -371,6 +371,7 @@ class TestDatabaseConfiguration:
         """Test database manager with debug logging enabled."""
         config = Config(
             database_url="postgresql+asyncpg://test:test@localhost/test",
+            database_name="test",
             riot_api_key="test",
             log_level="DEBUG",
             environment=Environment.CI,
@@ -388,6 +389,7 @@ class TestDatabaseConfiguration:
         """Test database manager with production-like configuration."""
         config = Config(
             database_url="postgresql+asyncpg://test:test@localhost/test",
+            database_name="test",
             riot_api_key="test",
             environment=Environment.PRODUCTION,
             log_level="INFO",

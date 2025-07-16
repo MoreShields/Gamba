@@ -23,7 +23,7 @@ func Run(ctx context.Context) error {
 
 	// Initialize database connection
 	log.Println("Connecting to database...")
-	db, err := database.NewConnection(ctx, cfg.DatabaseURL)
+	db, err := database.NewConnection(ctx, cfg.GetDatabaseURL())
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}

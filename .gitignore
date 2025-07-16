@@ -37,6 +37,10 @@ lol-tracker/src/lol_tracker/proto/
 
 # python
 /venv
+.pyc
+__pycache__/
+*.py[cod]
+*$py.class
 
 # Context
 CLAUDE.md

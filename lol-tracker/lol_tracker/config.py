@@ -20,6 +20,7 @@ class Config:
     
     # Required fields
     database_url: str
+    database_name: str
     riot_api_key: str
     
     # Environment configuration
@@ -79,6 +80,7 @@ class Config:
         return cls(
             # Required
             database_url=config("DATABASE_URL"),
+            database_name=config("DATABASE_NAME", "lol_tracker_db"),
             riot_api_key=config("RIOT_API_KEY"),
             
             # Environment
@@ -139,6 +141,35 @@ class Config:
     def is_production(self) -> bool:
         """Check if running in production environment."""
         return self.environment == Environment.PRODUCTION
+    
+    def get_database_url(self) -> str:
+        """Construct the full database URL by combining base URL and database name."""
+        from urllib.parse import urlparse, urlunparse
+        
+        # Parse the database URL
+        parsed = urlparse(self.database_url)
+        
+        # Ensure we have the asyncpg driver specified
+        scheme = parsed.scheme
+        if scheme == 'postgres':
+            # Convert legacy postgres:// to postgresql://
+            scheme = 'postgresql+asyncpg'
+        elif scheme == 'postgresql':
+            scheme = 'postgresql+asyncpg'
+        
+        # Replace the database name (path component)
+        # The path includes the leading '/', so we prepend it to database_name
+        path = f"/{self.database_name}"
+        
+        # Reconstruct the URL with the new scheme and database name
+        return urlunparse((
+            scheme,
+            parsed.netloc,
+            path,
+            parsed.params,
+            parsed.query,
+            parsed.fragment
+        ))
 
 
 # Global configuration instance management (singleton pattern)

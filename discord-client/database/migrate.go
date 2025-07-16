@@ -18,12 +18,19 @@ import (
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
+// getMigrationDatabaseURL constructs the database URL for migrations
+// This doesn't use the full config to avoid requiring DISCORD_TOKEN for migrations
+func getMigrationDatabaseURL() string {
+	baseURL := os.Getenv("DATABASE_URL")
+	databaseName := os.Getenv("DATABASE_NAME")
+
+	return ConstructDatabaseURL(baseURL, databaseName)
+}
+
 // MigrateUp runs all pending migrations
 func MigrateUp() error {
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		return fmt.Errorf("DATABASE_URL environment variable is required")
-	}
+	databaseURL := getMigrationDatabaseURL()
+	log.Printf("Migration connecting to: %s", databaseURL)
 
 	m, err := getMigrate(databaseURL)
 	if err != nil {
@@ -47,10 +54,7 @@ func MigrateUp() error {
 
 // MigrateDown rolls back the specified number of migrations
 func MigrateDown(stepsStr string) error {
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		return fmt.Errorf("DATABASE_URL environment variable is required")
-	}
+	databaseURL := getMigrationDatabaseURL()
 
 	steps, err := strconv.Atoi(stepsStr)
 	if err != nil {
@@ -79,10 +83,7 @@ func MigrateDown(stepsStr string) error {
 
 // MigrateStatus shows the current migration status
 func MigrateStatus() error {
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		return fmt.Errorf("DATABASE_URL environment variable is required")
-	}
+	databaseURL := getMigrationDatabaseURL()
 
 	m, err := getMigrate(databaseURL)
 	if err != nil {
