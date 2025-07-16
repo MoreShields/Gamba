@@ -224,7 +224,8 @@ func (f *Feature) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo
 	)
 
 	// Create the group wager (message ID will be updated after posting)
-	groupWagerDetail, err := groupWagerService.CreateGroupWager(ctx, creatorID, condition, options, votingPeriodMinutes, 0, 0)
+	// Default to pool wager with no preset odds for existing bot command
+	groupWagerDetail, err := groupWagerService.CreateGroupWager(ctx, creatorID, condition, options, votingPeriodMinutes, 0, 0, models.GroupWagerTypePool, nil)
 	if err != nil {
 		log.Printf("Error creating group wager: %v", err)
 		common.FollowUpWithError(s, i, fmt.Sprintf("Failed to create group wager: %v", err))

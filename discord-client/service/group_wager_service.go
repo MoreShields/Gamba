@@ -35,7 +35,7 @@ func NewGroupWagerService(
 }
 
 // CreateGroupWager creates a new group wager with options
-func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int64, condition string, options []string, votingPeriodMinutes int, messageID, channelID int64) (*models.GroupWagerDetail, error) {
+func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int64, condition string, options []string, votingPeriodMinutes int, messageID, channelID int64, wagerType models.GroupWagerType, oddsMultipliers []float64) (*models.GroupWagerDetail, error) {
 	// Validate inputs
 	if condition == "" {
 		return nil, fmt.Errorf("condition cannot be empty")
@@ -45,6 +45,28 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int6
 	}
 	if votingPeriodMinutes < 5 || votingPeriodMinutes > 10080 {
 		return nil, fmt.Errorf("voting period must be between 5 minutes and 168 hours (10080 minutes)")
+	}
+	
+	// Validate wager type
+	if wagerType != models.GroupWagerTypePool && wagerType != models.GroupWagerTypeHouse {
+		return nil, fmt.Errorf("invalid wager type: %s", wagerType)
+	}
+	
+	// Validate odds multipliers for house wagers
+	if wagerType == models.GroupWagerTypeHouse {
+		if len(oddsMultipliers) != len(options) {
+			return nil, fmt.Errorf("must provide odds multiplier for each option")
+		}
+		for i, multiplier := range oddsMultipliers {
+			if multiplier <= 0 {
+				return nil, fmt.Errorf("odds multiplier for option %d must be positive", i+1)
+			}
+		}
+	} else if wagerType == models.GroupWagerTypePool {
+		// Pool wagers should not have odds multipliers provided
+		if len(oddsMultipliers) > 0 {
+			return nil, fmt.Errorf("pool wagers calculate their own odds, do not provide odds multipliers")
+		}
 	}
 
 	// Check for duplicate options (case-insensitive)
@@ -75,6 +97,7 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int6
 		CreatorDiscordID:    creatorID,
 		Condition:           condition,
 		State:               models.GroupWagerStateActive,
+		WagerType:           wagerType,
 		TotalPot:            0,
 		MinParticipants:     3,
 		VotingPeriodMinutes: votingPeriodMinutes,
@@ -89,10 +112,19 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int6
 	// Create options
 	var wagerOptions []*models.GroupWagerOption
 	for i, optionText := range options {
+		var odds float64
+		if wagerType == models.GroupWagerTypeHouse {
+			odds = oddsMultipliers[i]
+		} else {
+			// For pool wagers, start with 0 odds (will be calculated after creation)
+			odds = 0
+		}
+		
 		option := &models.GroupWagerOption{
-			OptionText:  optionText,
-			OptionOrder: int16(i),
-			TotalAmount: 0,
+			OptionText:     optionText,
+			OptionOrder:    int16(i),
+			TotalAmount:    0,
+			OddsMultiplier: odds,
 		}
 		wagerOptions = append(wagerOptions, option)
 	}
@@ -233,6 +265,18 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 		return nil, fmt.Errorf("failed to update group wager pot: %w", err)
 	}
 
+	// For pool wagers, recalculate and update odds for all options
+	if groupWager.IsPoolWager() && groupWager.TotalPot > 0 {
+		oddsUpdates := make(map[int64]float64)
+		for _, opt := range options {
+			multiplier := opt.CalculateMultiplier(groupWager.TotalPot)
+			oddsUpdates[opt.ID] = multiplier
+		}
+		if err := s.groupWagerRepo.UpdateAllOptionOdds(ctx, groupWagerID, oddsUpdates); err != nil {
+			return nil, fmt.Errorf("failed to update option odds: %w", err)
+		}
+	}
+
 	return participant, nil
 }
 
@@ -307,7 +351,12 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 	winningOptionTotal := winningOption.TotalAmount
 
 	if winningOptionTotal == 0 {
-		return nil, fmt.Errorf("no participants on winning option")
+		// For house wagers, it's valid to have no participants on winning option (house wins all)
+		// For pool wagers, this shouldn't happen as payouts are distributed from the pool
+		if groupWager.IsPoolWager() {
+			return nil, fmt.Errorf("no participants on winning option")
+		}
+		// Continue with house wager resolution - everyone loses
 	}
 
 	var winners []*models.GroupWagerParticipant
@@ -316,8 +365,15 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 
 	for _, participant := range participants {
 		if participant.OptionID == winningOptionID {
-			// Winner - calculate proportional payout
-			payout := participant.CalculatePayout(winningOptionTotal, totalPot)
+			// Winner - calculate payout using stored odds multiplier
+			var payout int64
+			if groupWager.IsPoolWager() {
+				// Pool wager: use proportional payout (existing logic)
+				payout = participant.CalculatePayout(winningOptionTotal, totalPot)
+			} else {
+				// House wager: use stored odds multiplier
+				payout = int64(float64(participant.Amount) * winningOption.OddsMultiplier)
+			}
 			participant.PayoutAmount = &payout
 			winners = append(winners, participant)
 			payoutDetails[participant.DiscordID] = payout
@@ -338,12 +394,14 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 			return nil, fmt.Errorf("failed to get winner user: %w", err)
 		}
 
-		// Calculate net win (payout - original bet)
-		netWin := *winner.PayoutAmount - winner.Amount
+		var balanceChange int64
+		// For both pool and house wagers: net win (payout - original bet)
+		// Since bets only reserve funds and don't immediately deduct balance
+		balanceChange = *winner.PayoutAmount - winner.Amount
 
-		// Only update balance if there's a net change
-		if netWin != 0 {
-			newBalance := user.Balance + netWin
+		// Update balance and record history for all winners
+		if true {
+			newBalance := user.Balance + balanceChange
 			if err := s.userRepo.UpdateBalance(ctx, winner.DiscordID, newBalance); err != nil {
 			return nil, fmt.Errorf("failed to update winner balance: %w", err)
 			}
@@ -352,14 +410,15 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 			history := &models.BalanceHistory{
 				DiscordID:       winner.DiscordID,
 				BalanceBefore:   user.Balance,
-				BalanceAfter:    user.Balance + netWin,
-				ChangeAmount:    netWin,
+				BalanceAfter:    user.Balance + balanceChange,
+				ChangeAmount:    balanceChange,
 				TransactionType: models.TransactionTypeGroupWagerWin,
 				TransactionMetadata: map[string]any{
 					"group_wager_id": groupWagerID,
 					"bet_amount":     winner.Amount,
 					"payout_amount":  *winner.PayoutAmount,
 					"condition":      groupWager.Condition,
+					"wager_type":     string(groupWager.WagerType),
 				},
 				RelatedID:   &groupWagerID,
 				RelatedType: relatedTypePtr(models.RelatedTypeGroupWager),
@@ -387,37 +446,45 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 			return nil, fmt.Errorf("failed to get loser user: %w", err)
 		}
 
-		// Update balance with bet deduction
-		newBalance := user.Balance - loser.Amount
-		if err := s.userRepo.UpdateBalance(ctx, loser.DiscordID, newBalance); err != nil {
-			return nil, fmt.Errorf("failed to update loser balance: %w", err)
-		}
+		var balanceChange int64
+		// For both pool and house wagers: deduct bet amount from loser
+		// Since bets only reserve funds and don't immediately deduct balance
+		balanceChange = -loser.Amount
 
-		// Record balance history
-		history := &models.BalanceHistory{
-			DiscordID:       loser.DiscordID,
-			BalanceBefore:   user.Balance,
-			BalanceAfter:    user.Balance - loser.Amount,
-			ChangeAmount:    -loser.Amount,
-			TransactionType: models.TransactionTypeGroupWagerLoss,
-			TransactionMetadata: map[string]any{
-				"group_wager_id": groupWagerID,
-				"bet_amount":     loser.Amount,
-				"condition":      groupWager.Condition,
-			},
-			RelatedID:   &groupWagerID,
-			RelatedType: relatedTypePtr(models.RelatedTypeGroupWager),
-		}
+		// Update balance and record history for all losers
+		if true {
+			newBalance := user.Balance + balanceChange
+			if err := s.userRepo.UpdateBalance(ctx, loser.DiscordID, newBalance); err != nil {
+				return nil, fmt.Errorf("failed to update loser balance: %w", err)
+			}
 
-		if err := RecordBalanceChange(ctx, s.balanceHistoryRepo, s.eventPublisher, history); err != nil {
-			return nil, fmt.Errorf("failed to record loser balance change: %w", err)
-		}
+			// Record balance history
+			history := &models.BalanceHistory{
+				DiscordID:       loser.DiscordID,
+				BalanceBefore:   user.Balance,
+				BalanceAfter:    user.Balance + balanceChange,
+				ChangeAmount:    balanceChange,
+				TransactionType: models.TransactionTypeGroupWagerLoss,
+				TransactionMetadata: map[string]any{
+					"group_wager_id": groupWagerID,
+					"bet_amount":     loser.Amount,
+					"condition":      groupWager.Condition,
+					"wager_type":     string(groupWager.WagerType),
+				},
+				RelatedID:   &groupWagerID,
+				RelatedType: relatedTypePtr(models.RelatedTypeGroupWager),
+			}
 
-		// Update participant with balance history ID
-		for i, l := range losers {
-			if l.ID == loser.ID {
-				losers[i].BalanceHistoryID = &history.ID
-				break
+			if err := RecordBalanceChange(ctx, s.balanceHistoryRepo, s.eventPublisher, history); err != nil {
+				return nil, fmt.Errorf("failed to record loser balance change: %w", err)
+			}
+
+			// Update participant with balance history ID
+			for i, l := range losers {
+				if l.ID == loser.ID {
+					losers[i].BalanceHistoryID = &history.ID
+					break
+				}
 			}
 		}
 	}
