@@ -24,6 +24,7 @@ type unitOfWork struct {
 	wagerVoteRepo               service.WagerVoteRepository
 	groupWagerRepo              service.GroupWagerRepository
 	guildSettingsRepo           service.GuildSettingsRepository
+	summonerWatchRepo           service.SummonerWatchRepository
 }
 
 // NewUnitOfWorkFactory creates a new UnitOfWork factory
@@ -69,6 +70,7 @@ func (u *unitOfWork) Begin(ctx context.Context) error {
 	u.wagerVoteRepo = newWagerVoteRepository(tx, u.guildID)
 	u.groupWagerRepo = newGroupWagerRepository(tx, u.guildID)
 	u.guildSettingsRepo = newGuildSettingsRepositoryWithTx(tx) // Guild settings don't need scoping
+	u.summonerWatchRepo = newSummonerWatchRepository(tx, u.guildID)
 
 	return nil
 }
@@ -177,4 +179,12 @@ func (u *unitOfWork) GuildSettingsRepository() service.GuildSettingsRepository {
 		panic("unit of work not started - call Begin() first")
 	}
 	return u.guildSettingsRepo
+}
+
+// SummonerWatchRepository returns the summoner watch repository for this unit of work
+func (u *unitOfWork) SummonerWatchRepository() service.SummonerWatchRepository {
+	if u.summonerWatchRepo == nil {
+		panic("unit of work not started - call Begin() first")
+	}
+	return u.summonerWatchRepo
 }

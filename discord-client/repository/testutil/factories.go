@@ -108,3 +108,38 @@ func CreateTestGroupWagerParticipantWithPayout(groupWagerID, discordID, optionID
 	return participant
 }
 
+// CreateTestSummoner creates a test summoner with default values
+func CreateTestSummoner(summonerName, region string) *models.Summoner {
+	now := time.Now()
+	return &models.Summoner{
+		SummonerName: summonerName,
+		Region:       region,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+}
+
+// CreateTestGuildSummonerWatch creates a test guild summoner watch
+func CreateTestGuildSummonerWatch(guildID, summonerID int64) *models.GuildSummonerWatch {
+	return &models.GuildSummonerWatch{
+		GuildID:    guildID,
+		SummonerID: summonerID,
+		CreatedAt:  time.Now(),
+	}
+}
+
+// CreateTestSummonerWatchDetail creates a test summoner watch detail
+func CreateTestSummonerWatchDetail(guildID int64, summonerName, region string) *models.SummonerWatchDetail {
+	now := time.Now()
+	return &models.SummonerWatchDetail{
+		WatchID:      1,
+		GuildID:      guildID,
+		WatchedAt:    now,
+		SummonerID:   1,
+		SummonerName: summonerName,
+		Region:       region,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+}
+

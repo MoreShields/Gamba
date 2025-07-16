@@ -256,6 +256,25 @@ type GuildSettingsService interface {
 	UpdateHighRollerRole(ctx context.Context, guildID int64, roleID *int64) error
 }
 
+// SummonerWatchRepository defines the interface for summoner watch data access
+type SummonerWatchRepository interface {
+	// CreateWatch creates a new summoner watch for a guild
+	// Handles upsert of summoner and creation of watch relationship
+	CreateWatch(ctx context.Context, guildID int64, summonerName, region string) (*models.SummonerWatchDetail, error)
+
+	// GetWatchesByGuild returns all summoner watches for a specific guild
+	GetWatchesByGuild(ctx context.Context, guildID int64) ([]*models.SummonerWatchDetail, error)
+
+	// GetGuildsWatchingSummoner returns all guild-summoner watch relationships for a specific summoner
+	GetGuildsWatchingSummoner(ctx context.Context, summonerName, region string) ([]*models.GuildSummonerWatch, error)
+
+	// DeleteWatch removes a summoner watch for a guild
+	DeleteWatch(ctx context.Context, guildID int64, summonerName, region string) error
+
+	// GetWatch retrieves a specific summoner watch for a guild
+	GetWatch(ctx context.Context, guildID int64, summonerName, region string) (*models.SummonerWatchDetail, error)
+}
+
 // UnitOfWork defines the interface for transactional repository operations
 type UnitOfWork interface {
 	// Begin starts a new transaction
@@ -275,6 +294,7 @@ type UnitOfWork interface {
 	WagerVoteRepository() WagerVoteRepository
 	GroupWagerRepository() GroupWagerRepository
 	GuildSettingsRepository() GuildSettingsRepository
+	SummonerWatchRepository() SummonerWatchRepository
 	EventBus() EventPublisher
 }
 
