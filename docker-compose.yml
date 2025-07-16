@@ -24,7 +24,7 @@ services:
     image: ghcr.io/moreshields/gamba:latest
     environment:
       DATABASE_URL: ${DATABASE_URL}
-      DATABASE_NAME: gambler_db
+      DATABASE_NAME: gamba_db
     command: ["gambler", "migrate", "up"]
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -41,7 +41,7 @@ services:
       
       # Database configuration
       DATABASE_URL: ${DATABASE_URL}
-      DATABASE_NAME: gambler_db
+      DATABASE_NAME: gamba_db
       
       # Bot configuration
       STARTING_BALANCE: ${STARTING_BALANCE:-100000}

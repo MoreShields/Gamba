@@ -59,7 +59,7 @@ jobs:
           HIGH_ROLLER_ENABLED=$HIGH_ROLLER_ENABLED \
           HIGH_ROLLER_ROLE_ID=$HIGH_ROLLER_ROLE_ID \
           RESOLVER_DISCORD_IDS=$RESOLVER_DISCORD_IDS \
-          make deploy-discord
+          make deploy
           
           # Clean up old images
           docker image prune -f
