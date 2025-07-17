@@ -290,6 +290,7 @@ type SummonerWatchService interface {
 	GetWatchDetails(ctx context.Context, guildID int64, summonerName, region string) (*models.SummonerWatchDetail, error)
 }
 
+
 // UnitOfWork defines the interface for transactional repository operations
 type UnitOfWork interface {
 	// Begin starts a new transaction

@@ -13,6 +13,7 @@ import (
 	"gambler/discord-client/bot/features/groupwagers"
 	"gambler/discord-client/bot/features/settings"
 	"gambler/discord-client/bot/features/stats"
+	"gambler/discord-client/bot/features/summoner"
 	"gambler/discord-client/bot/features/transfer"
 	"gambler/discord-client/bot/features/wagers"
 	"gambler/discord-client/events"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
+	summoner_pb "gambler/api/gen/go/services"
 )
 
 // Config holds bot configuration
@@ -33,10 +35,11 @@ type Config struct {
 // Bot manages the Discord bot and all feature modules
 type Bot struct {
 	// Core components
-	config     Config
-	session    *discordgo.Session
-	eventBus   *events.Bus
-	uowFactory service.UnitOfWorkFactory
+	config          Config
+	session         *discordgo.Session
+	eventBus        *events.Bus
+	uowFactory      service.UnitOfWorkFactory
+	summonerClient  summoner_pb.SummonerTrackingServiceClient
 
 	// High roller tracking
 	lastHighRollerID int64
@@ -49,13 +52,14 @@ type Bot struct {
 	balance     *balance.Feature
 	transfer    *transfer.Feature
 	settings    *settings.Feature
+	summoner    *summoner.Feature
 
 	// Worker cleanup functions
 	stopGroupWagerWorker func()
 }
 
 // New creates a new bot instance with all features
-func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory service.UnitOfWorkFactory, eventBus *events.Bus) (*Bot, error) {
+func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory service.UnitOfWorkFactory, eventBus *events.Bus, summonerClient summoner_pb.SummonerTrackingServiceClient) (*Bot, error) {
 	// Create Discord session
 	dg, err := discordgo.New("Bot " + config.Token)
 	if err != nil {
@@ -65,10 +69,11 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory servi
 
 	// Create bot instance
 	bot := &Bot{
-		config:     config,
-		session:    dg,
-		eventBus:   eventBus,
-		uowFactory: uowFactory,
+		config:         config,
+		session:        dg,
+		eventBus:       eventBus,
+		uowFactory:     uowFactory,
+		summonerClient: summonerClient,
 	}
 
 	// Create feature modules
@@ -79,6 +84,7 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory servi
 	bot.balance = balance.New(uowFactory)
 	bot.transfer = transfer.New(uowFactory)
 	bot.settings = settings.NewFeature(dg, uowFactory)
+	bot.summoner = summoner.NewFeature(dg, uowFactory, summonerClient, config.GuildID)
 
 	// Register handlers
 	dg.AddHandler(bot.handleCommands)
@@ -372,6 +378,8 @@ func (b *Bot) handleCommands(s *discordgo.Session, i *discordgo.InteractionCreat
 		b.stats.HandleCommand(s, i)
 	case "settings":
 		b.settings.HandleCommand(s, i)
+	case "summoner":
+		b.summoner.HandleCommand(s, i)
 	}
 }
 
