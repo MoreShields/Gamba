@@ -67,7 +67,7 @@ class SummonerTrackingService(
             # Use database session for repository operations
             async with self.db_manager.get_session() as session:
                 tracked_player_repo = TrackedPlayerRepository(session)
-                
+
                 # Check if summoner is already being tracked
                 existing_player = await tracked_player_repo.get_by_summoner_and_region(
                     summoner_info.summoner_name, request.region
@@ -94,7 +94,9 @@ class SummonerTrackingService(
                         account_id=summoner_info.account_id,
                         summoner_id=summoner_info.summoner_id,
                     )
-                    await tracked_player_repo.set_active_status(existing_player.id, True)
+                    await tracked_player_repo.set_active_status(
+                        existing_player.id, True
+                    )
                     logger.info(
                         "Reactivated existing summoner",
                         summoner_name=request.summoner_name,
@@ -197,7 +199,7 @@ class SummonerTrackingService(
             # Use database session for repository operations
             async with self.db_manager.get_session() as session:
                 tracked_player_repo = TrackedPlayerRepository(session)
-                
+
                 # Find the tracked player
                 tracked_player = await tracked_player_repo.get_by_summoner_and_region(
                     request.summoner_name, request.region
