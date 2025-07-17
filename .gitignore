@@ -30,6 +30,8 @@ discord-client/tmp/
 # Protobuf generated files
 api/gen/
 lol-tracker/src/lol_tracker/proto/
+lol-tracker/lol_tracker/proto/
+discord-client/proto/
 
 # Python protobuf files (anywhere in the project)
 **/*_pb2.py

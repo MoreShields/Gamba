@@ -15,7 +15,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	summoner_pb "gambler/api/gen/go/services"
+	summoner_pb "gambler/discord-client/proto/services"
 )
 
 // Run initializes and starts the application

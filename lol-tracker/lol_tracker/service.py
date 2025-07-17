@@ -63,10 +63,6 @@ class LoLTrackerService:
         # Initialize database manager
         self.db_manager = DatabaseManager(config)
 
-        # Initialize repositories
-        self.tracked_player_repo = TrackedPlayerRepository(self.db_manager)
-        self.game_state_repo = GameStateRepository(self.db_manager)
-
         # Initialize Riot API client
         self.riot_api_client = RiotAPIClient(
             api_key=config.riot_api_key, request_timeout=config.riot_api_timeout_seconds
@@ -177,7 +173,9 @@ class LoLTrackerService:
             try:
                 # Get all active tracked players
                 async with self.db_manager.get_session() as session:
-                    tracked_players = await self.tracked_player_repo.get_all_active(session)
+                    # Create repository instance with session
+                    tracked_player_repo = TrackedPlayerRepository(session)
+                    tracked_players = await tracked_player_repo.get_all_active()
 
                 if not tracked_players:
                     logger.debug("No tracked players found, skipping poll cycle")
@@ -219,8 +217,10 @@ class LoLTrackerService:
             return
 
         async with self.db_manager.get_session() as session:
+            # Create repository instance with session
+            game_state_repo = GameStateRepository(session)
             # Get current game state from database
-            current_db_state = await self.game_state_repo.get_latest_for_player(session, player.id)
+            current_db_state = await game_state_repo.get_latest_for_player(player.id)
 
             # Get current game state from Riot API
             riot_game_state = await self._get_riot_game_state(player)
@@ -318,7 +318,8 @@ class LoLTrackerService:
                 "status": "NOT_IN_GAME",
             }
 
-        return await self.game_state_repo.create(session, **game_state_data)
+        game_state_repo = GameStateRepository(session)
+        return await game_state_repo.create(**game_state_data)
 
     async def _update_in_game_state(self, session, db_state, riot_state):
         """Update an existing in-game state with current info."""

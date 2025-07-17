@@ -22,7 +22,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
-	summoner_pb "gambler/api/gen/go/services"
+	summoner_pb "gambler/discord-client/proto/services"
 )
 
 // Config holds bot configuration

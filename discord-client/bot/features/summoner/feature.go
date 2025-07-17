@@ -3,7 +3,7 @@ package summoner
 import (
 	"github.com/bwmarrin/discordgo"
 	"gambler/discord-client/service"
-	summoner_pb "gambler/api/gen/go/services"
+	summoner_pb "gambler/discord-client/proto/services"
 )
 
 // Feature handles summoner watch commands and interactions

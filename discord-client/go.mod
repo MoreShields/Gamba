@@ -15,7 +15,6 @@ require (
 
 require (
 	dario.cat/mergo v1.0.1 // indirect
-	gambler/api v0.0.0
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
@@ -77,5 +76,3 @@ require (
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace gambler/api v0.0.0 => ../api
