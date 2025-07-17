@@ -7,7 +7,7 @@ help: ## Show this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 # Development commands
-dev: ## Start complete development environment (discord-client + lol-tracker + postgres + nats)
+dev: proto ## Start complete development environment (discord-client + lol-tracker + postgres + nats)
 	@echo "Stopping and removing any existing containers..."
 	@docker-compose -f docker-compose.yml -f docker-compose.dev.yml --profile discord --profile lol down --remove-orphans 2>/dev/null || true
 	@echo "Removing any conflicting containers..."
@@ -53,7 +53,8 @@ prod-logs: ## View production logs (use SERVICE=discord|lol|nats to specify)
 
 # Protobuf commands
 proto: ## Generate protobuf code for all services
-	$(MAKE) -C api generate
+	$(MAKE) -C discord-client proto
+	$(MAKE) -C lol-tracker proto
 
 # Build commands
 build: proto build-discord build-lol ## Build all services

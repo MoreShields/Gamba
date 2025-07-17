@@ -48,8 +48,7 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-pip-
 
-    - name: Generate protobuf code for discord-client
-      working-directory: discord-client
+    - name: Generate protobuf code for all services
       run: make proto
 
     - name: Download dependencies
@@ -64,10 +63,6 @@ jobs:
     - name: Install lol-tracker dependencies
       working-directory: lol-tracker
       run: ../venv/bin/pip install -r requirements-dev.txt
-
-    - name: Generate protobuf code for lol-tracker
-      working-directory: lol-tracker
-      run: make proto
 
     - name: Run discord-client unit tests
       working-directory: discord-client
