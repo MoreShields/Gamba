@@ -175,15 +175,34 @@ func (b *Bot) registerCommands() error {
 					Options: []*discordgo.ApplicationCommandOption{
 						{
 							Type:        discordgo.ApplicationCommandOptionString,
-							Name:        "summoner_name",
-							Description: "League of Legends summoner name",
+							Name:        "game_name",
+							Description: "League of Legends game name (e.g., Faker)",
 							Required:    true,
 						},
 						{
 							Type:        discordgo.ApplicationCommandOptionString,
-							Name:        "region",
-							Description: "Region (default: NA1)",
-							Required:    false,
+							Name:        "tag",
+							Description: "Riot ID tag line (e.g., KR1)",
+							Required:    true,
+						},
+					},
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "unwatch",
+					Description: "Stop tracking a summoner",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "game_name",
+							Description: "League of Legends game name (e.g., Faker)",
+							Required:    true,
+						},
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "tag",
+							Description: "Riot ID tag line (e.g., KR1)",
+							Required:    true,
 						},
 					},
 				},

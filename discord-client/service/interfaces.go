@@ -262,34 +262,31 @@ type GuildSettingsService interface {
 type SummonerWatchRepository interface {
 	// CreateWatch creates a new summoner watch for a guild
 	// Handles upsert of summoner and creation of watch relationship
-	CreateWatch(ctx context.Context, guildID int64, summonerName, region string) (*models.SummonerWatchDetail, error)
+	CreateWatch(ctx context.Context, guildID int64, summonerName, tagLine string) (*models.SummonerWatchDetail, error)
 
 	// GetWatchesByGuild returns all summoner watches for a specific guild
 	GetWatchesByGuild(ctx context.Context, guildID int64) ([]*models.SummonerWatchDetail, error)
 
 	// GetGuildsWatchingSummoner returns all guild-summoner watch relationships for a specific summoner
-	GetGuildsWatchingSummoner(ctx context.Context, summonerName, region string) ([]*models.GuildSummonerWatch, error)
+	GetGuildsWatchingSummoner(ctx context.Context, summonerName, tagLine string) ([]*models.GuildSummonerWatch, error)
 
 	// DeleteWatch removes a summoner watch for a guild
-	DeleteWatch(ctx context.Context, guildID int64, summonerName, region string) error
+	DeleteWatch(ctx context.Context, guildID int64, summonerName, tagLine string) error
 
 	// GetWatch retrieves a specific summoner watch for a guild
-	GetWatch(ctx context.Context, guildID int64, summonerName, region string) (*models.SummonerWatchDetail, error)
+	GetWatch(ctx context.Context, guildID int64, summonerName, tagLine string) (*models.SummonerWatchDetail, error)
 }
 
 // SummonerWatchService defines the interface for summoner watch operations
 type SummonerWatchService interface {
 	// AddWatch creates a new summoner watch for a guild
-	AddWatch(ctx context.Context, guildID int64, summonerName, region string) (*models.SummonerWatchDetail, error)
+	AddWatch(ctx context.Context, guildID int64, summonerName, tagLine string) (*models.SummonerWatchDetail, error)
 
 	// RemoveWatch removes a summoner watch for a guild
-	RemoveWatch(ctx context.Context, guildID int64, summonerName, region string) error
+	RemoveWatch(ctx context.Context, guildID int64, summonerName, tagLine string) error
 
 	// ListWatches returns all summoner watches for a specific guild
 	ListWatches(ctx context.Context, guildID int64) ([]*models.SummonerWatchDetail, error)
-
-	// GetWatchDetails retrieves a specific summoner watch for a guild
-	GetWatchDetails(ctx context.Context, guildID int64, summonerName, region string) (*models.SummonerWatchDetail, error)
 }
 
 

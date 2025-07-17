@@ -14,13 +14,13 @@ message PlayerTrackingCommand {
 }
 
 message StartTrackingPlayer {
-  string summoner_name = 1;            // Primary identifier
-  string region = 2;                   // Region (na1, euw1, etc.)
+  string game_name = 1;                // Summoner game name (e.g., "Faker")
+  string tag_line = 2;                 // Riot ID tag line (e.g., "KR1")
   google.protobuf.Timestamp requested_at = 3;
 }
 
 message StopTrackingPlayer {
-  string summoner_name = 1;            // Primary identifier
-  string region = 2;                   // Region (na1, euw1, etc.)
+  string game_name = 1;                // Summoner game name (e.g., "Faker")
+  string tag_line = 2;                 // Riot ID tag line (e.g., "KR1")
   google.protobuf.Timestamp requested_at = 3;
 }

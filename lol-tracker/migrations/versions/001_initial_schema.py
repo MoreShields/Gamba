@@ -19,11 +19,9 @@ def upgrade() -> None:
     # Create tracked_players table
     op.create_table('tracked_players',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('summoner_name', sa.String(length=16), nullable=False),
-        sa.Column('region', sa.String(length=10), nullable=False),
-        sa.Column('puuid', sa.String(length=78), nullable=True),
-        sa.Column('account_id', sa.String(length=56), nullable=True),
-        sa.Column('summoner_id', sa.String(length=63), nullable=True),
+        sa.Column('game_name', sa.String(length=16), nullable=False),
+        sa.Column('tag_line', sa.String(length=5), nullable=False),
+        sa.Column('puuid', sa.String(length=78), nullable=False),
         sa.Column('created_at', sa.DateTime(), nullable=False),
         sa.Column('updated_at', sa.DateTime(), nullable=False),
         sa.Column('is_active', sa.Boolean(), nullable=False),
@@ -31,7 +29,7 @@ def upgrade() -> None:
     )
     
     # Create indexes for tracked_players
-    op.create_index('idx_tracked_players_summoner_region', 'tracked_players', ['summoner_name', 'region'])
+    op.create_index('idx_tracked_players_game_name', 'tracked_players', ['game_name'])
     op.create_index('idx_tracked_players_puuid', 'tracked_players', ['puuid'])
     op.create_index('idx_tracked_players_active', 'tracked_players', ['is_active'])
     
@@ -71,5 +69,5 @@ def downgrade() -> None:
     # Drop tracked_players table and its indexes
     op.drop_index('idx_tracked_players_active', table_name='tracked_players')
     op.drop_index('idx_tracked_players_puuid', table_name='tracked_players')
-    op.drop_index('idx_tracked_players_summoner_region', table_name='tracked_players')
+    op.drop_index('idx_tracked_players_game_name', table_name='tracked_players')
     op.drop_table('tracked_players')

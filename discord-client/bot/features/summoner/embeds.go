@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/bwmarrin/discordgo"
 	"gambler/discord-client/bot/common"
 	"gambler/discord-client/models"
-	summoner_pb "gambler/api/gen/go/services"
+	summoner_pb "gambler/discord-client/proto/services"
+
+	"github.com/bwmarrin/discordgo"
 )
 
 // createSuccessEmbed creates a success embed for a newly tracked summoner
@@ -18,23 +19,18 @@ func createSuccessEmbed(watchDetail *models.SummonerWatchDetail, summonerDetails
 		Fields: []*discordgo.MessageEmbedField{
 			{
 				Name:   "Summoner",
-				Value:  watchDetail.SummonerName,
-				Inline: true,
-			},
-			{
-				Name:   "Region", 
-				Value:  watchDetail.Region,
+				Value:  fmt.Sprintf("%s#%s", watchDetail.SummonerName, watchDetail.TagLine),
 				Inline: true,
 			},
 		},
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
-	
+
 	// Add summoner details if available from validation
 	if summonerDetails != nil {
-		embed.Description = fmt.Sprintf("Now tracking **%s** in **%s** for this server.", 
-			summonerDetails.SummonerName, summonerDetails.Region)
-		
+		embed.Description = fmt.Sprintf("Now tracking **%s #%s** for this server.",
+			summonerDetails.GameName, summonerDetails.TagLine)
+
 		// Add summoner level if available
 		if summonerDetails.SummonerLevel > 0 {
 			embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
@@ -44,22 +40,22 @@ func createSuccessEmbed(watchDetail *models.SummonerWatchDetail, summonerDetails
 			})
 		}
 	} else {
-		embed.Description = fmt.Sprintf("Now tracking **%s** in **%s** for this server.", 
-			watchDetail.SummonerName, watchDetail.Region)
+		embed.Description = fmt.Sprintf("Now tracking **%s #%s** for this server.",
+			watchDetail.SummonerName, watchDetail.TagLine)
 	}
-	
+
 	embed.Footer = &discordgo.MessageEmbedFooter{
 		Text: "You will receive notifications about this summoner's activity",
 	}
-	
+
 	return embed
 }
 
 // createErrorEmbed creates an error embed for validation failures
-func createErrorEmbed(summonerName, region, errorMessage string) *discordgo.MessageEmbed {
+func createErrorEmbed(summonerName, tagLine, errorMessage string) *discordgo.MessageEmbed {
 	return &discordgo.MessageEmbed{
 		Title:       "❌ Failed to Track Summoner",
-		Description: fmt.Sprintf("Could not start tracking **%s** in **%s**", summonerName, region),
+		Description: fmt.Sprintf("Could not start tracking **%s #%s**", summonerName, tagLine),
 		Color:       common.ColorError,
 		Fields: []*discordgo.MessageEmbedField{
 			{
@@ -69,20 +65,53 @@ func createErrorEmbed(summonerName, region, errorMessage string) *discordgo.Mess
 		},
 		Timestamp: time.Now().Format(time.RFC3339),
 		Footer: &discordgo.MessageEmbedFooter{
-			Text: "Please check the summoner name and region, then try again",
+			Text: "Please check the summoner name and tag, then try again",
 		},
 	}
 }
 
 // createAlreadyWatchingEmbed creates an embed for when a summoner is already being watched
-func createAlreadyWatchingEmbed(summonerName, region string) *discordgo.MessageEmbed {
+func createAlreadyWatchingEmbed(summonerName, tagLine string) *discordgo.MessageEmbed {
 	return &discordgo.MessageEmbed{
-		Title:       "ℹ️ Already Tracking Summoner", 
-		Description: fmt.Sprintf("**%s** in **%s** is already being tracked for this server.", summonerName, region),
+		Title:       "ℹ️ Already Tracking Summoner",
+		Description: fmt.Sprintf("**%s #%s** is already being tracked for this server.", summonerName, tagLine),
 		Color:       common.ColorInfo,
 		Timestamp:   time.Now().Format(time.RFC3339),
 		Footer: &discordgo.MessageEmbedFooter{
 			Text: "No action needed - tracking continues",
+		},
+	}
+}
+
+// createUnwatchSuccessEmbed creates a success embed for a summoner that was successfully unwatched
+func createUnwatchSuccessEmbed(summonerName, tagLine string) *discordgo.MessageEmbed {
+	return &discordgo.MessageEmbed{
+		Title:       "✅ Summoner Tracking Stopped",
+		Description: fmt.Sprintf("No longer tracking **%s#%s** for this server.", summonerName, tagLine),
+		Color:       common.ColorSuccess,
+		Fields: []*discordgo.MessageEmbedField{
+			{
+				Name:   "Summoner",
+				Value:  summonerName,
+				Inline: true,
+			},
+		},
+		Timestamp: time.Now().Format(time.RFC3339),
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: "You will no longer receive notifications about this summoner",
+		},
+	}
+}
+
+// createNotWatchingEmbed creates an embed for when a summoner is not being tracked
+func createNotWatchingEmbed(summonerName, tagLine string) *discordgo.MessageEmbed {
+	return &discordgo.MessageEmbed{
+		Title:       "ℹ️ Not Tracking Summoner",
+		Description: fmt.Sprintf("**%s#%s** is not being tracked for this server.", summonerName, tagLine),
+		Color:       common.ColorInfo,
+		Timestamp:   time.Now().Format(time.RFC3339),
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: "Use /summoner watch to start tracking",
 		},
 	}
 }

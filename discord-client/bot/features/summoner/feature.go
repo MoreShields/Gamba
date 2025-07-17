@@ -33,6 +33,8 @@ func (f *Feature) HandleCommand(s *discordgo.Session, i *discordgo.InteractionCr
 		switch data.Options[0].Name {
 		case "watch":
 			f.handleWatchCommand(s, i)
+		case "unwatch":
+			f.handleUnwatchCommand(s, i)
 		}
 	}
 }

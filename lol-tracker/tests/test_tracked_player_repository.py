@@ -20,39 +20,32 @@ class TestTrackedPlayerRepository:
         repo = TrackedPlayerRepository(db_session)
 
         player = await repo.create(
-            summoner_name="TestPlayer",
-            region="NA1",
+            game_name="TestPlayer",
+            tag_line="gamba",
             puuid="test_puuid_123",
-            account_id="test_account_123",
-            summoner_id="test_summoner_123",
         )
 
         assert player.id is not None
-        assert player.summoner_name == "TestPlayer"
-        assert player.region == "NA1"
+        assert player.game_name == "TestPlayer"
         assert player.puuid == "test_puuid_123"
-        assert player.account_id == "test_account_123"
-        assert player.summoner_id == "test_summoner_123"
         assert player.is_active is True
         assert isinstance(player.created_at, datetime)
         assert isinstance(player.updated_at, datetime)
 
     @pytest.mark.asyncio
     async def test_create_tracked_player_minimal_data(self, db_session: AsyncSession):
-        """Test creating a tracked player with only required fields."""
+        """Test creating a tracked player with required fields."""
         repo = TrackedPlayerRepository(db_session)
 
         player = await repo.create(
-            summoner_name="MinimalPlayer",
-            region="EUW1",
+            game_name="MinimalPlayer",
+            tag_line="gamba",
+            puuid="test_puuid_minimal",
         )
 
         assert player.id is not None
-        assert player.summoner_name == "MinimalPlayer"
-        assert player.region == "EUW1"
-        assert player.puuid is None
-        assert player.account_id is None
-        assert player.summoner_id is None
+        assert player.game_name == "MinimalPlayer"
+        assert player.puuid == "test_puuid_minimal"
         assert player.is_active is True
 
     @pytest.mark.asyncio
@@ -61,7 +54,7 @@ class TestTrackedPlayerRepository:
         repo = TrackedPlayerRepository(db_session)
 
         # Create a player
-        created_player = await repo.create("GetByIdTest", "NA1")
+        created_player = await repo.create("GetByIdTest", "gamba", "test_puuid_getbyid")
         player_id = created_player.id
 
         # Retrieve by ID
@@ -79,43 +72,8 @@ class TestTrackedPlayerRepository:
 
         assert player is None
 
-    @pytest.mark.asyncio
-    async def test_get_by_summoner_and_region(self, db_session: AsyncSession):
-        """Test retrieving a tracked player by summoner name and region."""
-        repo = TrackedPlayerRepository(db_session)
 
-        # Create a player
-        created_player = await repo.create("SummonerTest", "EUW1")
 
-        # Retrieve by summoner name and region
-        retrieved_player = await repo.get_by_summoner_and_region("SummonerTest", "EUW1")
-
-        assert retrieved_player is not None
-        assert_player_equals(retrieved_player, created_player, ignore_id=False)
-
-    @pytest.mark.asyncio
-    async def test_get_by_summoner_and_region_not_found(self, db_session: AsyncSession):
-        """Test retrieving a non-existent player by summoner name and region."""
-        repo = TrackedPlayerRepository(db_session)
-
-        player = await repo.get_by_summoner_and_region("NonExistent", "NA1")
-
-        assert player is None
-
-    @pytest.mark.asyncio
-    async def test_get_by_summoner_and_region_case_sensitive(
-        self, db_session: AsyncSession
-    ):
-        """Test that summoner name search is case sensitive."""
-        repo = TrackedPlayerRepository(db_session)
-
-        # Create a player
-        await repo.create("CaseSensitive", "NA1")
-
-        # Try to retrieve with different case
-        player = await repo.get_by_summoner_and_region("casesensitive", "NA1")
-
-        assert player is None
 
     @pytest.mark.asyncio
     async def test_get_by_puuid(self, db_session: AsyncSession):
@@ -123,7 +81,7 @@ class TestTrackedPlayerRepository:
         repo = TrackedPlayerRepository(db_session)
 
         # Create a player with PUUID
-        created_player = await repo.create("PuuidTest", "NA1", puuid="unique_puuid_123")
+        created_player = await repo.create("PuuidTest", "gamba", puuid="unique_puuid_123")
 
         # Retrieve by PUUID
         retrieved_player = await repo.get_by_puuid("unique_puuid_123")
@@ -146,9 +104,9 @@ class TestTrackedPlayerRepository:
         repo = TrackedPlayerRepository(db_session)
 
         # Create multiple players
-        player1 = await repo.create("Active1", "NA1")
-        player2 = await repo.create("Active2", "EUW1")
-        player3 = await repo.create("Inactive", "KR")
+        player1 = await repo.create("Active1", "gamba", "test_puuid_active1")
+        player2 = await repo.create("Active2", "gamba", "test_puuid_active2")
+        player3 = await repo.create("Inactive", "gamba", "test_puuid_inactive")
 
         # Deactivate one player
         await repo.set_active_status(player3.id, False)
@@ -157,7 +115,7 @@ class TestTrackedPlayerRepository:
         active_players = await repo.get_all_active()
 
         assert len(active_players) == 2
-        active_names = {p.summoner_name for p in active_players}
+        active_names = {p.game_name for p in active_players}
         assert active_names == {"Active1", "Active2"}
 
     @pytest.mark.asyncio
@@ -170,20 +128,18 @@ class TestTrackedPlayerRepository:
         assert active_players == []
 
     @pytest.mark.asyncio
-    async def test_update_riot_ids(self, db_session: AsyncSession):
-        """Test updating Riot API IDs for a tracked player."""
+    async def test_update_puuid(self, db_session: AsyncSession):
+        """Test updating PUUID for a tracked player."""
         repo = TrackedPlayerRepository(db_session)
 
-        # Create a player without Riot IDs
-        player = await repo.create("UpdateTest", "NA1")
+        # Create a player
+        player = await repo.create("UpdateTest", "gamba", "old_puuid")
         original_updated_at = player.updated_at
 
-        # Update Riot IDs
-        success = await repo.update_riot_ids(
+        # Update PUUID
+        success = await repo.update_puuid(
             player.id,
             puuid="new_puuid_123",
-            account_id="new_account_123",
-            summoner_id="new_summoner_123",
         )
 
         assert success is True
@@ -191,52 +147,34 @@ class TestTrackedPlayerRepository:
         # Verify the update
         updated_player = await repo.get_by_id(player.id)
         assert updated_player.puuid == "new_puuid_123"
-        assert updated_player.account_id == "new_account_123"
-        assert updated_player.summoner_id == "new_summoner_123"
         assert updated_player.updated_at > original_updated_at
 
     @pytest.mark.asyncio
-    async def test_update_riot_ids_partial(self, db_session: AsyncSession):
-        """Test partially updating Riot API IDs."""
+    async def test_update_puuid_existing(self, db_session: AsyncSession):
+        """Test updating PUUID for player with existing PUUID."""
         repo = TrackedPlayerRepository(db_session)
 
-        # Create a player with some IDs
+        # Create a player with PUUID
         player = await repo.create(
-            "PartialTest", "NA1", puuid="existing_puuid", account_id="existing_account"
+            "PartialTest", "gamba", puuid="existing_puuid"
         )
 
-        # Update only PUUID
-        success = await repo.update_riot_ids(player.id, puuid="updated_puuid")
+        # Update PUUID
+        success = await repo.update_puuid(player.id, puuid="updated_puuid")
 
         assert success is True
 
         # Verify the update
         updated_player = await repo.get_by_id(player.id)
         assert updated_player.puuid == "updated_puuid"
-        assert (
-            updated_player.account_id == "existing_account"
-        )  # Should remain unchanged
-        assert updated_player.summoner_id is None  # Should remain None
+
 
     @pytest.mark.asyncio
-    async def test_update_riot_ids_no_data(self, db_session: AsyncSession):
-        """Test updating Riot IDs with no data provided."""
+    async def test_update_puuid_nonexistent_player(self, db_session: AsyncSession):
+        """Test updating PUUID for a non-existent player."""
         repo = TrackedPlayerRepository(db_session)
 
-        # Create a player
-        player = await repo.create("NoDataTest", "NA1")
-
-        # Try to update with no data
-        success = await repo.update_riot_ids(player.id)
-
-        assert success is False
-
-    @pytest.mark.asyncio
-    async def test_update_riot_ids_nonexistent_player(self, db_session: AsyncSession):
-        """Test updating Riot IDs for a non-existent player."""
-        repo = TrackedPlayerRepository(db_session)
-
-        success = await repo.update_riot_ids(99999, puuid="some_puuid")
+        success = await repo.update_puuid(99999, puuid="some_puuid")
 
         assert success is False
 
@@ -246,7 +184,7 @@ class TestTrackedPlayerRepository:
         repo = TrackedPlayerRepository(db_session)
 
         # Create an active player
-        player = await repo.create("StatusTest", "NA1")
+        player = await repo.create("StatusTest", "gamba", "test_puuid_status")
         assert player.is_active is True
 
         # Deactivate the player
@@ -280,7 +218,7 @@ class TestTrackedPlayerRepository:
         repo = TrackedPlayerRepository(db_session)
 
         # Create a player
-        player = await repo.create("DeleteTest", "NA1")
+        player = await repo.create("DeleteTest", "gamba", "test_puuid_delete")
         player_id = player.id
 
         # Verify player exists
@@ -312,11 +250,9 @@ class TestTrackedPlayerRepository:
 
         for player_data in players:
             created_player = await repo.create(
-                summoner_name=player_data.summoner_name,
-                region=player_data.region,
+                game_name=player_data.game_name,
+                tag_line=player_data.tag_line,
                 puuid=player_data.puuid,
-                account_id=player_data.account_id,
-                summoner_id=player_data.summoner_id,
             )
             assert created_player.id is not None
 
@@ -329,10 +265,10 @@ class TestTrackedPlayerRepository:
         repo = TrackedPlayerRepository(db_session)
 
         # Create a player
-        player = await repo.create("ConcurrentTest", "NA1")
+        player = await repo.create("ConcurrentTest", "gamba", "test_puuid_concurrent")
 
         # Perform multiple operations in the same session
-        await repo.update_riot_ids(player.id, puuid="concurrent_puuid")
+        await repo.update_puuid(player.id, puuid="concurrent_puuid")
         await repo.set_active_status(player.id, False)
 
         # Verify all operations took effect

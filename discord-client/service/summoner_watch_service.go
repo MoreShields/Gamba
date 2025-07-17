@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"gambler/discord-client/models"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type summonerWatchService struct {
@@ -20,20 +22,22 @@ func NewSummonerWatchService(summonerWatchRepo SummonerWatchRepository) Summoner
 }
 
 // AddWatch creates a new summoner watch for a guild
-func (s *summonerWatchService) AddWatch(ctx context.Context, guildID int64, summonerName, region string) (*models.SummonerWatchDetail, error) {
+func (s *summonerWatchService) AddWatch(ctx context.Context, guildID int64, summonerName, tagLine string) (*models.SummonerWatchDetail, error) {
 	// Validate inputs
 	if err := s.validateSummonerName(summonerName); err != nil {
 		return nil, err
 	}
 
-	// Normalize region to uppercase for validation and storage
-	normalizedRegion := strings.ToUpper(region)
-	if err := s.validateRegion(normalizedRegion); err != nil {
+	if err := s.validateTagLine(tagLine); err != nil {
 		return nil, err
 	}
 
+	// Normalize inputs to lowercase for case-insensitive storage
+	normalizedSummonerName := strings.ToLower(strings.TrimSpace(summonerName))
+	normalizedTagLine := strings.ToLower(strings.TrimSpace(tagLine))
+
 	// Create the watch - repository handles upsert of summoner and watch relationship
-	watch, err := s.summonerWatchRepo.CreateWatch(ctx, guildID, summonerName, normalizedRegion)
+	watch, err := s.summonerWatchRepo.CreateWatch(ctx, guildID, normalizedSummonerName, normalizedTagLine)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create summoner watch: %w", err)
 	}
@@ -42,26 +46,30 @@ func (s *summonerWatchService) AddWatch(ctx context.Context, guildID int64, summ
 }
 
 // RemoveWatch removes a summoner watch for a guild
-func (s *summonerWatchService) RemoveWatch(ctx context.Context, guildID int64, summonerName, region string) error {
+func (s *summonerWatchService) RemoveWatch(ctx context.Context, guildID int64, summonerName, tagLine string) error {
+
+	log.Warnf("%d-%s-%s", guildID, summonerName, tagLine)
 	// Validate inputs
 	if err := s.validateSummonerName(summonerName); err != nil {
 		return err
 	}
 
-	// Normalize region to uppercase for validation and storage
-	normalizedRegion := strings.ToUpper(region)
-	if err := s.validateRegion(normalizedRegion); err != nil {
+	if err := s.validateTagLine(tagLine); err != nil {
 		return err
 	}
 
+	// Normalize inputs to lowercase for case-insensitive comparison
+	normalizedSummonerName := strings.ToLower(strings.TrimSpace(summonerName))
+	normalizedTagLine := strings.ToLower(strings.TrimSpace(tagLine))
+
 	// Check if watch exists before attempting to delete
-	_, err := s.summonerWatchRepo.GetWatch(ctx, guildID, summonerName, normalizedRegion)
+	_, err := s.summonerWatchRepo.GetWatch(ctx, guildID, normalizedSummonerName, normalizedTagLine)
 	if err != nil {
 		return fmt.Errorf("summoner watch not found")
 	}
 
 	// Delete the watch
-	err = s.summonerWatchRepo.DeleteWatch(ctx, guildID, summonerName, normalizedRegion)
+	err = s.summonerWatchRepo.DeleteWatch(ctx, guildID, normalizedSummonerName, normalizedTagLine)
 	if err != nil {
 		return fmt.Errorf("failed to remove summoner watch: %w", err)
 	}
@@ -77,27 +85,6 @@ func (s *summonerWatchService) ListWatches(ctx context.Context, guildID int64) (
 	}
 
 	return watches, nil
-}
-
-// GetWatchDetails retrieves a specific summoner watch for a guild
-func (s *summonerWatchService) GetWatchDetails(ctx context.Context, guildID int64, summonerName, region string) (*models.SummonerWatchDetail, error) {
-	// Validate inputs
-	if err := s.validateSummonerName(summonerName); err != nil {
-		return nil, err
-	}
-
-	// Normalize region to uppercase for validation and storage
-	normalizedRegion := strings.ToUpper(region)
-	if err := s.validateRegion(normalizedRegion); err != nil {
-		return nil, err
-	}
-
-	watch, err := s.summonerWatchRepo.GetWatch(ctx, guildID, summonerName, normalizedRegion)
-	if err != nil {
-		return nil, fmt.Errorf("summoner watch not found")
-	}
-
-	return watch, nil
 }
 
 // validateSummonerName validates the format of a summoner name
@@ -130,35 +117,30 @@ func (s *summonerWatchService) validateSummonerName(summonerName string) error {
 	return nil
 }
 
-// validateRegion validates the LoL region code
-func (s *summonerWatchService) validateRegion(region string) error {
-	if region == "" {
-		return fmt.Errorf("region cannot be empty")
+// validateTagLine validates the Riot ID tag line format
+func (s *summonerWatchService) validateTagLine(tagLine string) error {
+	if tagLine == "" {
+		return fmt.Errorf("tag line cannot be empty")
 	}
 
-	// Valid LoL regions
-	validRegions := map[string]bool{
-		"NA1":  true, // North America
-		"EUW1": true, // Europe West
-		"EUN1": true, // Europe Nordic & East
-		"KR":   true, // Korea
-		"BR1":  true, // Brazil
-		"LA1":  true, // Latin America North
-		"LA2":  true, // Latin America South
-		"OC1":  true, // Oceania
-		"RU":   true, // Russia
-		"TR1":  true, // Turkey
-		"JP1":  true, // Japan
-		"PH2":  true, // Philippines
-		"SG2":  true, // Singapore
-		"TH2":  true, // Thailand
-		"TW2":  true, // Taiwan
-		"VN2":  true, // Vietnam
+	// Trim whitespace
+	trimmed := strings.TrimSpace(tagLine)
+	if trimmed == "" {
+		return fmt.Errorf("tag line cannot be empty")
 	}
 
-	upperRegion := strings.ToUpper(region)
-	if !validRegions[upperRegion] {
-		return fmt.Errorf("invalid region '%s'. Valid regions are: NA1, EUW1, EUN1, KR, BR1, LA1, LA2, OC1, RU, TR1, JP1, PH2, SG2, TH2, TW2, VN2", region)
+	// Check length - Riot tag lines are typically 3-5 characters
+	if len(trimmed) < 2 || len(trimmed) > 5 {
+		return fmt.Errorf("tag line must be between 2 and 5 characters")
+	}
+
+	// Check for valid characters - alphanumeric only
+	for _, char := range trimmed {
+		if !((char >= 'a' && char <= 'z') ||
+			(char >= 'A' && char <= 'Z') ||
+			(char >= '0' && char <= '9')) {
+			return fmt.Errorf("tag line contains invalid characters. Only letters and numbers are allowed")
+		}
 	}
 
 	return nil

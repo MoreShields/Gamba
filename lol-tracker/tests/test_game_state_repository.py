@@ -23,7 +23,7 @@ class TestGameStateRepository:
     async def tracked_player(self, db_session: AsyncSession):
         """Create a tracked player for testing game states."""
         player_repo = TrackedPlayerRepository(db_session)
-        return await player_repo.create("TestPlayer", "NA1", puuid="test_puuid")
+        return await player_repo.create("TestPlayer", "gamba", puuid="test_puuid")
 
     @pytest.mark.asyncio
     async def test_create_game_state(self, db_session: AsyncSession, tracked_player):
@@ -104,7 +104,7 @@ class TestGameStateRepository:
         player_repo = TrackedPlayerRepository(db_session)
 
         # Create another player
-        player2 = await player_repo.create("TestPlayer2", "EUW1")
+        player2 = await player_repo.create("TestPlayer2", "gamba", puuid="test_puuid_2")
 
         # Create game states for the same game ID
         state1 = await repo.create(
@@ -270,7 +270,7 @@ class TestGameStateRepository:
         player_repo = TrackedPlayerRepository(db_session)
 
         # Create another player
-        player2 = await player_repo.create("ActiveTest2", "EUW1")
+        player2 = await player_repo.create("ActiveTest2", "gamba", puuid="active_test_puuid_2")
 
         # Create various game states
         await repo.create(tracked_player.id, "NOT_IN_GAME")
@@ -290,7 +290,7 @@ class TestGameStateRepository:
         # Verify player data is loaded
         for state in active_games:
             assert state.player is not None
-            assert state.player.summoner_name in ["TestPlayer", "ActiveTest2"]
+            assert state.player.game_name in ["TestPlayer", "ActiveTest2"]
 
     @pytest.mark.asyncio
     async def test_get_active_games_empty(self, db_session: AsyncSession):
@@ -418,9 +418,9 @@ class TestGameStateRepository:
         player_repo = TrackedPlayerRepository(db_session)
 
         # Create multiple players
-        player1 = await player_repo.create("Player1", "NA1")
-        player2 = await player_repo.create("Player2", "NA1")
-        player3 = await player_repo.create("Player3", "NA1")
+        player1 = await player_repo.create("Player1", "gamba", puuid="multi_puuid_1")
+        player2 = await player_repo.create("Player2", "gamba", puuid="multi_puuid_2")
+        player3 = await player_repo.create("Player3", "gamba", puuid="multi_puuid_3")
 
         # All players join the same game
         shared_game_id = "multiplayer_game_123"

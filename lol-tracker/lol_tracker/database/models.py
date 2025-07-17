@@ -28,11 +28,9 @@ class TrackedPlayer(Base):
     __tablename__ = "tracked_players"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    summoner_name = Column(String(16), nullable=False)
-    region = Column(String(10), nullable=False)
-    puuid = Column(String(78), nullable=True)  # Riot's persistent unique identifier
-    account_id = Column(String(56), nullable=True)  # Riot's account ID
-    summoner_id = Column(String(63), nullable=True)  # Riot's summoner ID
+    game_name = Column(String(16), nullable=False)
+    tag_line = Column(String(5), nullable=False)  # Tag line without # (e.g., "gamba")
+    puuid = Column(String(78), nullable=False)  # Riot's persistent unique identifier
 
     # Tracking metadata
     created_at = Column(DateTime, nullable=False, default=func.now())
@@ -48,13 +46,13 @@ class TrackedPlayer(Base):
 
     # Indexes for efficient querying
     __table_args__ = (
-        Index("idx_tracked_players_summoner_region", "summoner_name", "region"),
+        Index("idx_tracked_players_game_name", "game_name"),
         Index("idx_tracked_players_puuid", "puuid"),
         Index("idx_tracked_players_active", "is_active"),
     )
 
     def __repr__(self) -> str:
-        return f"<TrackedPlayer(summoner_name='{self.summoner_name}', region='{self.region}')>"
+        return f"<TrackedPlayer(game_name='{self.game_name}', puuid='{self.puuid}')>"
 
 
 class GameState(Base):

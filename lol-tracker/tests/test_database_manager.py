@@ -81,7 +81,7 @@ class TestDatabaseManager:
                 player_repo = TrackedPlayerRepository(session)
 
                 # Create a player
-                await player_repo.create("TestPlayer", "NA1")
+                await player_repo.create("TestPlayer", "gamba", puuid="test_puuid_1")
 
                 # Raise an exception to trigger rollback
                 raise ValueError("Test exception")
@@ -89,7 +89,7 @@ class TestDatabaseManager:
         # Verify the player was not created due to rollback
         async with db_manager.get_session() as session:
             new_repo = TrackedPlayerRepository(session)
-            player = await new_repo.get_by_summoner_and_region("TestPlayer", "NA1")
+            player = await new_repo.get_by_puuid("test_puuid_1")
             assert player is None
 
     @pytest.mark.asyncio
@@ -98,7 +98,7 @@ class TestDatabaseManager:
         # Create a player in one session
         async with db_manager.get_session() as session:
             player_repo = TrackedPlayerRepository(session)
-            player = await player_repo.create("CommitTest", "NA1")
+            player = await player_repo.create("CommitTest", "gamba", puuid="commit_test_puuid")
             await session.commit()
             player_id = player.id
 
@@ -107,7 +107,7 @@ class TestDatabaseManager:
             player_repo = TrackedPlayerRepository(session)
             retrieved_player = await player_repo.get_by_id(player_id)
             assert retrieved_player is not None
-            assert retrieved_player.summoner_name == "CommitTest"
+            assert retrieved_player.game_name == "CommitTest"
 
     @pytest.mark.asyncio
     async def test_create_and_drop_tables(self, test_config: Config):
@@ -124,7 +124,7 @@ class TestDatabaseManager:
         # Verify tables work by creating some data
         async with manager.get_session() as session:
             player_repo = TrackedPlayerRepository(session)
-            player = await player_repo.create("TableTest", "NA1")
+            player = await player_repo.create("TableTest", "gamba", puuid="table_test_puuid")
             await session.commit()
             assert player.id is not None
 
@@ -176,7 +176,7 @@ class TestDatabaseManager:
         async def create_player(name: str):
             async with db_manager.get_session() as session:
                 player_repo = TrackedPlayerRepository(session)
-                player = await player_repo.create(name, "NA1")
+                player = await player_repo.create(name, "gamba", puuid=f"concurrent_puuid_{name}")
                 await session.commit()
                 return player.id
 
@@ -202,7 +202,7 @@ class TestDatabaseManager:
             player_repo = TrackedPlayerRepository(session)
 
             # Create a player
-            player = await player_repo.create("NestedTest", "NA1")
+            player = await player_repo.create("NestedTest", "gamba", puuid="nested_test_puuid")
             await session.flush()  # Flush but don't commit
 
             # Start a nested transaction (savepoint)
@@ -210,7 +210,7 @@ class TestDatabaseManager:
 
             try:
                 # Create another player in the nested transaction
-                await player_repo.create("NestedTest2", "NA1")
+                await player_repo.create("NestedTest2", "gamba", puuid="nested_test_puuid_2")
                 await session.flush()
 
                 # Rollback the nested transaction
@@ -225,8 +225,8 @@ class TestDatabaseManager:
         # Verify only the first player exists
         async with db_manager.get_session() as session:
             player_repo = TrackedPlayerRepository(session)
-            player1 = await player_repo.get_by_summoner_and_region("NestedTest", "NA1")
-            player2 = await player_repo.get_by_summoner_and_region("NestedTest2", "NA1")
+            player1 = await player_repo.get_by_puuid("nested_test_puuid")
+            player2 = await player_repo.get_by_puuid("nested_test_puuid_2")
 
             assert player1 is not None
             assert player2 is None
@@ -239,7 +239,7 @@ class TestDatabaseManager:
             game_repo = GameStateRepository(session)
 
             # Create a player
-            player = await player_repo.create("IntegrationTest", "NA1")
+            player = await player_repo.create("IntegrationTest", "gamba", puuid="integration_test_puuid")
             await session.flush()
 
             # Create game states for the player
@@ -260,8 +260,8 @@ class TestDatabaseManager:
             player_repo = TrackedPlayerRepository(session)
             game_repo = GameStateRepository(session)
 
-            deleted_player = await player_repo.get_by_summoner_and_region(
-                "IntegrationTest", "NA1"
+            deleted_player = await player_repo.get_by_puuid(
+                "integration_test_puuid"
             )
             remaining_states = await game_repo.get_recent_games_for_player(player.id)
 
@@ -343,7 +343,7 @@ class TestGlobalDatabaseManager:
         # Use the global manager for database operations
         async with manager.get_session() as session:
             player_repo = TrackedPlayerRepository(session)
-            player = await player_repo.create("GlobalTest", "NA1")
+            player = await player_repo.create("GlobalTest", "gamba", puuid="global_test_puuid")
             await session.commit()
             assert player.id is not None
 
@@ -359,7 +359,7 @@ class TestGlobalDatabaseManager:
         with pytest.raises(ValueError):
             async with manager.get_session() as session:
                 player_repo = TrackedPlayerRepository(session)
-                await player_repo.create("ErrorTest", "NA1")
+                await player_repo.create("ErrorTest", "gamba", puuid="error_test_puuid")
                 raise ValueError("Test error")
 
         # Manager should still be usable after error

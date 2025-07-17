@@ -7,30 +7,12 @@ import httpx
 
 from lol_tracker.riot_api_client import (
     RiotAPIClient,
-    RiotRegion,
     SummonerInfo,
     SummonerNotFoundError,
     InvalidRegionError,
     RateLimitError,
     RiotAPIError,
 )
-
-
-class TestRiotRegion:
-    """Test cases for RiotRegion enum."""
-
-    def test_valid_regions(self):
-        """Test that valid regions are recognized."""
-        assert RiotRegion.is_valid("na1")
-        assert RiotRegion.is_valid("euw1")
-        assert RiotRegion.is_valid("kr")
-
-    def test_invalid_regions(self):
-        """Test that invalid regions are rejected."""
-        assert not RiotRegion.is_valid("invalid")
-        assert not RiotRegion.is_valid("na2")
-        assert not RiotRegion.is_valid("europe")
-
 
 class TestRiotAPIClient:
     """Test cases for RiotAPIClient."""
@@ -50,113 +32,88 @@ class TestRiotAPIClient:
     def test_get_base_url(self):
         """Test base URL generation."""
         client = RiotAPIClient("test_api_key")
-        assert client._get_base_url("na1") == "https://na1.api.riotgames.com"
-        assert client._get_base_url("euw1") == "https://euw1.api.riotgames.com"
+        assert client._get_base_url("NA1") == "https://NA1.api.riotgames.com"
+        assert client._get_base_url("EUW1") == "https://EUW1.api.riotgames.com"
 
     @pytest.mark.asyncio
-    async def test_get_summoner_by_name_invalid_region(self):
-        """Test that invalid region raises InvalidRegionError."""
+    async def test_get_summoner_by_name_invalid_format(self):
+        """Test that empty game name or tag line raises SummonerNotFoundError."""
         client = RiotAPIClient("test_api_key")
 
-        with pytest.raises(InvalidRegionError):
-            await client.get_summoner_by_name("TestPlayer", "invalid_region")
+        with pytest.raises(SummonerNotFoundError):
+            await client.get_summoner_by_name("", "tag")
+        
+        with pytest.raises(SummonerNotFoundError):
+            await client.get_summoner_by_name("name", "")
+        
+        with pytest.raises(SummonerNotFoundError):
+            await client.get_summoner_by_name("  ", "tag")
 
         await client.close()
 
     @pytest.mark.asyncio
     async def test_get_summoner_by_name_success(self):
-        """Test successful summoner lookup."""
-        mock_response_data = {
-            "id": "summoner_id_123",
-            "accountId": "account_id_456",
-            "puuid": "puuid_789",
-            "name": "TestPlayer",
-            "summonerLevel": 50,
-            "revisionDate": 1640995200000,
-        }
+        """Test successful summoner lookup using account API only."""
+        mock_summoner_info = SummonerInfo(
+            puuid="puuid_789",
+            game_name="TestPlayer",
+            tag_line="gamba"
+        )
 
         client = RiotAPIClient("test_api_key")
 
-        with patch.object(client, "_make_request") as mock_request:
-            mock_request.return_value = mock_response_data
+        with patch.object(client, "get_account_by_riot_id") as mock_get_account:
+            mock_get_account.return_value = mock_summoner_info
 
-            result = await client.get_summoner_by_name("TestPlayer", "na1")
+            result = await client.get_summoner_by_name("TestPlayer", "gamba")
 
             assert isinstance(result, SummonerInfo)
-            assert result.summoner_name == "TestPlayer"
-            assert result.summoner_id == "summoner_id_123"
-            assert result.account_id == "account_id_456"
+            assert result.game_name == "TestPlayer"
             assert result.puuid == "puuid_789"
-            assert result.summoner_level == 50
-            assert result.region == "na1"
-            assert result.last_updated == 1640995200000
+            assert result.tag_line == "gamba"
 
-            # Verify the correct URL was called
-            mock_request.assert_called_once_with(
-                "https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/TestPlayer"
-            )
+            # Verify the correct method was called
+            mock_get_account.assert_called_once_with("TestPlayer", "gamba")
 
         await client.close()
 
     @pytest.mark.asyncio
     async def test_get_summoner_by_name_not_found(self):
-        """Test summoner not found scenario."""
+        """Test summoner not found scenario - account not found."""
         client = RiotAPIClient("test_api_key")
 
-        with patch.object(client, "_make_request") as mock_request:
-            mock_request.side_effect = SummonerNotFoundError("Summoner not found")
+        with patch.object(client, "get_account_by_riot_id") as mock_get_account:
+            mock_get_account.side_effect = SummonerNotFoundError("Account not found")
 
             with pytest.raises(SummonerNotFoundError):
-                await client.get_summoner_by_name("NonExistentPlayer", "na1")
+                await client.get_summoner_by_name("NonExistentPlayer", "NA1")
 
         await client.close()
 
     @pytest.mark.asyncio
-    async def test_validate_summoner_exists_true(self):
-        """Test validate_summoner_exists returns True for existing summoner."""
+    async def test_get_summoner_by_name_with_tagline(self):
+        """Test summoner lookup with explicit tagline."""
+        mock_summoner_info = SummonerInfo(
+            puuid="puuid_789",
+            game_name="TestPlayer",
+            tag_line="EUW"
+        )
+
         client = RiotAPIClient("test_api_key")
 
-        with patch.object(client, "get_summoner_by_name") as mock_get:
-            mock_get.return_value = SummonerInfo(
-                puuid="test_puuid",
-                account_id="test_account",
-                summoner_id="test_summoner",
-                summoner_name="TestPlayer",
-                summoner_level=50,
-                region="na1",
-                last_updated=1640995200000,
-            )
+        with patch.object(client, "get_account_by_riot_id") as mock_get_account:
+            mock_get_account.return_value = mock_summoner_info
 
-            result = await client.validate_summoner_exists("TestPlayer", "na1")
-            assert result is True
+            result = await client.get_summoner_by_name("TestPlayer", "EUW")
+
+            assert result.game_name == "TestPlayer"
+            assert result.puuid == "puuid_789"
+
+            # Verify the tagline was parsed correctly
+            mock_get_account.assert_called_once_with("TestPlayer", "EUW")
 
         await client.close()
 
-    @pytest.mark.asyncio
-    async def test_validate_summoner_exists_false(self):
-        """Test validate_summoner_exists returns False for non-existing summoner."""
-        client = RiotAPIClient("test_api_key")
-
-        with patch.object(client, "get_summoner_by_name") as mock_get:
-            mock_get.side_effect = SummonerNotFoundError("Summoner not found")
-
-            result = await client.validate_summoner_exists("NonExistentPlayer", "na1")
-            assert result is False
-
-        await client.close()
-
-    @pytest.mark.asyncio
-    async def test_validate_summoner_exists_propagates_other_errors(self):
-        """Test that validate_summoner_exists propagates non-NotFound errors."""
-        client = RiotAPIClient("test_api_key")
-
-        with patch.object(client, "get_summoner_by_name") as mock_get:
-            mock_get.side_effect = RateLimitError("Rate limited")
-
-            with pytest.raises(RateLimitError):
-                await client.validate_summoner_exists("TestPlayer", "na1")
-
-        await client.close()
 
     @pytest.mark.asyncio
     async def test_make_request_success(self):
