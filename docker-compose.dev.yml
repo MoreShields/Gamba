@@ -79,6 +79,7 @@ services:
       context: .
       dockerfile: lol-tracker/Dockerfile
       target: production
+    image: lol-tracker-migrate:dev
     environment:
       RIOT_API_KEY: ${RIOT_API_KEY}
       DATABASE_URL: postgres://gambler:gambler_dev_password@postgres:5432
@@ -98,6 +99,7 @@ services:
       context: .
       dockerfile: lol-tracker/Dockerfile
       target: dev
+    image: lol-tracker:dev
     environment:
       RIOT_API_KEY: ${RIOT_API_KEY}
       DATABASE_URL: postgres://gambler:gambler_dev_password@postgres:5432
