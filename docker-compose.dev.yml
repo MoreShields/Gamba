@@ -30,8 +30,8 @@ services:
   # Discord bot overrides for development
   discord-migrate:
     build:
-      context: ./discord-client
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: discord-client/Dockerfile
       target: prod
     image: gambler-discord-migrate:dev
     environment:
@@ -48,8 +48,8 @@ services:
 
   discord-bot:
     build:
-      context: ./discord-client
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: discord-client/Dockerfile
       target: dev
     image: gambler-discord-bot:dev
     environment:
@@ -73,6 +73,25 @@ services:
       discord-migrate:
         condition: service_completed_successfully
 
+  # LoL Tracker migration overrides for development
+  lol-tracker-migrate:
+    build:
+      context: .
+      dockerfile: lol-tracker/Dockerfile
+      target: production
+    environment:
+      RIOT_API_KEY: ${RIOT_API_KEY}
+      DATABASE_URL: postgres://gambler:gambler_dev_password@postgres:5432
+      DATABASE_NAME: lol_tracker_db
+      ENVIRONMENT: development
+    working_dir: /app
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    extra_hosts: []
+    profiles: ["lol"]
+
   # LoL Tracker overrides for development
   lol-tracker:
     build:
@@ -80,6 +99,7 @@ services:
       dockerfile: lol-tracker/Dockerfile
       target: dev
     environment:
+      RIOT_API_KEY: ${RIOT_API_KEY}
       DATABASE_URL: postgres://gambler:gambler_dev_password@postgres:5432
       DATABASE_NAME: lol_tracker_db
       ENVIRONMENT: development
@@ -95,9 +115,16 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      lol-tracker-migrate:
+        condition: service_completed_successfully
       nats:
         condition: service_healthy
     profiles: ["lol"]
 
 volumes:
   postgres_data:
+
+networks:
+  gamba-bridge:
+    driver: bridge
+    name: gamba-bridge

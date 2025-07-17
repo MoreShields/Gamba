@@ -7,7 +7,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"gambler/discord-client/bot/common"
 	"gambler/discord-client/models"
-	summoner_pb "gambler/api/gen/go/services"
+	summoner_pb "gambler/discord-client/proto/services"
 )
 
 // createSuccessEmbed creates a success embed for a newly tracked summoner

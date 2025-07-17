@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	
+
 	"gambler/discord-client/database"
 )
 
@@ -80,7 +80,7 @@ func load() (*Config, error) {
 		GambaChannelID: os.Getenv("GAMBA_CHANNEL_ID"),
 
 		// Summoner Service
-		SummonerServiceAddr: getEnvWithDefault("SUMMONER_SERVICE_ADDR", "localhost:50051"),
+		SummonerServiceAddr: getEnvWithDefault("SUMMONER_SERVICE_ADDR", "lol-tracker:9000"),
 
 		// Environment
 		Environment: os.Getenv("ENVIRONMENT"),

@@ -3,6 +3,7 @@ package summoner
 import (
 	"context"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -11,7 +12,7 @@ import (
 
 	"gambler/discord-client/bot/common"
 	"gambler/discord-client/service"
-	summoner_pb "gambler/api/gen/go/services"
+	summoner_pb "gambler/discord-client/proto/services"
 )
 
 // handleWatchCommand handles the /summoner watch command
@@ -147,21 +148,5 @@ func isDuplicateWatchError(err error) bool {
 	// This could be enhanced to check for specific database constraint errors
 	// For now, we'll use a simple string check
 	errStr := err.Error()
-	return contains(errStr, "duplicate") || contains(errStr, "already exists") || contains(errStr, "unique")
-}
-
-// contains checks if a string contains a substring (case-insensitive helper)
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || 
-		(len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || 
-		containsHelper(s, substr))))
-}
-
-func containsHelper(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
+	return strings.Contains(errStr, "duplicate") || strings.Contains(errStr, "already exists") || strings.Contains(errStr, "unique")
 }
