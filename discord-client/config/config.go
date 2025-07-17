@@ -31,6 +31,9 @@ type Config struct {
 	// Group Wager configuration
 	ResolverDiscordIDs []int64 // Discord IDs that can resolve group wagers
 
+	// Summoner Service configuration
+	SummonerServiceAddr string // Address of the summoner tracking service
+
 	// Environment
 	Environment string // "development" or "production"
 }
@@ -75,6 +78,9 @@ func load() (*Config, error) {
 
 		// High Roller Role
 		GambaChannelID: os.Getenv("GAMBA_CHANNEL_ID"),
+
+		// Summoner Service
+		SummonerServiceAddr: getEnvWithDefault("SUMMONER_SERVICE_ADDR", "localhost:50051"),
 
 		// Environment
 		Environment: os.Getenv("ENVIRONMENT"),
@@ -125,4 +131,12 @@ func load() (*Config, error) {
 	}
 
 	return config, nil
+}
+
+// getEnvWithDefault returns the environment variable value or a default if not set
+func getEnvWithDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
