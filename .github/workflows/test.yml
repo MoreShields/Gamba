@@ -40,25 +40,50 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-go-
 
-    - name: Generate protobuf code
+    - name: Cache Python dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('lol-tracker/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Generate protobuf code for all services
       run: make proto
 
     - name: Download dependencies
       working-directory: discord-client
       run: go mod download
 
-    - name: Run unit tests
+    - name: Setup Python virtual environment
+      run: |
+        python -m venv venv
+        ./venv/bin/pip install --upgrade pip
+
+    - name: Install lol-tracker dependencies
+      working-directory: lol-tracker
+      run: ../venv/bin/pip install -r requirements-dev.txt
+
+    - name: Run discord-client unit tests
       working-directory: discord-client
       env:
         ENVIRONMENT: test
       run: go test -v -short ./...
 
-    - name: Run integration tests
+    - name: Run discord-client integration tests
       working-directory: discord-client
       env:
         ENVIRONMENT: test
         TESTCONTAINERS_RYUK_DISABLED: true
       run: go test -v ./repository/...
+
+    - name: Run lol-tracker tests
+      working-directory: lol-tracker
+      env:
+        ENVIRONMENT: test
+        TESTCONTAINERS_RYUK_DISABLED: true
+        DATABASE_URL: postgresql://test:test@localhost:5432/test
+      run: make test
 
     - name: Upload test coverage
       uses: actions/upload-artifact@v4

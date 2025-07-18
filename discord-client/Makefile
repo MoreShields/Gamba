@@ -1,4 +1,4 @@
-.PHONY: help dev build test clean
+.PHONY: help dev build test clean proto
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -10,7 +10,15 @@ dev: ## Start development environment (use root 'make dev' instead)
 	@echo "Please use 'make dev' from the project root directory instead"
 	@exit 1
 
-build: ## Build the application binary
+proto: ## Generate protobuf code for discord-client
+	@echo "Generating protobuf code for discord-client..."
+	@mkdir -p proto
+	protoc -I=../api/proto \
+		--go_out=proto --go_opt=paths=source_relative \
+		--go-grpc_out=proto --go-grpc_opt=paths=source_relative \
+		../api/proto/events/*.proto ../api/proto/models/*.proto ../api/proto/services/*.proto
+
+build: proto ## Build the application binary
 	go build -o bin/gambler main.go
 
 test: ## Run all tests
@@ -23,7 +31,7 @@ test-integration: ## Run integration tests with testcontainers
 	go test -v ./repository/...
 
 clean: ## Clean build artifacts
-	rm -rf bin/ tmp/
+	rm -rf bin/ tmp/ proto/
 
 
 migrate-up: ## Run pending database migrations (production)

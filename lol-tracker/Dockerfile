@@ -106,6 +106,10 @@ WORKDIR /app
 # Copy application code
 COPY lol-tracker/lol_tracker/ ./lol_tracker/
 
+# Copy alembic configuration and migrations
+COPY lol-tracker/alembic.ini ./
+COPY lol-tracker/migrations/ ./migrations/
+
 # Copy generated protobuf files with correct structure
 COPY --from=builder /lol_tracker/proto/ ./lol_tracker/proto/
 

@@ -7,11 +7,11 @@ help: ## Show this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 # Development commands
-dev: ## Start complete development environment (discord-client + lol-tracker + postgres + nats)
+dev: proto ## Start complete development environment (discord-client + lol-tracker + postgres + nats)
 	@echo "Stopping and removing any existing containers..."
 	@docker-compose -f docker-compose.yml -f docker-compose.dev.yml --profile discord --profile lol down --remove-orphans 2>/dev/null || true
 	@echo "Removing any conflicting containers..."
-	@docker rm -f gambler-nats gambler-postgres discord-bot lol-tracker discord-migrate 2>/dev/null || true
+	@docker rm -f gambler-nats gambler-postgres discord-bot lol-tracker discord-migrate lol-tracker-migrate 2>/dev/null || true
 	@if [ -f .env ]; then \
 		set -a; source .env; set +a; \
 		docker-compose -f docker-compose.yml -f docker-compose.dev.yml --profile discord --profile lol up --build; \
@@ -53,7 +53,8 @@ prod-logs: ## View production logs (use SERVICE=discord|lol|nats to specify)
 
 # Protobuf commands
 proto: ## Generate protobuf code for all services
-	$(MAKE) -C api generate
+	$(MAKE) -C discord-client proto
+	$(MAKE) -C lol-tracker proto
 
 # Build commands
 build: proto build-discord build-lol ## Build all services
@@ -69,7 +70,7 @@ build-lol: ## Build lol-tracker service
 docker-build: docker-build-discord docker-build-lol ## Build all Docker images
 
 docker-build-discord: ## Build Discord bot Docker image
-	docker build -f discord-client/Dockerfile --target prod discord-client
+	docker build -f discord-client/Dockerfile --target prod .
 
 docker-build-lol: ## Build LoL tracker Docker image
 	docker build -f lol-tracker/Dockerfile --target production .

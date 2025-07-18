@@ -46,6 +46,81 @@ class SummonerInfo:
     last_updated: int
 
 
+@dataclass
+class CurrentGameInfo:
+    """Current game information from Spectator API."""
+
+    game_id: str
+    game_type: str
+    game_start_time: int
+    map_id: int
+    game_length: int
+    platform_id: str
+    game_mode: str
+    game_queue_config_id: int
+    participants: list[Dict[str, Any]]
+
+    @property
+    def queue_type(self) -> str:
+        """Get a readable queue type name."""
+        queue_map = {
+            420: "RANKED_SOLO_5x5",
+            440: "RANKED_FLEX_SR",
+            450: "ARAM",
+            400: "NORMAL_DRAFT",
+            430: "NORMAL_BLIND",
+            700: "CLASH",
+            1700: "ARENA",
+        }
+        return queue_map.get(
+            self.game_queue_config_id, f"QUEUE_{self.game_queue_config_id}"
+        )
+
+
+@dataclass
+class MatchInfo:
+    """Match information from Match API."""
+
+    match_id: str
+    game_creation: int
+    game_duration: int
+    game_end_timestamp: int
+    game_mode: str
+    game_type: str
+    map_id: int
+    platform_id: str
+    queue_id: int
+    participants: list[Dict[str, Any]]
+
+    @property
+    def queue_type(self) -> str:
+        """Get a readable queue type name."""
+        queue_map = {
+            420: "RANKED_SOLO_5x5",
+            440: "RANKED_FLEX_SR",
+            450: "ARAM",
+            400: "NORMAL_DRAFT",
+            430: "NORMAL_BLIND",
+            700: "CLASH",
+            1700: "ARENA",
+        }
+        return queue_map.get(self.queue_id, f"QUEUE_{self.queue_id}")
+
+    def get_participant_result(self, puuid: str) -> Optional[Dict[str, Any]]:
+        """Get the match result for a specific participant by PUUID."""
+        for participant in self.participants:
+            if participant.get("puuid") == puuid:
+                return {
+                    "won": participant.get("win", False),
+                    "champion_name": participant.get("championName", "Unknown"),
+                    "champion_id": participant.get("championId", 0),
+                    "kills": participant.get("kills", 0),
+                    "deaths": participant.get("deaths", 0),
+                    "assists": participant.get("assists", 0),
+                }
+        return None
+
+
 class RiotAPIError(Exception):
     """Base exception for Riot API errors."""
 
@@ -66,6 +141,12 @@ class RateLimitError(RiotAPIError):
 
 class InvalidRegionError(RiotAPIError):
     """Invalid region error."""
+
+    pass
+
+
+class PlayerNotInGameError(RiotAPIError):
+    """Player is not currently in a game."""
 
     pass
 
@@ -125,7 +206,9 @@ class RiotAPIClient:
 
         self._last_request_time = time.time()
 
-    async def _make_request(self, url: str) -> Dict[str, Any]:
+    async def _make_request(
+        self, url: str, handle_404_as: str = "summoner_not_found"
+    ) -> Dict[str, Any]:
         """Make a request to the Riot API with rate limiting and error handling."""
         await self._rate_limit_delay()
 
@@ -141,9 +224,14 @@ class RiotAPIClient:
                 logger.warning("Rate limited by Riot API", retry_after=retry_after)
                 raise RateLimitError(f"Rate limited. Retry after {retry_after} seconds")
 
-            # Handle not found
+            # Handle not found - context dependent
             if response.status_code == 404:
-                raise SummonerNotFoundError("Summoner not found")
+                if handle_404_as == "summoner_not_found":
+                    raise SummonerNotFoundError("Summoner not found")
+                elif handle_404_as == "not_in_game":
+                    raise PlayerNotInGameError("Player is not currently in a game")
+                else:
+                    raise RiotAPIError("Resource not found")
 
             # Handle other errors
             if response.status_code >= 400:
@@ -242,4 +330,215 @@ class RiotAPIClient:
             return False
         except Exception:
             # For other errors (rate limits, API errors), we should raise them
+            raise
+
+    async def get_current_game_info(
+        self, summoner_id: str, region: str
+    ) -> CurrentGameInfo:
+        """Get current game information for a summoner.
+
+        Args:
+            summoner_id: Summoner ID to check
+            region: Region to search in
+
+        Returns:
+            CurrentGameInfo object with current game details
+
+        Raises:
+            PlayerNotInGameError: If player is not currently in a game
+            InvalidRegionError: If region is invalid
+            RateLimitError: If rate limited
+            RiotAPIError: For other API errors
+        """
+        if not RiotRegion.is_valid(region):
+            raise InvalidRegionError(f"Invalid region: {region}")
+
+        base_url = self._get_base_url(region)
+        url = f"{base_url}/lol/spectator/v4/active-games/by-summoner/{summoner_id}"
+
+        logger.info(
+            "Fetching current game info", summoner_id=summoner_id, region=region
+        )
+
+        try:
+            data = await self._make_request(url, handle_404_as="not_in_game")
+
+            current_game = CurrentGameInfo(
+                game_id=str(data["gameId"]),
+                game_type=data["gameType"],
+                game_start_time=data["gameStartTime"],
+                map_id=data["mapId"],
+                game_length=data["gameLength"],
+                platform_id=data["platformId"],
+                game_mode=data["gameMode"],
+                game_queue_config_id=data["gameQueueConfigId"],
+                participants=data.get("participants", []),
+            )
+
+            logger.info(
+                "Successfully fetched current game info",
+                summoner_id=summoner_id,
+                region=region,
+                game_id=current_game.game_id,
+                queue_type=current_game.queue_type,
+            )
+
+            return current_game
+
+        except PlayerNotInGameError:
+            logger.debug("Player not in game", summoner_id=summoner_id, region=region)
+            raise
+        except Exception as e:
+            logger.error(
+                "Error fetching current game info",
+                summoner_id=summoner_id,
+                region=region,
+                error=str(e),
+            )
+            raise
+
+    def _get_regional_url(self, region: str) -> str:
+        """Get the regional URL for Match API calls."""
+        regional_map = {
+            "na1": "americas",
+            "br1": "americas",
+            "la1": "americas",
+            "la2": "americas",
+            "euw1": "europe",
+            "eun1": "europe",
+            "tr1": "europe",
+            "ru": "europe",
+            "kr": "asia",
+            "jp1": "asia",
+            "oc1": "sea",
+        }
+        regional_endpoint = regional_map.get(region, "americas")
+        return f"https://{regional_endpoint}.api.riotgames.com"
+
+    async def get_match_info(self, match_id: str, region: str) -> MatchInfo:
+        """Get detailed match information.
+
+        Args:
+            match_id: Match ID to fetch
+            region: Region for routing (used to determine regional endpoint)
+
+        Returns:
+            MatchInfo object with match details
+
+        Raises:
+            InvalidRegionError: If region is invalid
+            RateLimitError: If rate limited
+            RiotAPIError: For other API errors
+        """
+        if not RiotRegion.is_valid(region):
+            raise InvalidRegionError(f"Invalid region: {region}")
+
+        regional_url = self._get_regional_url(region)
+        url = f"{regional_url}/lol/match/v5/matches/{match_id}"
+
+        logger.info("Fetching match info", match_id=match_id, region=region)
+
+        try:
+            data = await self._make_request(url)
+
+            match_info = MatchInfo(
+                match_id=data["metadata"]["matchId"],
+                game_creation=data["info"]["gameCreation"],
+                game_duration=data["info"]["gameDuration"],
+                game_end_timestamp=data["info"]["gameEndTimestamp"],
+                game_mode=data["info"]["gameMode"],
+                game_type=data["info"]["gameType"],
+                map_id=data["info"]["mapId"],
+                platform_id=data["info"]["platformId"],
+                queue_id=data["info"]["queueId"],
+                participants=data["info"]["participants"],
+            )
+
+            logger.info(
+                "Successfully fetched match info",
+                match_id=match_id,
+                region=region,
+                queue_type=match_info.queue_type,
+                duration=match_info.game_duration,
+            )
+
+            return match_info
+
+        except Exception as e:
+            logger.error(
+                "Error fetching match info",
+                match_id=match_id,
+                region=region,
+                error=str(e),
+            )
+            raise
+
+    async def get_recent_matches(
+        self, puuid: str, region: str, count: int = 5
+    ) -> list[str]:
+        """Get recent match IDs for a player.
+
+        Args:
+            puuid: Player PUUID
+            region: Region for routing
+            count: Number of matches to retrieve (max 100)
+
+        Returns:
+            List of match IDs
+
+        Raises:
+            InvalidRegionError: If region is invalid
+            RateLimitError: If rate limited
+            RiotAPIError: For other API errors
+        """
+        if not RiotRegion.is_valid(region):
+            raise InvalidRegionError(f"Invalid region: {region}")
+
+        regional_url = self._get_regional_url(region)
+        url = f"{regional_url}/lol/match/v5/matches/by-puuid/{puuid}/ids"
+
+        # Add query parameters
+        params = {"count": min(count, 100)}
+
+        logger.info("Fetching recent matches", puuid=puuid, region=region, count=count)
+
+        try:
+            response = await self.client.get(
+                url,
+                headers={"X-Riot-Token": self.api_key, "Accept": "application/json"},
+                params=params,
+            )
+
+            if response.status_code == 404:
+                logger.info("No matches found for player", puuid=puuid, region=region)
+                return []
+
+            if response.status_code >= 400:
+                logger.error(
+                    "Error fetching recent matches",
+                    status_code=response.status_code,
+                    response=response.text,
+                )
+                raise RiotAPIError(f"API error: {response.status_code}")
+
+            match_ids = response.json()
+            logger.info(
+                "Successfully fetched recent matches",
+                puuid=puuid,
+                region=region,
+                match_count=len(match_ids),
+            )
+
+            return match_ids
+
+        except httpx.RequestError as e:
+            logger.error("HTTP request failed", error=str(e))
+            raise RiotAPIError(f"Request failed: {e}")
+        except Exception as e:
+            logger.error(
+                "Error fetching recent matches",
+                puuid=puuid,
+                region=region,
+                error=str(e),
+            )
             raise

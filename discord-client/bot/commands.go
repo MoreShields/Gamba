@@ -164,6 +164,31 @@ func (b *Bot) registerCommands() error {
 				},
 			},
 		},
+		{
+			Name:        "summoner",
+			Description: "League of Legends summoner tracking",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "watch",
+					Description: "Start tracking a summoner",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "summoner_name",
+							Description: "League of Legends summoner name",
+							Required:    true,
+						},
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "region",
+							Description: "Region (default: NA1)",
+							Required:    false,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, cmd := range commands {

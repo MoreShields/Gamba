@@ -24,16 +24,16 @@ class TestSummonerTrackingServiceIntegration:
     """Integration tests for SummonerTrackingService with real database."""
 
     @pytest.mark.asyncio
-    async def test_start_tracking_summoner_success(self, summoner_service: SummonerTrackingService):
+    async def test_start_tracking_summoner_success(
+        self, summoner_service: SummonerTrackingService
+    ):
         """Test successful summoner tracking with new summoner."""
         # Create request
         timestamp = Timestamp()
         timestamp.GetCurrentTime()
-        
+
         request = summoner_service_pb2.StartTrackingSummonerRequest(
-            summoner_name="TestSummoner",
-            region="na1",
-            requested_at=timestamp
+            summoner_name="TestSummoner", region="na1", requested_at=timestamp
         )
 
         # Mock Riot API response
@@ -44,16 +44,16 @@ class TestSummonerTrackingServiceIntegration:
             summoner_name="TestSummoner",
             summoner_level=100,
             region="na1",
-            last_updated=1234567890
+            last_updated=1234567890,
         )
 
         # Patch the Riot API client method
         with patch.object(
             summoner_service.riot_api_client,
-            'get_summoner_by_name',
-            return_value=mock_summoner_info
+            "get_summoner_by_name",
+            return_value=mock_summoner_info,
         ) as mock_get_summoner:
-            
+
             # Call the service method
             response = await summoner_service.StartTrackingSummoner(request, None)
 
@@ -80,25 +80,25 @@ class TestSummonerTrackingServiceIntegration:
             assert tracked_player.puuid == "test_puuid_123"
 
     @pytest.mark.asyncio
-    async def test_start_tracking_summoner_not_found(self, summoner_service: SummonerTrackingService):
+    async def test_start_tracking_summoner_not_found(
+        self, summoner_service: SummonerTrackingService
+    ):
         """Test summoner tracking when summoner is not found."""
         # Create request
         timestamp = Timestamp()
         timestamp.GetCurrentTime()
-        
+
         request = summoner_service_pb2.StartTrackingSummonerRequest(
-            summoner_name="NonExistentSummoner",
-            region="na1",
-            requested_at=timestamp
+            summoner_name="NonExistentSummoner", region="na1", requested_at=timestamp
         )
 
         # Mock Riot API to raise SummonerNotFoundError
         with patch.object(
             summoner_service.riot_api_client,
-            'get_summoner_by_name',
-            side_effect=SummonerNotFoundError("Summoner not found")
+            "get_summoner_by_name",
+            side_effect=SummonerNotFoundError("Summoner not found"),
         ) as mock_get_summoner:
-            
+
             # Call the service method
             response = await summoner_service.StartTrackingSummoner(request, None)
 
@@ -109,7 +109,10 @@ class TestSummonerTrackingServiceIntegration:
             assert response.success is False
             assert "NonExistentSummoner" in response.error_message
             assert "not found" in response.error_message
-            assert response.error_code == summoner_service_pb2.ValidationError.VALIDATION_ERROR_SUMMONER_NOT_FOUND
+            assert (
+                response.error_code
+                == summoner_service_pb2.ValidationError.VALIDATION_ERROR_SUMMONER_NOT_FOUND
+            )
             assert not response.HasField("summoner_details")
 
             # Verify no summoner was stored in database
@@ -121,25 +124,27 @@ class TestSummonerTrackingServiceIntegration:
             assert tracked_player is None
 
     @pytest.mark.asyncio
-    async def test_start_tracking_summoner_invalid_region(self, summoner_service: SummonerTrackingService):
+    async def test_start_tracking_summoner_invalid_region(
+        self, summoner_service: SummonerTrackingService
+    ):
         """Test summoner tracking with invalid region."""
         # Create request with invalid region
         timestamp = Timestamp()
         timestamp.GetCurrentTime()
-        
+
         request = summoner_service_pb2.StartTrackingSummonerRequest(
             summoner_name="TestSummoner",
             region="invalid_region",
-            requested_at=timestamp
+            requested_at=timestamp,
         )
 
         # Mock Riot API to raise InvalidRegionError
         with patch.object(
             summoner_service.riot_api_client,
-            'get_summoner_by_name',
-            side_effect=InvalidRegionError("Invalid region: invalid_region")
+            "get_summoner_by_name",
+            side_effect=InvalidRegionError("Invalid region: invalid_region"),
         ) as mock_get_summoner:
-            
+
             # Call the service method
             response = await summoner_service.StartTrackingSummoner(request, None)
 
@@ -149,29 +154,32 @@ class TestSummonerTrackingServiceIntegration:
             # Verify response
             assert response.success is False
             assert "Invalid region" in response.error_message
-            assert response.error_code == summoner_service_pb2.ValidationError.VALIDATION_ERROR_INVALID_REGION
+            assert (
+                response.error_code
+                == summoner_service_pb2.ValidationError.VALIDATION_ERROR_INVALID_REGION
+            )
             assert not response.HasField("summoner_details")
 
     @pytest.mark.asyncio
-    async def test_start_tracking_summoner_rate_limited(self, summoner_service: SummonerTrackingService):
+    async def test_start_tracking_summoner_rate_limited(
+        self, summoner_service: SummonerTrackingService
+    ):
         """Test summoner tracking when rate limited."""
         # Create request
         timestamp = Timestamp()
         timestamp.GetCurrentTime()
-        
+
         request = summoner_service_pb2.StartTrackingSummonerRequest(
-            summoner_name="TestSummoner",
-            region="na1",
-            requested_at=timestamp
+            summoner_name="TestSummoner", region="na1", requested_at=timestamp
         )
 
         # Mock Riot API to raise RateLimitError
         with patch.object(
             summoner_service.riot_api_client,
-            'get_summoner_by_name',
-            side_effect=RateLimitError("Rate limited. Retry after 60 seconds")
+            "get_summoner_by_name",
+            side_effect=RateLimitError("Rate limited. Retry after 60 seconds"),
         ) as mock_get_summoner:
-            
+
             # Call the service method
             response = await summoner_service.StartTrackingSummoner(request, None)
 
@@ -181,29 +189,32 @@ class TestSummonerTrackingServiceIntegration:
             # Verify response
             assert response.success is False
             assert "Rate limited" in response.error_message
-            assert response.error_code == summoner_service_pb2.ValidationError.VALIDATION_ERROR_RATE_LIMITED
+            assert (
+                response.error_code
+                == summoner_service_pb2.ValidationError.VALIDATION_ERROR_RATE_LIMITED
+            )
             assert not response.HasField("summoner_details")
 
     @pytest.mark.asyncio
-    async def test_start_tracking_summoner_api_error(self, summoner_service: SummonerTrackingService):
+    async def test_start_tracking_summoner_api_error(
+        self, summoner_service: SummonerTrackingService
+    ):
         """Test summoner tracking when Riot API returns error."""
         # Create request
         timestamp = Timestamp()
         timestamp.GetCurrentTime()
-        
+
         request = summoner_service_pb2.StartTrackingSummonerRequest(
-            summoner_name="TestSummoner",
-            region="na1",
-            requested_at=timestamp
+            summoner_name="TestSummoner", region="na1", requested_at=timestamp
         )
 
         # Mock Riot API to raise RiotAPIError
         with patch.object(
             summoner_service.riot_api_client,
-            'get_summoner_by_name',
-            side_effect=RiotAPIError("API error: 500")
+            "get_summoner_by_name",
+            side_effect=RiotAPIError("API error: 500"),
         ) as mock_get_summoner:
-            
+
             # Call the service method
             response = await summoner_service.StartTrackingSummoner(request, None)
 
@@ -213,11 +224,16 @@ class TestSummonerTrackingServiceIntegration:
             # Verify response
             assert response.success is False
             assert "Riot API error" in response.error_message
-            assert response.error_code == summoner_service_pb2.ValidationError.VALIDATION_ERROR_API_ERROR
+            assert (
+                response.error_code
+                == summoner_service_pb2.ValidationError.VALIDATION_ERROR_API_ERROR
+            )
             assert not response.HasField("summoner_details")
 
     @pytest.mark.asyncio
-    async def test_start_tracking_summoner_already_tracked(self, summoner_service: SummonerTrackingService, clean_db_session):
+    async def test_start_tracking_summoner_already_tracked(
+        self, summoner_service: SummonerTrackingService, clean_db_session
+    ):
         """Test tracking a summoner that is already being tracked."""
         # Create an existing tracked player
         repo = TrackedPlayerRepository(clean_db_session)
@@ -226,18 +242,16 @@ class TestSummonerTrackingServiceIntegration:
             region="na1",
             puuid="existing_puuid",
             account_id="existing_account",
-            summoner_id="existing_summoner"
+            summoner_id="existing_summoner",
         )
         await clean_db_session.commit()
-        
+
         # Create request
         timestamp = Timestamp()
         timestamp.GetCurrentTime()
-        
+
         request = summoner_service_pb2.StartTrackingSummonerRequest(
-            summoner_name="TestSummoner",
-            region="na1",
-            requested_at=timestamp
+            summoner_name="TestSummoner", region="na1", requested_at=timestamp
         )
 
         # Mock Riot API response
@@ -248,16 +262,16 @@ class TestSummonerTrackingServiceIntegration:
             summoner_name="TestSummoner",
             summoner_level=100,
             region="na1",
-            last_updated=1234567890
+            last_updated=1234567890,
         )
 
         # Patch the Riot API client method
         with patch.object(
             summoner_service.riot_api_client,
-            'get_summoner_by_name',
-            return_value=mock_summoner_info
+            "get_summoner_by_name",
+            return_value=mock_summoner_info,
         ) as mock_get_summoner:
-            
+
             # Call the service method
             response = await summoner_service.StartTrackingSummoner(request, None)
 
@@ -267,11 +281,16 @@ class TestSummonerTrackingServiceIntegration:
             # Verify response indicates already tracked
             assert response.success is False
             assert "already being tracked" in response.error_message
-            assert response.error_code == summoner_service_pb2.ValidationError.VALIDATION_ERROR_ALREADY_TRACKED
+            assert (
+                response.error_code
+                == summoner_service_pb2.ValidationError.VALIDATION_ERROR_ALREADY_TRACKED
+            )
             assert not response.HasField("summoner_details")
 
     @pytest.mark.asyncio
-    async def test_start_tracking_summoner_reactivate_inactive(self, summoner_service: SummonerTrackingService, clean_db_session):
+    async def test_start_tracking_summoner_reactivate_inactive(
+        self, summoner_service: SummonerTrackingService, clean_db_session
+    ):
         """Test reactivating an inactive tracked summoner."""
         # Create an inactive tracked player
         repo = TrackedPlayerRepository(clean_db_session)
@@ -280,21 +299,19 @@ class TestSummonerTrackingServiceIntegration:
             region="na1",
             puuid="existing_puuid",
             account_id="existing_account",
-            summoner_id="existing_summoner"
+            summoner_id="existing_summoner",
         )
-        
+
         # Deactivate the player
         await repo.set_active_status(inactive_player.id, False)
         await clean_db_session.commit()
-        
+
         # Create request
         timestamp = Timestamp()
         timestamp.GetCurrentTime()
-        
+
         request = summoner_service_pb2.StartTrackingSummonerRequest(
-            summoner_name="TestSummoner",
-            region="na1",
-            requested_at=timestamp
+            summoner_name="TestSummoner", region="na1", requested_at=timestamp
         )
 
         # Mock Riot API response
@@ -305,16 +322,16 @@ class TestSummonerTrackingServiceIntegration:
             summoner_name="TestSummoner",
             summoner_level=100,
             region="na1",
-            last_updated=1234567890
+            last_updated=1234567890,
         )
 
         # Patch the Riot API client method
         with patch.object(
             summoner_service.riot_api_client,
-            'get_summoner_by_name',
-            return_value=mock_summoner_info
+            "get_summoner_by_name",
+            return_value=mock_summoner_info,
         ) as mock_get_summoner:
-            
+
             # Call the service method
             response = await summoner_service.StartTrackingSummoner(request, None)
 
@@ -339,7 +356,9 @@ class TestSummonerTrackingServiceIntegration:
             assert updated_player.id == inactive_player.id  # Same player, just updated
 
     @pytest.mark.asyncio
-    async def test_stop_tracking_summoner_success(self, summoner_service: SummonerTrackingService, clean_db_session):
+    async def test_stop_tracking_summoner_success(
+        self, summoner_service: SummonerTrackingService, clean_db_session
+    ):
         """Test successful summoner stop tracking."""
         # Create an active tracked player
         repo = TrackedPlayerRepository(clean_db_session)
@@ -348,18 +367,16 @@ class TestSummonerTrackingServiceIntegration:
             region="na1",
             puuid="test_puuid",
             account_id="test_account",
-            summoner_id="test_summoner"
+            summoner_id="test_summoner",
         )
         await clean_db_session.commit()
-        
+
         # Create request
         timestamp = Timestamp()
         timestamp.GetCurrentTime()
-        
+
         request = summoner_service_pb2.StopTrackingSummonerRequest(
-            summoner_name="TestSummoner",
-            region="na1",
-            requested_at=timestamp
+            summoner_name="TestSummoner", region="na1", requested_at=timestamp
         )
 
         # Call the service method
@@ -381,16 +398,16 @@ class TestSummonerTrackingServiceIntegration:
         assert updated_player.id == tracked_player.id
 
     @pytest.mark.asyncio
-    async def test_stop_tracking_summoner_not_tracked(self, summoner_service: SummonerTrackingService):
+    async def test_stop_tracking_summoner_not_tracked(
+        self, summoner_service: SummonerTrackingService
+    ):
         """Test stopping tracking for summoner that is not tracked."""
         # Create request for non-tracked summoner
         timestamp = Timestamp()
         timestamp.GetCurrentTime()
-        
+
         request = summoner_service_pb2.StopTrackingSummonerRequest(
-            summoner_name="NonTrackedSummoner",
-            region="na1",
-            requested_at=timestamp
+            summoner_name="NonTrackedSummoner", region="na1", requested_at=timestamp
         )
 
         # Call the service method
@@ -399,10 +416,15 @@ class TestSummonerTrackingServiceIntegration:
         # Verify response indicates not tracked
         assert response.success is False
         assert "not currently being tracked" in response.error_message
-        assert response.error_code == summoner_service_pb2.ValidationError.VALIDATION_ERROR_NOT_TRACKED
+        assert (
+            response.error_code
+            == summoner_service_pb2.ValidationError.VALIDATION_ERROR_NOT_TRACKED
+        )
 
     @pytest.mark.asyncio
-    async def test_stop_tracking_summoner_already_inactive(self, summoner_service: SummonerTrackingService, clean_db_session):
+    async def test_stop_tracking_summoner_already_inactive(
+        self, summoner_service: SummonerTrackingService, clean_db_session
+    ):
         """Test stopping tracking for summoner that is already inactive."""
         # Create an inactive tracked player
         repo = TrackedPlayerRepository(clean_db_session)
@@ -411,21 +433,19 @@ class TestSummonerTrackingServiceIntegration:
             region="na1",
             puuid="test_puuid",
             account_id="test_account",
-            summoner_id="test_summoner"
+            summoner_id="test_summoner",
         )
-        
+
         # Deactivate the player
         await repo.set_active_status(tracked_player.id, False)
         await clean_db_session.commit()
-        
+
         # Create request
         timestamp = Timestamp()
         timestamp.GetCurrentTime()
-        
+
         request = summoner_service_pb2.StopTrackingSummonerRequest(
-            summoner_name="TestSummoner",
-            region="na1",
-            requested_at=timestamp
+            summoner_name="TestSummoner", region="na1", requested_at=timestamp
         )
 
         # Call the service method
@@ -434,28 +454,31 @@ class TestSummonerTrackingServiceIntegration:
         # Verify response indicates not tracked
         assert response.success is False
         assert "not currently being tracked" in response.error_message
-        assert response.error_code == summoner_service_pb2.ValidationError.VALIDATION_ERROR_NOT_TRACKED
+        assert (
+            response.error_code
+            == summoner_service_pb2.ValidationError.VALIDATION_ERROR_NOT_TRACKED
+        )
 
     @pytest.mark.asyncio
-    async def test_internal_error_handling(self, summoner_service: SummonerTrackingService):
+    async def test_internal_error_handling(
+        self, summoner_service: SummonerTrackingService
+    ):
         """Test internal error handling."""
         # Create request
         timestamp = Timestamp()
         timestamp.GetCurrentTime()
-        
+
         request = summoner_service_pb2.StartTrackingSummonerRequest(
-            summoner_name="TestSummoner",
-            region="na1",
-            requested_at=timestamp
+            summoner_name="TestSummoner", region="na1", requested_at=timestamp
         )
 
         # Mock an unexpected exception
         with patch.object(
             summoner_service.riot_api_client,
-            'get_summoner_by_name',
-            side_effect=Exception("Unexpected error")
+            "get_summoner_by_name",
+            side_effect=Exception("Unexpected error"),
         ) as mock_get_summoner:
-            
+
             # Call the service method
             response = await summoner_service.StartTrackingSummoner(request, None)
 
@@ -465,5 +488,8 @@ class TestSummonerTrackingServiceIntegration:
             # Verify response indicates internal error
             assert response.success is False
             assert "Internal service error" in response.error_message
-            assert response.error_code == summoner_service_pb2.ValidationError.VALIDATION_ERROR_INTERNAL_ERROR
+            assert (
+                response.error_code
+                == summoner_service_pb2.ValidationError.VALIDATION_ERROR_INTERNAL_ERROR
+            )
             assert not response.HasField("summoner_details")
