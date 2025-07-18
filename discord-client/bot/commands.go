@@ -99,9 +99,9 @@ func (b *Bot) registerCommands() error {
 							Required:    true,
 						},
 						{
-							Type:        discordgo.ApplicationCommandOptionInteger,
+							Type:        discordgo.ApplicationCommandOptionString,
 							Name:        "winning_option",
-							Description: "ID of the winning option",
+							Description: "Exact text of the winning option",
 							Required:    true,
 						},
 					},

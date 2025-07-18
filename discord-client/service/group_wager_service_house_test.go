@@ -156,12 +156,13 @@ func TestGroupWagerService_HouseWager_SpecificScenarios(t *testing.T) {
 				
 				scenario := builder.Build()
 				winningOptionID := scenario.Options[tt.winningIndex].ID
+				winningOptionText := scenario.Options[tt.winningIndex].OptionText
 
 				// Setup mocks for resolution
 				setupResolutionMocks(t, helper, mocks, scenario, winningOptionID, models.GroupWagerTypeHouse)
 
 				// Execute
-				result, err := service.ResolveGroupWager(ctx, TestWagerID, TestResolverID, winningOptionID)
+				result, err := service.ResolveGroupWager(ctx, TestWagerID, TestResolverID, winningOptionText)
 
 				// Assert
 				assertions.AssertNoError(err)
@@ -231,7 +232,7 @@ func TestGroupWagerService_HouseWager_SpecificScenarios(t *testing.T) {
 		mocks.EventPublisher.On("Publish", mock.AnythingOfType("events.GroupWagerStateChangeEvent")).Return()
 
 		// Execute
-		result, err := service.ResolveGroupWager(ctx, TestWagerID, TestResolverID, scenario.Options[0].ID)
+		result, err := service.ResolveGroupWager(ctx, TestWagerID, TestResolverID, scenario.Options[0].OptionText)
 
 		// Verify
 		require.NoError(t, err)
@@ -325,7 +326,7 @@ func TestGroupWagerService_HouseWager_EdgeCases(t *testing.T) {
 			Build()
 
 		// Option C wins, but nobody bet on it
-		winningOptionID := scenario.Options[2].ID
+		winningOptionText := scenario.Options[2].OptionText
 
 		// Setup mocks - no balance changes for losers
 		helper.ExpectWagerLookup(TestWagerID, scenario.Wager)
@@ -359,7 +360,7 @@ func TestGroupWagerService_HouseWager_EdgeCases(t *testing.T) {
 		mocks.EventPublisher.On("Publish", mock.AnythingOfType("events.GroupWagerStateChangeEvent")).Return()
 
 		// Execute
-		result, err := service.ResolveGroupWager(ctx, TestWagerID, TestResolverID, winningOptionID)
+		result, err := service.ResolveGroupWager(ctx, TestWagerID, TestResolverID, winningOptionText)
 
 		// Verify
 		assertions.AssertNoError(err)
@@ -401,7 +402,7 @@ func TestGroupWagerService_HouseWager_EdgeCases(t *testing.T) {
 		// Test option A winning
 		setupResolutionMocks(t, helper, mocks, scenario, scenario.Options[0].ID, models.GroupWagerTypeHouse)
 
-		result, err := service.ResolveGroupWager(ctx, TestWagerID, TestResolverID, scenario.Options[0].ID)
+		result, err := service.ResolveGroupWager(ctx, TestWagerID, TestResolverID, scenario.Options[0].OptionText)
 
 		require.NoError(t, err)
 		

@@ -213,7 +213,7 @@ type GroupWagerService interface {
 	PlaceBet(ctx context.Context, groupWagerID int64, userID int64, optionID int64, amount int64) (*models.GroupWagerParticipant, error)
 
 	// ResolveGroupWager resolves a group wager with the winning option
-	ResolveGroupWager(ctx context.Context, groupWagerID int64, resolverID int64, winningOptionID int64) (*models.GroupWagerResult, error)
+	ResolveGroupWager(ctx context.Context, groupWagerID int64, resolverID int64, winningOptionText string) (*models.GroupWagerResult, error)
 
 	// GetGroupWagerDetail retrieves full details of a group wager
 	GetGroupWagerDetail(ctx context.Context, groupWagerID int64) (*models.GroupWagerDetail, error)
