@@ -91,6 +91,7 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 		require.Len(t, detail.Options, 2)
 
 		yesOptionID := detail.Options[0].ID
+		yesOptionText := detail.Options[0].OptionText
 		noOptionID := detail.Options[1].ID
 
 		// Place bets
@@ -118,7 +119,7 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 		assert.Equal(t, int64(90000), updatedWager.TotalPot)
 
 		// Resolve the wager with "Yes" as winner
-		result, err := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, resolver.DiscordID, yesOptionID)
+		result, err := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, resolver.DiscordID, yesOptionText)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 
@@ -219,6 +220,7 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 
 		rainOptionID := detail.Options[0].ID
 		noRainOptionID := detail.Options[1].ID
+		noRainOptionText := detail.Options[1].OptionText
 
 		// User5 bets on Rain initially
 		_, err = groupWagerService.PlaceBet(ctx, groupWager.ID, user5.DiscordID, rainOptionID, 10000)
@@ -246,7 +248,7 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Resolve with No Rain as winner
-		result, err := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, 999999, noRainOptionID)
+		result, err := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, 999999, noRainOptionText)
 		require.NoError(t, err)
 
 		// Two winners and one loser
@@ -316,7 +318,9 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		optionAID := detail.Options[0].ID
+		optionAText := detail.Options[0].OptionText
 		optionBID := detail.Options[1].ID
+		optionBText := detail.Options[1].OptionText
 
 		// Place bets
 		_, err = groupWagerService.PlaceBet(ctx, groupWager.ID, user8.DiscordID, optionAID, 5000)
@@ -325,12 +329,12 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// First resolution should succeed
-		result1, err1 := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, 999999, optionAID)
+		result1, err1 := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, 999999, optionAText)
 		require.NoError(t, err1)
 		require.NotNil(t, result1)
 
 		// Second resolution attempt should fail
-		result2, err2 := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, resolver2.DiscordID, optionBID)
+		result2, err2 := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, resolver2.DiscordID, optionBText)
 		assert.Error(t, err2)
 		assert.Nil(t, result2)
 		assert.Contains(t, err2.Error(), "cannot be resolved")
@@ -410,6 +414,7 @@ func TestGroupWagerResolution_EdgeCases(t *testing.T) {
 		require.NoError(t, err)
 
 		winningOptionID := detail.Options[0].ID
+		winningOptionText := detail.Options[0].OptionText
 		losingOptionID := detail.Options[1].ID
 
 		// Place bets - only one on winning option
@@ -421,7 +426,7 @@ func TestGroupWagerResolution_EdgeCases(t *testing.T) {
 		require.NoError(t, err)
 
 		// Resolve
-		result, err := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, resolver.DiscordID, winningOptionID)
+		result, err := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, resolver.DiscordID, winningOptionText)
 		require.NoError(t, err)
 
 		// Single winner gets entire pot
@@ -476,6 +481,7 @@ func TestGroupWagerResolution_EdgeCases(t *testing.T) {
 		require.NoError(t, err)
 
 		optionAID := detail.Options[0].ID
+		optionAText := detail.Options[0].OptionText
 		optionBID := detail.Options[1].ID
 
 		// Place bets with amounts that will cause rounding
@@ -487,7 +493,7 @@ func TestGroupWagerResolution_EdgeCases(t *testing.T) {
 		require.NoError(t, err)
 
 		// Resolve with option A as winner
-		result, err := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, resolver2.DiscordID, optionAID)
+		result, err := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, resolver2.DiscordID, optionAText)
 		require.NoError(t, err)
 
 		// Total pot is 2000, winning option has 1000

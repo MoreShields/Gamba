@@ -285,14 +285,14 @@ func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Int
 	options := i.ApplicationCommandData().Options[0].Options
 
 	var groupWagerID int64
-	var winningOptionID int64
+	var winningOptionText string
 
 	for _, opt := range options {
 		switch opt.Name {
 		case "id":
 			groupWagerID = opt.IntValue()
 		case "winning_option":
-			winningOptionID = opt.IntValue()
+			winningOptionText = opt.StringValue()
 		}
 	}
 
@@ -339,7 +339,7 @@ func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Int
 	)
 
 	// Resolve the wager
-	result, err := groupWagerService.ResolveGroupWager(ctx, groupWagerID, resolverID, winningOptionID)
+	result, err := groupWagerService.ResolveGroupWager(ctx, groupWagerID, resolverID, winningOptionText)
 	if err != nil {
 		log.Printf("Error resolving group wager: %v", err)
 		common.FollowUpWithError(s, i, fmt.Sprintf("Failed to resolve wager: %v", err))

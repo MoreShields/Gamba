@@ -125,7 +125,7 @@ func TestHouseWager_Integration(t *testing.T) {
 			ctx,
 			wagerDetail.Wager.ID,
 			creator.DiscordID,
-			wagerDetail.Options[2].ID, // Team Gamma wins
+			wagerDetail.Options[2].OptionText, // Team Gamma wins
 		)
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -217,7 +217,7 @@ func TestHouseWager_Integration(t *testing.T) {
 			ctx,
 			wagerDetail.Wager.ID,
 			999999,
-			wagerDetail.Options[1].ID,
+			wagerDetail.Options[1].OptionText,
 		)
 		require.NoError(t, err)
 
@@ -284,7 +284,7 @@ func TestHouseWager_Integration(t *testing.T) {
 			ctx,
 			wagerDetail.Wager.ID,
 			999999,
-			wagerDetail.Options[0].ID,
+			wagerDetail.Options[0].OptionText,
 		)
 		require.NoError(t, err)
 

@@ -118,16 +118,17 @@ func TestGroupWagerService_ResolveGroupWager_BothTypes(t *testing.T) {
 
 			// Build scenario
 			scenario := tt.setupScenario()
-			winningOptionID := scenario.Options[tt.winningOption].ID
+			winningOptionText := scenario.Options[tt.winningOption].OptionText
 
 			// Setup resolution mocks
-			setupResolutionMocks(t, helper, mocks, scenario, winningOptionID, tt.wagerType)
+			setupResolutionMocks(t, helper, mocks, scenario, scenario.Options[tt.winningOption].ID, tt.wagerType)
 
 			// Execute
-			result, err := service.ResolveGroupWager(ctx, TestWagerID, TestResolverID, winningOptionID)
+			result, err := service.ResolveGroupWager(ctx, TestWagerID, TestResolverID, winningOptionText)
 
 			// Assert
 			assertions.AssertNoError(err)
+			winningOptionID := scenario.Options[tt.winningOption].ID
 			assertions.AssertWagerResolved(result, 
 				len(getWinners(scenario.Participants, winningOptionID)),
 				len(getLosers(scenario.Participants, winningOptionID)))
@@ -149,43 +150,43 @@ func TestGroupWagerService_ResolveGroupWager_ValidationErrors(t *testing.T) {
 	
 	validationTests := []struct {
 		name          string
-		setupFunc     func(*TestMocks, *MockHelper) int64 // returns winning option ID
+		setupFunc     func(*TestMocks, *MockHelper) string // returns winning option text
 		resolverID    int64
 		expectedError string
 	}{
 		{
 			name: "unauthorized resolver",
-			setupFunc: func(mocks *TestMocks, helper *MockHelper) int64 {
-				return TestOption1ID
+			setupFunc: func(mocks *TestMocks, helper *MockHelper) string {
+				return "Yes"
 			},
 			resolverID:    TestUser1ID, // Not in resolver list
 			expectedError: "not authorized to resolve",
 		},
 		{
 			name: "wager not found",
-			setupFunc: func(mocks *TestMocks, helper *MockHelper) int64 {
+			setupFunc: func(mocks *TestMocks, helper *MockHelper) string {
 				mocks.GroupWagerRepo.On("GetByID", ctx, int64(TestWagerID)).Return(nil, nil)
-				return TestOption1ID
+				return "Yes"
 			},
 			resolverID:    TestResolverID,
 			expectedError: "group wager not found",
 		},
 		{
 			name: "already resolved",
-			setupFunc: func(mocks *TestMocks, helper *MockHelper) int64 {
+			setupFunc: func(mocks *TestMocks, helper *MockHelper) string {
 				wager := &models.GroupWager{
 					ID:    TestWagerID,
 					State: models.GroupWagerStateResolved,
 				}
 				helper.ExpectWagerLookup(TestWagerID, wager)
-				return TestOption1ID
+				return "Yes"
 			},
 			resolverID:    TestResolverID,
 			expectedError: "cannot be resolved",
 		},
 		{
 			name: "insufficient participants",
-			setupFunc: func(mocks *TestMocks, helper *MockHelper) int64 {
+			setupFunc: func(mocks *TestMocks, helper *MockHelper) string {
 				scenario := NewGroupWagerScenario().
 					WithPoolWager(TestResolverID, "Test").
 					WithOptions("Yes", "No").
@@ -199,14 +200,14 @@ func TestGroupWagerService_ResolveGroupWager_ValidationErrors(t *testing.T) {
 					Participants: scenario.Participants,
 				})
 				
-				return scenario.Options[0].ID
+				return "Yes"
 			},
 			resolverID:    TestResolverID,
 			expectedError: "insufficient participants",
 		},
 		{
 			name: "single option with all participants",
-			setupFunc: func(mocks *TestMocks, helper *MockHelper) int64 {
+			setupFunc: func(mocks *TestMocks, helper *MockHelper) string {
 				scenario := NewGroupWagerScenario().
 					WithPoolWager(TestResolverID, "Test").
 					WithOptions("Yes", "No").
@@ -222,14 +223,14 @@ func TestGroupWagerService_ResolveGroupWager_ValidationErrors(t *testing.T) {
 					Participants: scenario.Participants,
 				})
 				
-				return scenario.Options[0].ID
+				return "Yes"
 			},
 			resolverID:    TestResolverID,
 			expectedError: "need participants on at least 2 different options",
 		},
 		{
 			name: "invalid winning option",
-			setupFunc: func(mocks *TestMocks, helper *MockHelper) int64 {
+			setupFunc: func(mocks *TestMocks, helper *MockHelper) string {
 				scenario := NewGroupWagerScenario().
 					WithPoolWager(TestResolverID, "Test").
 					WithOptions("Yes", "No").
@@ -245,10 +246,10 @@ func TestGroupWagerService_ResolveGroupWager_ValidationErrors(t *testing.T) {
 					Participants: scenario.Participants,
 				})
 				
-				return 99999 // Invalid option ID
+				return "InvalidOption" // Invalid option text
 			},
 			resolverID:    TestResolverID,
-			expectedError: "invalid winning option",
+			expectedError: "no option found with text",
 		},
 	}
 
@@ -268,10 +269,10 @@ func TestGroupWagerService_ResolveGroupWager_ValidationErrors(t *testing.T) {
 			service.(*groupWagerService).config.ResolverDiscordIDs = []int64{TestResolverID}
 
 			// Setup test-specific mocks
-			winningOptionID := tt.setupFunc(mocks, helper)
+			winningOptionText := tt.setupFunc(mocks, helper)
 
 			// Execute
-			result, err := service.ResolveGroupWager(ctx, TestWagerID, tt.resolverID, winningOptionID)
+			result, err := service.ResolveGroupWager(ctx, TestWagerID, tt.resolverID, winningOptionText)
 
 			// Assert
 			require.Nil(t, result)
@@ -428,7 +429,7 @@ func TestGroupWagerService_ResolveGroupWager_BalanceUpdateFailure(t *testing.T) 
 		WithParticipant(TestUser3ID, 1, 1000).
 		Build()
 
-	winningOptionID := scenario.Options[0].ID
+	winningOptionText := scenario.Options[0].OptionText
 
 	// Setup basic mocks
 	helper.ExpectWagerLookup(TestWagerID, scenario.Wager)
@@ -443,7 +444,7 @@ func TestGroupWagerService_ResolveGroupWager_BalanceUpdateFailure(t *testing.T) 
 	mocks.UserRepo.On("UpdateBalance", ctx, int64(TestUser1ID), mock.AnythingOfType("int64")).Return(fmt.Errorf("database error"))
 
 	// Execute
-	result, err := service.ResolveGroupWager(ctx, TestWagerID, TestResolverID, winningOptionID)
+	result, err := service.ResolveGroupWager(ctx, TestWagerID, TestResolverID, winningOptionText)
 
 	// Verify rollback
 	require.Error(t, err)

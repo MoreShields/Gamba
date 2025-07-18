@@ -281,7 +281,7 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 }
 
 // ResolveGroupWager resolves a group wager with the winning option
-func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID int64, resolverID int64, winningOptionID int64) (*models.GroupWagerResult, error) {
+func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID int64, resolverID int64, winningOptionText string) (*models.GroupWagerResult, error) {
 	// Check if user is a resolver
 	if !s.IsResolver(resolverID) {
 		return nil, fmt.Errorf("user is not authorized to resolve group wagers")
@@ -332,18 +332,18 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 		return nil, fmt.Errorf("need participants on at least 2 different options")
 	}
 
-	// Get the winning option from detail
+	// Get the winning option from detail by exact text match
 	options := detail.Options
 
 	var winningOption *models.GroupWagerOption
 	for _, opt := range options {
-		if opt.ID == winningOptionID {
+		if opt.OptionText == winningOptionText {
 			winningOption = opt
 			break
 		}
 	}
 	if winningOption == nil {
-		return nil, fmt.Errorf("invalid winning option ID")
+		return nil, fmt.Errorf("no option found with text: %s", winningOptionText)
 	}
 
 	// Calculate payouts
@@ -364,7 +364,7 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 	payoutDetails := make(map[int64]int64)
 
 	for _, participant := range participants {
-		if participant.OptionID == winningOptionID {
+		if participant.OptionID == winningOption.ID {
 			// Winner - calculate payout using stored odds multiplier
 			var payout int64
 			if groupWager.IsPoolWager() {
@@ -500,6 +500,7 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 	oldState := groupWager.State
 	groupWager.State = models.GroupWagerStateResolved
 	groupWager.ResolverDiscordID = &resolverID
+	winningOptionID := winningOption.ID
 	groupWager.WinningOptionID = &winningOptionID
 	groupWager.ResolvedAt = &now
 
