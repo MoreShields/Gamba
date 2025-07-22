@@ -266,14 +266,9 @@ class TestSummonerTrackingServiceIntegration:
             # Verify API was called (validation still happens)
             mock_get_summoner.assert_called_once_with("TestSummoner", "gamba")
 
-            # Verify response indicates already tracked
-            assert response.success is False
-            assert "already being tracked" in response.error_message
-            assert (
-                response.error_code
-                == summoner_service_pb2.ValidationError.VALIDATION_ERROR_ALREADY_TRACKED
-            )
-            assert not response.HasField("summoner_details")
+            # Verify response returns the summoner information as normal. Endpoint is idempotent.
+            assert response.success is True
+            assert response.HasField("summoner_details")
 
     @pytest.mark.asyncio
     async def test_start_tracking_summoner_reactivate_inactive(

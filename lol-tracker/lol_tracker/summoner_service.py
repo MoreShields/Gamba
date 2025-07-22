@@ -94,9 +94,14 @@ class SummonerTrackingService(
                         puuid=summoner_info.puuid,
                     )
                     return summoner_service_pb2.StartTrackingSummonerResponse(
-                        success=False,
-                        error_message=f"Summoner {request.game_name}#{request.tag_line} is already being tracked",
-                        error_code=summoner_service_pb2.ValidationError.VALIDATION_ERROR_ALREADY_TRACKED,
+                        success=True,
+                        summoner_details = summoner_service_pb2.SummonerDetails(
+                            puuid=summoner_info.puuid,
+                            game_name=summoner_info.game_name,
+                            tag_line=summoner_info.tag_line,
+                            summoner_level=0,
+                            last_updated=0,
+                        )
                     )
 
                 # Create or update tracked player record

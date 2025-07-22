@@ -59,7 +59,6 @@ enum ValidationError {
   VALIDATION_ERROR_INVALID_REGION = 2;      // Invalid region specified
   VALIDATION_ERROR_API_ERROR = 3;           // Riot API error
   VALIDATION_ERROR_RATE_LIMITED = 4;        // Rate limit exceeded
-  VALIDATION_ERROR_ALREADY_TRACKED = 5;     // Summoner is already being tracked
-  VALIDATION_ERROR_NOT_TRACKED = 6;         // Summoner is not being tracked
-  VALIDATION_ERROR_INTERNAL_ERROR = 7;      // Internal service error
+  VALIDATION_ERROR_NOT_TRACKED = 5;         // Summoner is not being tracked
+  VALIDATION_ERROR_INTERNAL_ERROR = 6;      // Internal service error
 }

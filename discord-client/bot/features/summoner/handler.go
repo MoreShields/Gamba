@@ -2,6 +2,7 @@ package summoner
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -49,7 +50,7 @@ func (f *Feature) handleWatchCommand(s *discordgo.Session, i *discordgo.Interact
 
 	log.Infof("Processing summoner watch request: %s#%s for guild %d", gameName, tagLine, guildID)
 
-	// Step 1: Validate summoner with external service
+	// Validate summoner with external service
 	// Note: We now pass separate game_name and tag_line fields
 	validateReq := &summoner_pb.StartTrackingSummonerRequest{
 		GameName:    gameName,
@@ -69,19 +70,15 @@ func (f *Feature) handleWatchCommand(s *discordgo.Session, i *discordgo.Interact
 		errorMsg := f.mapValidationError(validateResp.ErrorCode, validateResp.ErrorMessage)
 		// Check if it's a duplicate watch error
 		log.Infof("Summoner validation failed for %s#%s: %s", gameName, tagLine, errorMsg)
-		if *validateResp.ErrorCode == summoner_pb.ValidationError_VALIDATION_ERROR_ALREADY_TRACKED {
-			embed := createAlreadyWatchingEmbed(gameName, tagLine)
-			common.RespondWithEmbed(s, i, embed, nil, true)
-		} else {
-			common.RespondWithError(s, i, "Failed to save summoner watch. Please try again.")
-			embed := createErrorEmbed(gameName, tagLine, errorMsg)
-			common.RespondWithEmbed(s, i, embed, nil, false)
-		}
+		common.RespondWithError(s, i, fmt.Sprintf("Failed to save summoner watch. %s", errorMsg))
+		embed := createErrorEmbed(gameName, tagLine, errorMsg)
+		common.RespondWithEmbed(s, i, embed, nil, false)
+		return
 	}
 
 	log.Infof("Summoner %s#%s validated successfully", gameName, tagLine)
 
-	// Step 2: Store in local database
+	// Store in local database
 	uow := f.uowFactory.CreateForGuild(guildID)
 	if err := uow.Begin(ctx); err != nil {
 		log.Errorf("Failed to begin transaction: %v", err)
@@ -116,6 +113,7 @@ func (f *Feature) handleWatchCommand(s *discordgo.Session, i *discordgo.Interact
 }
 
 // handleUnwatchCommand handles the /summoner unwatch command
+// We're not making any calls to lol-tracker here, since this is only removing the watch for a single guild.
 func (f *Feature) handleUnwatchCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	ctx := context.Background()
 
@@ -170,10 +168,11 @@ func (f *Feature) handleUnwatchCommand(s *discordgo.Session, i *discordgo.Intera
 		if strings.Contains(err.Error(), "not found") {
 			embed := createNotWatchingEmbed(gameName, tagLine)
 			common.RespondWithEmbed(s, i, embed, nil, false)
+			return
 		} else {
-			common.RespondWithError(s, i, "Failed to remove summoner watch. Please try again.")
+			common.RespondWithError(s, i, err.Error())
+			return
 		}
-		return
 	}
 
 	// Commit transaction
@@ -210,8 +209,6 @@ func (f *Feature) mapValidationError(errorCode *summoner_pb.ValidationError, err
 		return "Riot API is currently unavailable. Please try again later."
 	case summoner_pb.ValidationError_VALIDATION_ERROR_RATE_LIMITED:
 		return "Too many requests. Please wait a moment and try again."
-	case summoner_pb.ValidationError_VALIDATION_ERROR_ALREADY_TRACKED:
-		return "This summoner is already being tracked by the service."
 	case summoner_pb.ValidationError_VALIDATION_ERROR_INTERNAL_ERROR:
 		return "Internal service error. Please try again later."
 	default:

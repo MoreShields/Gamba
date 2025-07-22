@@ -53,7 +53,7 @@ func TestSummonerWatchRepository_CreateWatch(t *testing.T) {
 		assert.NotEqual(t, watch1.GuildID, watch2.GuildID)
 	})
 
-	t.Run("duplicate watch constraint violation", func(t *testing.T) {
+	t.Run("duplicate watch accepted", func(t *testing.T) {
 		guildID := int64(33333)
 		summonerName := "DuplicateTest"
 		tagLine := "NA1"
@@ -64,7 +64,7 @@ func TestSummonerWatchRepository_CreateWatch(t *testing.T) {
 
 		// Try to create duplicate watch
 		_, err = repo.CreateWatch(ctx, guildID, summonerName, tagLine)
-		assert.Error(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("different tagLines create separate summoners", func(t *testing.T) {

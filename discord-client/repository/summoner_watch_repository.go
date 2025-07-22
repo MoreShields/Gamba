@@ -6,8 +6,6 @@ import (
 
 	"gambler/discord-client/database"
 	"gambler/discord-client/models"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // SummonerWatchRepository implements the SummonerWatchRepository interface
@@ -53,7 +51,8 @@ func (r *SummonerWatchRepository) CreateWatch(ctx context.Context, guildID int64
 	watchQuery := `
 		INSERT INTO guild_summoner_watches (guild_id, summoner_id)
 		VALUES ($1, $2)
-		ON CONFLICT (guild_id, summoner_id) DO NOTHING
+		ON CONFLICT (guild_id, summoner_id) 
+		DO UPDATE SET created_at = guild_summoner_watches.created_at
 		RETURNING id, guild_id, summoner_id, created_at`
 
 	var watch models.GuildSummonerWatch
@@ -158,9 +157,6 @@ func (r *SummonerWatchRepository) DeleteWatch(ctx context.Context, guildID int64
 			SELECT id FROM summoners 
 			WHERE LOWER(game_name) = LOWER($2) AND LOWER(tag_line) = LOWER($3)
 		)`
-
-	log.Errorf("DeleteWatch: %s", query)
-	log.Errorf("%d-%s-%s", guildID, summonerName, tagLine)
 	result, err := r.q.Exec(ctx, query, guildID, summonerName, tagLine)
 	if err != nil {
 		return fmt.Errorf("failed to delete watch for guild %d, summoner %s#%s: %w", guildID, summonerName, tagLine, err)

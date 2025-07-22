@@ -269,60 +269,6 @@ class TestSummonerTrackingE2E:
         )
 
     @pytest.mark.asyncio
-    async def test_e2e_duplicate_tracking_detection(
-        self,
-        grpc_client: summoner_service_pb2_grpc.SummonerTrackingServiceStub,
-        sample_start_tracking_request: summoner_service_pb2.StartTrackingSummonerRequest,
-        summoner_service,
-        clean_db_session,
-    ):
-        """Test end-to-end flow for detecting already tracked summoners."""
-        # First, create a tracked summoner
-        repo = TrackedPlayerRepository(clean_db_session)
-        existing_player = await repo.create(
-            game_name="TestSummoner",
-            tag_line="gamba",
-            puuid="existing_puuid",
-        )
-        await clean_db_session.commit()
-
-        # Mock Riot API response (validation still happens)
-        mock_summoner_info = SummonerInfo(
-            puuid="existing_puuid",  # Same PUUID as existing player
-            game_name="TestSummoner",
-            tag_line="gamba",
-        )
-
-        with patch.object(
-            summoner_service.riot_api_client,
-            "get_summoner_by_name",
-            return_value=mock_summoner_info,
-        ):
-            # Make gRPC call
-            response = await grpc_client.StartTrackingSummoner(
-                sample_start_tracking_request
-            )
-
-            # Verify already tracked error response
-            assert response.success is False
-            assert not response.HasField("summoner_details")
-            assert "already being tracked" in response.error_message
-            assert (
-                response.error_code
-                == summoner_service_pb2.ValidationError.VALIDATION_ERROR_ALREADY_TRACKED
-            )
-
-            # Verify original player is unchanged
-            async with summoner_service.db_manager.get_session() as session:
-                repo = TrackedPlayerRepository(session)
-                original_player = await repo.get_by_puuid(
-                    "existing_puuid"
-                )
-            assert original_player is not None
-            assert original_player.puuid == "existing_puuid"  # Not updated
-            assert original_player.id == existing_player.id
-
-    @pytest.mark.asyncio
     async def test_e2e_reactivate_inactive_summoner(
         self,
         grpc_client: summoner_service_pb2_grpc.SummonerTrackingServiceStub,
