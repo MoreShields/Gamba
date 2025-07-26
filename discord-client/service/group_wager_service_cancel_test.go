@@ -12,6 +12,8 @@ import (
 )
 
 func TestGroupWagerService_CancelGroupWager(t *testing.T) {
+	creatorID := int64(123)
+	
 	tests := []struct {
 		name          string
 		groupWagerID  int64
@@ -26,7 +28,7 @@ func TestGroupWagerService_CancelGroupWager(t *testing.T) {
 			setupMocks: func(repo *MockGroupWagerRepository, eventPub *MockEventPublisher) {
 				wager := &models.GroupWager{
 					ID:               1,
-					CreatorDiscordID: 123,
+					CreatorDiscordID: &creatorID,
 					State:            models.GroupWagerStateActive,
 					MessageID:        789,
 					ChannelID:        456,
@@ -48,7 +50,7 @@ func TestGroupWagerService_CancelGroupWager(t *testing.T) {
 
 				wager := &models.GroupWager{
 					ID:               1,
-					CreatorDiscordID: 123, // Different from canceller
+					CreatorDiscordID: &creatorID, // Different from canceller
 					State:            models.GroupWagerStateActive,
 					MessageID:        789,
 					ChannelID:        456,
@@ -85,7 +87,7 @@ func TestGroupWagerService_CancelGroupWager(t *testing.T) {
 			setupMocks: func(repo *MockGroupWagerRepository, eventPub *MockEventPublisher) {
 				wager := &models.GroupWager{
 					ID:               1,
-					CreatorDiscordID: 123,
+					CreatorDiscordID: &creatorID,
 					State:            models.GroupWagerStatePendingResolution,
 					MessageID:        789,
 					ChannelID:        456,
@@ -104,7 +106,7 @@ func TestGroupWagerService_CancelGroupWager(t *testing.T) {
 			setupMocks: func(repo *MockGroupWagerRepository, eventPub *MockEventPublisher) {
 				wager := &models.GroupWager{
 					ID:               1,
-					CreatorDiscordID: 123,
+					CreatorDiscordID: &creatorID,
 					State:            models.GroupWagerStateResolved,
 				}
 				repo.On("GetByID", mock.Anything, int64(1)).Return(wager, nil)
@@ -118,7 +120,7 @@ func TestGroupWagerService_CancelGroupWager(t *testing.T) {
 			setupMocks: func(repo *MockGroupWagerRepository, eventPub *MockEventPublisher) {
 				wager := &models.GroupWager{
 					ID:               1,
-					CreatorDiscordID: 123,
+					CreatorDiscordID: &creatorID,
 					State:            models.GroupWagerStateCancelled,
 				}
 				repo.On("GetByID", mock.Anything, int64(1)).Return(wager, nil)
@@ -135,7 +137,7 @@ func TestGroupWagerService_CancelGroupWager(t *testing.T) {
 
 				wager := &models.GroupWager{
 					ID:               1,
-					CreatorDiscordID: 123, // Different from canceller
+					CreatorDiscordID: &creatorID, // Different from canceller
 					State:            models.GroupWagerStateActive,
 				}
 				repo.On("GetByID", mock.Anything, int64(1)).Return(wager, nil)
@@ -149,7 +151,7 @@ func TestGroupWagerService_CancelGroupWager(t *testing.T) {
 			setupMocks: func(repo *MockGroupWagerRepository, eventPub *MockEventPublisher) {
 				wager := &models.GroupWager{
 					ID:               1,
-					CreatorDiscordID: 123,
+					CreatorDiscordID: &creatorID,
 					State:            models.GroupWagerStateActive,
 				}
 				repo.On("GetByID", mock.Anything, int64(1)).Return(wager, nil)

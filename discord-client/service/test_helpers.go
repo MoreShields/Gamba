@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"gambler/discord-client/config"
 	"gambler/discord-client/models"
 
 	"github.com/stretchr/testify/mock"
@@ -83,7 +84,7 @@ func (b *GroupWagerScenarioBuilder) WithPoolWager(creatorID int64, condition str
 	
 	b.scenario.Wager = &models.GroupWager{
 		ID:                  TestWagerID,
-		CreatorDiscordID:    creatorID,
+		CreatorDiscordID:    &creatorID,
 		Condition:           condition,
 		State:               models.GroupWagerStateActive,
 		WagerType:           models.GroupWagerTypePool,
@@ -105,7 +106,7 @@ func (b *GroupWagerScenarioBuilder) WithHouseWager(creatorID int64, condition st
 	
 	b.scenario.Wager = &models.GroupWager{
 		ID:                  TestWagerID,
-		CreatorDiscordID:    creatorID,
+		CreatorDiscordID:    &creatorID,
 		Condition:           condition,
 		State:               models.GroupWagerStateActive,
 		WagerType:           models.GroupWagerTypeHouse,
@@ -295,4 +296,17 @@ func (h *MockHelper) ExpectBalanceHistoryRecord(userID int64, changeAmount int64
 // ExpectEventPublish sets up event publishing expectations
 func (h *MockHelper) ExpectEventPublish(eventType string) {
 	h.mocks.EventPublisher.On("Publish", mock.AnythingOfType(eventType)).Return()
+}
+
+// SetupTestConfig initializes a test configuration for the current test
+// This should be called at the beginning of every test that uses services
+func SetupTestConfig(t *testing.T) {
+	// Set up test config
+	testConfig := config.NewTestConfig()
+	config.SetTestConfig(testConfig)
+	
+	// Clean up after test
+	t.Cleanup(func() {
+		config.ResetConfig()
+	})
 }

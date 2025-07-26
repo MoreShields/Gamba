@@ -207,7 +207,7 @@ type GroupWagerRepository interface {
 // GroupWagerService defines the interface for group wager operations
 type GroupWagerService interface {
 	// CreateGroupWager creates a new group wager with options
-	CreateGroupWager(ctx context.Context, creatorID int64, condition string, options []string, votingPeriodMinutes int, messageID, channelID int64, wagerType models.GroupWagerType, oddsMultipliers []float64) (*models.GroupWagerDetail, error)
+	CreateGroupWager(ctx context.Context, creatorID *int64, condition string, options []string, votingPeriodMinutes int, messageID, channelID int64, wagerType models.GroupWagerType, oddsMultipliers []float64) (*models.GroupWagerDetail, error)
 
 	// PlaceBet allows a user to place or update their bet on a group wager option
 	PlaceBet(ctx context.Context, groupWagerID int64, userID int64, optionID int64, amount int64) (*models.GroupWagerParticipant, error)

@@ -6,16 +6,19 @@ import (
 	"log"
 	"time"
 
+	"gambler/discord-client/application"
 	"gambler/discord-client/bot"
 	"gambler/discord-client/bot/features/betting"
 	"gambler/discord-client/config"
 	"gambler/discord-client/database"
 	"gambler/discord-client/events"
+	"gambler/discord-client/infrastructure"
 	"gambler/discord-client/repository"
+
+	summoner_pb "gambler/discord-client/proto/services"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	summoner_pb "gambler/discord-client/proto/services"
 )
 
 // Run initializes and starts the application
@@ -69,9 +72,30 @@ func Run(ctx context.Context) error {
 	}
 	log.Println("Discord bot initialized successfully")
 
+	// Initialize LoL handler for house wagers
+	log.Println("Initializing LoL handler...")
+	lolHandler := application.NewLoLHandler(uowFactory, discordBot.GetDiscordPoster())
+	log.Println("LoL handler initialized successfully")
+
+	// Initialize and start message consumer
+	log.Printf("Initializing message consumer with NATS servers: %s...", cfg.NATSServers)
+	messageConsumer := infrastructure.NewMessageConsumer(cfg.NATSServers, lolHandler)
+
+	// Start message consumer in a goroutine
+	go func() {
+		if err := messageConsumer.Start(ctx); err != nil {
+			log.Printf("Message consumer error: %v", err)
+		}
+	}()
+	log.Println("Message consumer started successfully")
+
 	// Wait for context cancellation
 	log.Printf("Bot is running in %s mode...", cfg.Environment)
 	<-ctx.Done()
+
+	// Stop message consumer
+	log.Println("Stopping message consumer...")
+	messageConsumer.Stop()
 
 	// Cleanup resources
 	log.Println("Shutting down bot...")

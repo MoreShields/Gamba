@@ -253,6 +253,7 @@ func TestGroupWagerService_HouseWager_SpecificScenarios(t *testing.T) {
 
 func TestGroupWagerService_HouseWager_EdgeCases(t *testing.T) {
 	ctx := context.Background()
+	testResolverID := int64(TestResolverID)
 
 	t.Run("house wager with extreme odds", func(t *testing.T) {
 		// Test with very high and very low odds
@@ -281,7 +282,7 @@ func TestGroupWagerService_HouseWager_EdgeCases(t *testing.T) {
 
 		result, err := service.CreateGroupWager(
 			ctx,
-			TestResolverID,
+			&testResolverID,
 			"Extreme odds test",
 			[]string{"Longshot", "Sure Thing"},
 			60,

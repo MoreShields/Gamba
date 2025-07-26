@@ -34,6 +34,9 @@ type Config struct {
 	// Summoner Service configuration
 	SummonerServiceAddr string // Address of the summoner tracking service
 
+	// NATS configuration
+	NATSServers string // NATS server addresses (comma-separated)
+
 	// Environment
 	Environment string // "development" or "production"
 }
@@ -45,6 +48,11 @@ var (
 
 // Get returns the global configuration instance
 func Get() *Config {
+	// If instance is already set (e.g., by tests), return it
+	if instance != nil {
+		return instance
+	}
+	
 	once.Do(func() {
 		var err error
 		instance, err = load()
@@ -81,6 +89,9 @@ func load() (*Config, error) {
 
 		// Summoner Service
 		SummonerServiceAddr: getEnvWithDefault("SUMMONER_SERVICE_ADDR", "lol-tracker:9000"),
+
+		// NATS
+		NATSServers: getEnvWithDefault("NATS_SERVERS", "nats://nats:4222"),
 
 		// Environment
 		Environment: os.Getenv("ENVIRONMENT"),
@@ -139,4 +150,30 @@ func getEnvWithDefault(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// Test helpers - only use in tests
+
+// SetTestConfig overrides the global config instance for testing
+// This should only be called from test files
+func SetTestConfig(testConfig *Config) {
+	instance = testConfig
+}
+
+// ResetConfig resets the global config instance and sync.Once for testing
+// This should only be called from test files  
+func ResetConfig() {
+	instance = nil
+	once = sync.Once{}
+}
+
+// NewTestConfig creates a minimal config suitable for unit tests
+func NewTestConfig() *Config {
+	return &Config{
+		Environment:        "test",
+		ResolverDiscordIDs: []int64{999999}, // Default test resolver ID
+		StartingBalance:    100000,
+		DailyGambleLimit:   10000,
+		DailyLimitResetHour: 0,
+	}
 }

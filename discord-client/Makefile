@@ -33,9 +33,19 @@ test-integration: ## Run integration tests with testcontainers
 clean: ## Clean build artifacts
 	rm -rf bin/ tmp/ proto/
 
+# Development testing tools
+test-events: ## Test LoL event publishing (dry run)
+	go run scripts/publish_lol_events.go --event=cycle --summoner=TestPlayer --tag=NA1 --delay=2s --dry-run --verbose
+
+test-events-live: ## Publish live LoL events to NATS
+	go run scripts/publish_lol_events.go --event=cycle --summoner=TestPlayer --tag=NA1 --delay=10s --verbose
+
+test-batch: ## Test batch event publishing (dry run)
+	go run scripts/publish_lol_events.go --event=batch --summoners='Faker#KR1,Caps#EUW1,Doublelift#NA1' --delay=5s --dry-run
+
 
 migrate-up: ## Run pending database migrations (production)
-	docker run --rm --env-file .env gambler:latest ./gambler migrate up 
+	docker run --rm --env-file ../.env gambler:latest ./gambler migrate up 
 
 migrate-down: ## Rollback last database migration (production)
 	docker run --rm --env-file .env gambler:latest ./gambler migrate down 1

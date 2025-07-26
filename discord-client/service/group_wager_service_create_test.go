@@ -13,11 +13,12 @@ import (
 
 func TestGroupWagerService_CreateGroupWager_TableDriven(t *testing.T) {
 	ctx := context.Background()
+	testResolverID := int64(TestResolverID)
 
 	// Validation test cases
 	validationTests := []struct {
 		name            string
-		creatorID       int64
+		creatorID       *int64
 		condition       string
 		options         []string
 		votingMinutes   int
@@ -27,7 +28,7 @@ func TestGroupWagerService_CreateGroupWager_TableDriven(t *testing.T) {
 	}{
 		{
 			name:          "empty condition",
-			creatorID:     TestResolverID,
+			creatorID:     &testResolverID,
 			condition:     "",
 			options:       []string{"Yes", "No"},
 			votingMinutes: 60,
@@ -36,7 +37,7 @@ func TestGroupWagerService_CreateGroupWager_TableDriven(t *testing.T) {
 		},
 		{
 			name:          "insufficient options",
-			creatorID:     TestResolverID,
+			creatorID:     &testResolverID,
 			condition:     "Test",
 			options:       []string{"Only One"},
 			votingMinutes: 60,
@@ -45,7 +46,7 @@ func TestGroupWagerService_CreateGroupWager_TableDriven(t *testing.T) {
 		},
 		{
 			name:          "voting period too short",
-			creatorID:     TestResolverID,
+			creatorID:     &testResolverID,
 			condition:     "Test",
 			options:       []string{"Yes", "No"},
 			votingMinutes: 3, // < 5 minutes
@@ -54,7 +55,7 @@ func TestGroupWagerService_CreateGroupWager_TableDriven(t *testing.T) {
 		},
 		{
 			name:          "voting period too long",
-			creatorID:     TestResolverID,
+			creatorID:     &testResolverID,
 			condition:     "Test",
 			options:       []string{"Yes", "No"},
 			votingMinutes: 10081, // > 10080 minutes (7 days)
@@ -63,7 +64,7 @@ func TestGroupWagerService_CreateGroupWager_TableDriven(t *testing.T) {
 		},
 		{
 			name:          "invalid wager type",
-			creatorID:     TestResolverID,
+			creatorID:     &testResolverID,
 			condition:     "Test",
 			options:       []string{"Yes", "No"},
 			votingMinutes: 60,
@@ -72,7 +73,7 @@ func TestGroupWagerService_CreateGroupWager_TableDriven(t *testing.T) {
 		},
 		{
 			name:            "pool wager with odds",
-			creatorID:       TestResolverID,
+			creatorID:       &testResolverID,
 			condition:       "Test",
 			options:         []string{"Yes", "No"},
 			votingMinutes:   60,
@@ -82,7 +83,7 @@ func TestGroupWagerService_CreateGroupWager_TableDriven(t *testing.T) {
 		},
 		{
 			name:          "house wager without odds",
-			creatorID:     TestResolverID,
+			creatorID:     &testResolverID,
 			condition:     "Test",
 			options:       []string{"Yes", "No"},
 			votingMinutes: 60,
@@ -91,7 +92,7 @@ func TestGroupWagerService_CreateGroupWager_TableDriven(t *testing.T) {
 		},
 		{
 			name:            "house wager odds count mismatch",
-			creatorID:       TestResolverID,
+			creatorID:       &testResolverID,
 			condition:       "Test",
 			options:         []string{"A", "B", "C"},
 			votingMinutes:   60,
@@ -101,7 +102,7 @@ func TestGroupWagerService_CreateGroupWager_TableDriven(t *testing.T) {
 		},
 		{
 			name:            "house wager negative odds",
-			creatorID:       TestResolverID,
+			creatorID:       &testResolverID,
 			condition:       "Test",
 			options:         []string{"Yes", "No"},
 			votingMinutes:   60,
@@ -111,7 +112,7 @@ func TestGroupWagerService_CreateGroupWager_TableDriven(t *testing.T) {
 		},
 		{
 			name:            "house wager zero odds",
-			creatorID:       TestResolverID,
+			creatorID:       &testResolverID,
 			condition:       "Test",
 			options:         []string{"Yes", "No"},
 			votingMinutes:   60,
@@ -121,7 +122,7 @@ func TestGroupWagerService_CreateGroupWager_TableDriven(t *testing.T) {
 		},
 		{
 			name:          "duplicate options case insensitive",
-			creatorID:     TestResolverID,
+			creatorID:     &testResolverID,
 			condition:     "Test",
 			options:       []string{"Yes", "No", "yes"}, // duplicate
 			votingMinutes: 60,
@@ -132,9 +133,11 @@ func TestGroupWagerService_CreateGroupWager_TableDriven(t *testing.T) {
 
 	for _, tt := range validationTests {
 		t.Run(tt.name, func(t *testing.T) {
+			SetupTestConfig(t) // This sets up the global config for the test
+			
 			// Setup
 			mocks := NewTestMocks()
-			service := NewGroupWagerService(
+			service := NewGroupWagerService( // Now we can use the regular constructor!
 				mocks.GroupWagerRepo,
 				mocks.UserRepo,
 				mocks.BalanceHistoryRepo,
@@ -167,6 +170,7 @@ func TestGroupWagerService_CreateGroupWager_TableDriven(t *testing.T) {
 
 func TestGroupWagerService_CreateGroupWager_Success(t *testing.T) {
 	ctx := context.Background()
+	testResolverID := int64(TestResolverID)
 
 	successTests := []struct {
 		name            string
@@ -235,12 +239,14 @@ func TestGroupWagerService_CreateGroupWager_Success(t *testing.T) {
 
 	for _, tt := range successTests {
 		t.Run(tt.name, func(t *testing.T) {
+			SetupTestConfig(t) // This sets up the global config for the test
+			
 			// Setup
 			mocks := NewTestMocks()
 			helper := NewMockHelper(mocks)
 			assertions := NewAssertionHelper(t)
 			
-			service := NewGroupWagerService(
+			service := NewGroupWagerService( // Now we can use the regular constructor!
 				mocks.GroupWagerRepo,
 				mocks.UserRepo,
 				mocks.BalanceHistoryRepo,
@@ -258,7 +264,7 @@ func TestGroupWagerService_CreateGroupWager_Success(t *testing.T) {
 			// Setup create expectations
 			mocks.GroupWagerRepo.On("CreateWithOptions", ctx, 
 				mock.MatchedBy(func(gw *models.GroupWager) bool {
-					return gw.CreatorDiscordID == TestResolverID &&
+					return gw.CreatorDiscordID != nil && *gw.CreatorDiscordID == TestResolverID &&
 						gw.Condition == tt.condition &&
 						gw.State == models.GroupWagerStateActive &&
 						gw.WagerType == tt.wagerType &&
@@ -296,7 +302,7 @@ func TestGroupWagerService_CreateGroupWager_Success(t *testing.T) {
 			// Execute
 			result, err := service.CreateGroupWager(
 				ctx,
-				TestResolverID,
+				&testResolverID,
 				tt.condition,
 				tt.options,
 				tt.votingMinutes,
@@ -317,11 +323,14 @@ func TestGroupWagerService_CreateGroupWager_Success(t *testing.T) {
 }
 
 func TestGroupWagerService_CreateGroupWager_UserNotFound(t *testing.T) {
+	SetupTestConfig(t) // This sets up the global config for the test
+	
 	ctx := context.Background()
+	testResolverID := int64(TestResolverID)
 	mocks := NewTestMocks()
 	helper := NewMockHelper(mocks)
 	
-	service := NewGroupWagerService(
+	service := NewGroupWagerService( // Now we can use the regular constructor!
 		mocks.GroupWagerRepo,
 		mocks.UserRepo,
 		mocks.BalanceHistoryRepo,
@@ -334,7 +343,7 @@ func TestGroupWagerService_CreateGroupWager_UserNotFound(t *testing.T) {
 	// Execute
 	result, err := service.CreateGroupWager(
 		ctx,
-		TestResolverID,
+		&testResolverID,
 		"Test condition",
 		[]string{"Yes", "No"},
 		60,
@@ -347,7 +356,128 @@ func TestGroupWagerService_CreateGroupWager_UserNotFound(t *testing.T) {
 	// Assert
 	require.Error(t, err)
 	require.Nil(t, result)
-	require.Contains(t, err.Error(), "creator not found")
+	require.Contains(t, err.Error(), "creator 999999 not found")
+
+	mocks.AssertAllExpectations(t)
+}
+
+func TestGroupWagerService_CreateGroupWager_SystemUser(t *testing.T) {
+	SetupTestConfig(t) // This sets up the global config for the test
+	
+	ctx := context.Background()
+	mocks := NewTestMocks()
+	
+	service := NewGroupWagerService( // Now we can use the regular constructor!
+		mocks.GroupWagerRepo,
+		mocks.UserRepo,
+		mocks.BalanceHistoryRepo,
+		mocks.EventPublisher,
+	)
+
+	// Setup - system user (ID 0) should skip creator validation
+	// Note: No user lookup expectation needed for system user
+	mocks.GroupWagerRepo.On("CreateWithOptions", ctx, 
+		mock.MatchedBy(func(gw *models.GroupWager) bool {
+			return gw.CreatorDiscordID == nil && // System user
+				gw.Condition == "Test condition" &&
+				gw.State == models.GroupWagerStateActive &&
+				gw.WagerType == models.GroupWagerTypeHouse &&
+				gw.TotalPot == 0 &&
+				gw.MinParticipants == 3 &&
+				gw.VotingPeriodMinutes == 60 &&
+				gw.MessageID == TestMessageID &&
+				gw.ChannelID == TestChannelID
+		}),
+		mock.MatchedBy(func(opts []*models.GroupWagerOption) bool {
+			return len(opts) == 2 &&
+				opts[0].OptionText == "Yes" &&
+				opts[0].OptionOrder == 0 &&
+				opts[0].OddsMultiplier == 1.5 &&
+				opts[1].OptionText == "No" &&
+				opts[1].OptionOrder == 1 &&
+				opts[1].OddsMultiplier == 2.0
+		}),
+	).Return(nil)
+
+	// Execute
+	result, err := service.CreateGroupWager(
+		ctx,
+		nil, // System user - no specific creator
+		"Test condition",
+		[]string{"Yes", "No"},
+		60,
+		TestMessageID,
+		TestChannelID,
+		models.GroupWagerTypeHouse,
+		[]float64{1.5, 2.0},
+	)
+
+	// Assert
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Nil(t, result.Wager.CreatorDiscordID)
+	require.Equal(t, "Test condition", result.Wager.Condition)
+	require.Equal(t, models.GroupWagerTypeHouse, result.Wager.WagerType)
+	require.Len(t, result.Options, 2)
+
+	mocks.AssertAllExpectations(t)
+}
+
+func TestGroupWagerService_CancelGroupWager_SystemUser(t *testing.T) {
+	SetupTestConfig(t) // This sets up the global config for the test
+	
+	ctx := context.Background()
+	mocks := NewTestMocks()
+	
+	service := NewGroupWagerService( // Now we can use the regular constructor!
+		mocks.GroupWagerRepo,
+		mocks.UserRepo,
+		mocks.BalanceHistoryRepo,
+		mocks.EventPublisher,
+	)
+
+	// Test that system user (ID 0) can cancel their own wager
+	systemWager1 := &models.GroupWager{
+		ID:               1,
+		CreatorDiscordID: nil, // System user
+		State:            models.GroupWagerStateActive,
+	}
+	mocks.GroupWagerRepo.On("GetByID", ctx, int64(1)).Return(systemWager1, nil).Once()
+	mocks.GroupWagerRepo.On("Update", ctx, mock.MatchedBy(func(gw *models.GroupWager) bool {
+		return gw.State == models.GroupWagerStateCancelled
+	})).Return(nil).Once()
+	mocks.EventPublisher.On("Publish", mock.Anything).Once()
+	
+	err := service.CancelGroupWager(ctx, 1, 0) // System user cancelling their own wager
+	require.NoError(t, err)
+
+	// Test that resolver can cancel system wager
+	systemWager2 := &models.GroupWager{
+		ID:               2,
+		CreatorDiscordID: nil, // System user
+		State:            models.GroupWagerStateActive,
+	}
+	mocks.GroupWagerRepo.On("GetByID", ctx, int64(2)).Return(systemWager2, nil).Once()
+	mocks.GroupWagerRepo.On("Update", ctx, mock.MatchedBy(func(gw *models.GroupWager) bool {
+		return gw.State == models.GroupWagerStateCancelled
+	})).Return(nil).Once()
+	mocks.EventPublisher.On("Publish", mock.Anything).Once()
+	
+	err = service.CancelGroupWager(ctx, 2, TestResolverID) // Resolver cancelling
+	require.NoError(t, err)
+
+	// Test that regular user cannot cancel system wager
+	systemWager3 := &models.GroupWager{
+		ID:               3,
+		CreatorDiscordID: nil, // System user
+		State:            models.GroupWagerStateActive,
+	}
+	regularUserID := int64(12345)
+	mocks.GroupWagerRepo.On("GetByID", ctx, int64(3)).Return(systemWager3, nil).Once()
+	
+	err = service.CancelGroupWager(ctx, 3, regularUserID) // Regular user trying to cancel system wager
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "only the creator or a resolver can cancel")
 
 	mocks.AssertAllExpectations(t)
 }

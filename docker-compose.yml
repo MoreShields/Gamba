@@ -2,7 +2,8 @@ services:
   # NATS message broker with JetStream
   nats:
     image: nats:2.10-alpine
-    container_name: gambler-nats
+    container_name: nats
+    hostname: nats
     command: ["-c", "/etc/nats/nats.conf"]
     ports:
       - "4222:4222"  # NATS client port

@@ -64,7 +64,7 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 		// Create group wager
 		votingEndsAt := time.Now().Add(24 * time.Hour)
 		groupWager := &models.GroupWager{
-			CreatorDiscordID:    resolver.DiscordID,
+			CreatorDiscordID:    &resolver.DiscordID,
 			Condition:           "Will team win the championship?",
 			State:               models.GroupWagerStateActive,
 			WagerType:           models.GroupWagerTypePool,
@@ -194,7 +194,7 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 		// Create group wager
 		votingEndsAt := time.Now().Add(24 * time.Hour)
 		groupWager := &models.GroupWager{
-			CreatorDiscordID:    999999,
+			CreatorDiscordID:    &[]int64{999999}[0],
 			Condition:           "Will it rain tomorrow?",
 			State:               models.GroupWagerStateActive,
 			WagerType:           models.GroupWagerTypePool,
@@ -293,7 +293,7 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 		// Create group wager
 		votingEndsAt := time.Now().Add(24 * time.Hour)
 		groupWager := &models.GroupWager{
-			CreatorDiscordID:    999999,
+			CreatorDiscordID:    &[]int64{999999}[0],
 			Condition:           "Concurrent test wager",
 			State:               models.GroupWagerStateActive,
 			WagerType:           models.GroupWagerTypePool,
@@ -389,7 +389,7 @@ func TestGroupWagerResolution_EdgeCases(t *testing.T) {
 		// Create group wager
 		votingEndsAt := time.Now().Add(24 * time.Hour)
 		groupWager := &models.GroupWager{
-			CreatorDiscordID:    resolver.DiscordID,
+			CreatorDiscordID:    &resolver.DiscordID,
 			Condition:           "Single winner test",
 			State:               models.GroupWagerStateActive,
 			WagerType:           models.GroupWagerTypePool,
@@ -456,7 +456,7 @@ func TestGroupWagerResolution_EdgeCases(t *testing.T) {
 		// Create group wager
 		votingEndsAt := time.Now().Add(24 * time.Hour)
 		groupWager := &models.GroupWager{
-			CreatorDiscordID:    resolver2.DiscordID,
+			CreatorDiscordID:    &resolver2.DiscordID,
 			Condition:           "Rounding test",
 			State:               models.GroupWagerStateActive,
 			WagerType:           models.GroupWagerTypePool,

@@ -53,7 +53,7 @@ func CreateTestBalanceHistoryWithAmounts(discordID int64, before, after, change 
 func CreateTestGroupWager(creatorID int64, condition string) *models.GroupWager {
 	futureTime := time.Now().Add(24 * time.Hour)
 	return &models.GroupWager{
-		CreatorDiscordID:    creatorID,
+		CreatorDiscordID:    &creatorID,
 		Condition:           condition,
 		State:               models.GroupWagerStateActive,
 		WagerType:           models.GroupWagerTypePool, // Default to pool

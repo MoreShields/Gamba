@@ -25,7 +25,7 @@ const (
 // GroupWager represents a multi-participant wager with multiple outcome options
 type GroupWager struct {
 	ID                  int64            `db:"id"`
-	CreatorDiscordID    int64            `db:"creator_discord_id"`
+	CreatorDiscordID    *int64           `db:"creator_discord_id"`
 	GuildID             int64            `db:"guild_id"`
 	Condition           string           `db:"condition"`
 	State               GroupWagerState  `db:"state"`

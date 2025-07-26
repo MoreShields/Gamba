@@ -62,7 +62,7 @@ func TestHouseWager_Integration(t *testing.T) {
 		// Create house wager with fixed odds
 		wagerDetail, err := groupWagerService.CreateGroupWager(
 			ctx,
-			creator.DiscordID,
+			&creator.DiscordID,
 			"Who will win the championship?",
 			[]string{"Team Alpha", "Team Beta", "Team Gamma"},
 			1440, // 24 hours
@@ -163,9 +163,10 @@ func TestHouseWager_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create house wager
+		testCreatorID := int64(999999)
 		wagerDetail, err := groupWagerService.CreateGroupWager(
 			ctx,
-			999999,
+			&testCreatorID,
 			"Coin flip",
 			[]string{"Heads", "Tails"},
 			1440, // 24 hours
@@ -242,9 +243,10 @@ func TestHouseWager_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create house wager
+		testCreatorID2 := int64(999999)
 		wagerDetail, err := groupWagerService.CreateGroupWager(
 			ctx,
-			999999,
+			&testCreatorID2,
 			"Pick the winner",
 			[]string{"Option A", "Option B", "Option C"},
 			1440, // 24 hours

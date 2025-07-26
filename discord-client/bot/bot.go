@@ -11,6 +11,7 @@ import (
 	"gambler/discord-client/bot/features/balance"
 	"gambler/discord-client/bot/features/betting"
 	"gambler/discord-client/bot/features/groupwagers"
+	"gambler/discord-client/bot/features/housewagers"
 	"gambler/discord-client/bot/features/settings"
 	"gambler/discord-client/bot/features/stats"
 	"gambler/discord-client/bot/features/summoner"
@@ -20,9 +21,10 @@ import (
 	"gambler/discord-client/models"
 	"gambler/discord-client/service"
 
+	summoner_pb "gambler/discord-client/proto/services"
+
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
-	summoner_pb "gambler/discord-client/proto/services"
 )
 
 // Config holds bot configuration
@@ -35,11 +37,11 @@ type Config struct {
 // Bot manages the Discord bot and all feature modules
 type Bot struct {
 	// Core components
-	config          Config
-	session         *discordgo.Session
-	eventBus        *events.Bus
-	uowFactory      service.UnitOfWorkFactory
-	summonerClient  summoner_pb.SummonerTrackingServiceClient
+	config         Config
+	session        *discordgo.Session
+	eventBus       *events.Bus
+	uowFactory     service.UnitOfWorkFactory
+	summonerClient summoner_pb.SummonerTrackingServiceClient
 
 	// High roller tracking
 	lastHighRollerID int64
@@ -48,6 +50,7 @@ type Bot struct {
 	betting     *betting.Feature
 	wagers      *wagers.Feature
 	groupWagers *groupwagers.Feature
+	houseWagers *housewagers.Feature
 	stats       *stats.Feature
 	balance     *balance.Feature
 	transfer    *transfer.Feature
@@ -80,6 +83,7 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory servi
 	bot.betting = betting.New(gamblingConfig, uowFactory)
 	bot.wagers = wagers.NewFeature(dg, uowFactory, config.GuildID)
 	bot.groupWagers = groupwagers.NewFeature(dg, uowFactory)
+	bot.houseWagers = housewagers.NewFeature(dg, uowFactory)
 	bot.stats = stats.NewFeature(dg, uowFactory, config.GuildID)
 	bot.balance = balance.New(uowFactory)
 	bot.transfer = transfer.New(uowFactory)
@@ -166,6 +170,12 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory servi
 	log.Info("Background workers started")
 
 	return bot, nil
+}
+
+// GetDiscordPoster returns the housewagers feature as a DiscordPoster implementation
+
+func (b *Bot) GetDiscordPoster() *housewagers.Feature {
+	return b.houseWagers
 }
 
 // Close gracefully shuts down the bot
@@ -407,6 +417,9 @@ func (b *Bot) routeComponentInteraction(s *discordgo.Session, i *discordgo.Inter
 
 	case strings.HasPrefix(customID, "groupwager_"), strings.HasPrefix(customID, "group_wager_"):
 		b.groupWagers.HandleInteraction(s, i)
+
+	case strings.HasPrefix(customID, "house_wager_"):
+		b.houseWagers.HandleInteraction(s, i)
 	}
 }
 
@@ -418,6 +431,9 @@ func (b *Bot) routeModalInteraction(s *discordgo.Session, i *discordgo.Interacti
 
 	case strings.HasPrefix(customID, "groupwager_"), strings.HasPrefix(customID, "group_wager_"):
 		b.groupWagers.HandleInteraction(s, i)
+
+	case strings.HasPrefix(customID, "house_wager_"):
+		b.houseWagers.HandleInteraction(s, i)
 
 	case customID == "bet_amount_modal":
 		b.betting.HandleInteraction(s, i)

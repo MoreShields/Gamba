@@ -35,7 +35,7 @@ func NewGroupWagerService(
 }
 
 // CreateGroupWager creates a new group wager with options
-func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int64, condition string, options []string, votingPeriodMinutes int, messageID, channelID int64, wagerType models.GroupWagerType, oddsMultipliers []float64) (*models.GroupWagerDetail, error) {
+func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID *int64, condition string, options []string, votingPeriodMinutes int, messageID, channelID int64, wagerType models.GroupWagerType, oddsMultipliers []float64) (*models.GroupWagerDetail, error) {
 	// Validate inputs
 	if condition == "" {
 		return nil, fmt.Errorf("condition cannot be empty")
@@ -46,12 +46,12 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int6
 	if votingPeriodMinutes < 5 || votingPeriodMinutes > 10080 {
 		return nil, fmt.Errorf("voting period must be between 5 minutes and 168 hours (10080 minutes)")
 	}
-	
+
 	// Validate wager type
 	if wagerType != models.GroupWagerTypePool && wagerType != models.GroupWagerTypeHouse {
 		return nil, fmt.Errorf("invalid wager type: %s", wagerType)
 	}
-	
+
 	// Validate odds multipliers for house wagers
 	if wagerType == models.GroupWagerTypeHouse {
 		if len(oddsMultipliers) != len(options) {
@@ -79,13 +79,15 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int6
 		optionMap[lowerOption] = true
 	}
 
-	// Check if creator exists
-	creator, err := s.userRepo.GetByDiscordID(ctx, creatorID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get creator: %w", err)
-	}
-	if creator == nil {
-		return nil, fmt.Errorf("creator not found")
+	// Check if creator exists (skip validation for system-created wagers)
+	if creatorID != nil {
+		creator, err := s.userRepo.GetByDiscordID(ctx, *creatorID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get creator: %w", err)
+		}
+		if creator == nil {
+			return nil, fmt.Errorf("creator %d not found", *creatorID)
+		}
 	}
 
 	// Calculate voting period times
@@ -119,7 +121,7 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int6
 			// For pool wagers, start with 0 odds (will be calculated after creation)
 			odds = 0
 		}
-		
+
 		option := &models.GroupWagerOption{
 			OptionText:     optionText,
 			OptionOrder:    int16(i),
@@ -403,7 +405,7 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 		if true {
 			newBalance := user.Balance + balanceChange
 			if err := s.userRepo.UpdateBalance(ctx, winner.DiscordID, newBalance); err != nil {
-			return nil, fmt.Errorf("failed to update winner balance: %w", err)
+				return nil, fmt.Errorf("failed to update winner balance: %w", err)
 			}
 
 			// Record balance history
@@ -425,7 +427,7 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 			}
 
 			if err := RecordBalanceChange(ctx, s.balanceHistoryRepo, s.eventPublisher, history); err != nil {
-			return nil, fmt.Errorf("failed to record winner balance change: %w", err)
+				return nil, fmt.Errorf("failed to record winner balance change: %w", err)
 			}
 
 			// Update participant with balance history ID
@@ -633,7 +635,7 @@ func (s *groupWagerService) CancelGroupWager(ctx context.Context, groupWagerID i
 	}
 
 	// Check if canceller is authorized (creator or resolver)
-	if cancellerID != groupWager.CreatorDiscordID && !s.IsResolver(cancellerID) {
+	if (groupWager.CreatorDiscordID == nil || cancellerID != *groupWager.CreatorDiscordID) && !s.IsResolver(cancellerID) {
 		return fmt.Errorf("only the creator or a resolver can cancel a group wager")
 	}
 
