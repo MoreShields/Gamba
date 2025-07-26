@@ -446,9 +446,11 @@ func (b *Bot) handleGroupWagerStateChange(ctx context.Context, event events.Even
 	if !ok {
 		return
 	}
+	log.Infof("handleGroupWagerStateChange for wager %d", e.GroupWagerID)
 
 	// Skip if no message to update
 	if e.MessageID == 0 || e.ChannelID == 0 {
+		log.Errorf("Failed to handle group wager state change, missing messageID or channelID.")
 		return
 	}
 
@@ -489,12 +491,6 @@ func (b *Bot) handleGroupWagerStateChange(ctx context.Context, event events.Even
 	detail, err := groupWagerService.GetGroupWagerDetail(ctx, e.GroupWagerID)
 	if err != nil {
 		log.Errorf("Failed to get group wager detail for event update: %v", err)
-		return
-	}
-
-	// Commit the transaction
-	if err := uow.Commit(); err != nil {
-		log.Errorf("Failed to commit transaction: %v", err)
 		return
 	}
 
@@ -558,6 +554,6 @@ func (b *Bot) handleGuildCreate(s *discordgo.Session, g *discordgo.GuildCreate) 
 		return
 	}
 
-	log.Infof("Bot joined new guild: %s (ID: %d, Primary Channel: %v, High Roller Role: %v)",
-		g.Name, settings.GuildID, settings.PrimaryChannelID, settings.HighRollerRoleID)
+	log.Infof("Bot joined new guild: %s (ID: %d, Primary Channel: %v, High Roller Role: %v, lol-channel: %v)",
+		g.Name, settings.GuildID, settings.PrimaryChannelID, settings.HighRollerRoleID, settings.LolChannelID)
 }

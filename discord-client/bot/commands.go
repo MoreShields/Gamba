@@ -162,6 +162,32 @@ func (b *Bot) registerCommands() error {
 						},
 					},
 				},
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "primary-channel",
+					Description: "Set the primary channel for bot activities",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionChannel,
+							Name:        "channel",
+							Description: "The channel to set as primary (leave empty to disable)",
+							Required:    false,
+						},
+					},
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "lol-channel",
+					Description: "Set the channel for League of Legends activities",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionChannel,
+							Name:        "channel",
+							Description: "The channel to set for LOL activities (leave empty to disable)",
+							Required:    false,
+						},
+					},
+				},
 			},
 		},
 		{

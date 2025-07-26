@@ -134,10 +134,10 @@ func TestGroupWagerService_CreateGroupWager_TableDriven(t *testing.T) {
 	for _, tt := range validationTests {
 		t.Run(tt.name, func(t *testing.T) {
 			SetupTestConfig(t) // This sets up the global config for the test
-			
+
 			// Setup
 			mocks := NewTestMocks()
-			service := NewGroupWagerService( // Now we can use the regular constructor!
+			service := NewGroupWagerService(
 				mocks.GroupWagerRepo,
 				mocks.UserRepo,
 				mocks.BalanceHistoryRepo,
@@ -240,13 +240,13 @@ func TestGroupWagerService_CreateGroupWager_Success(t *testing.T) {
 	for _, tt := range successTests {
 		t.Run(tt.name, func(t *testing.T) {
 			SetupTestConfig(t) // This sets up the global config for the test
-			
+
 			// Setup
 			mocks := NewTestMocks()
 			helper := NewMockHelper(mocks)
 			assertions := NewAssertionHelper(t)
-			
-			service := NewGroupWagerService( // Now we can use the regular constructor!
+
+			service := NewGroupWagerService(
 				mocks.GroupWagerRepo,
 				mocks.UserRepo,
 				mocks.BalanceHistoryRepo,
@@ -262,7 +262,7 @@ func TestGroupWagerService_CreateGroupWager_Success(t *testing.T) {
 			helper.ExpectUserLookup(TestResolverID, creator)
 
 			// Setup create expectations
-			mocks.GroupWagerRepo.On("CreateWithOptions", ctx, 
+			mocks.GroupWagerRepo.On("CreateWithOptions", ctx,
 				mock.MatchedBy(func(gw *models.GroupWager) bool {
 					return gw.CreatorDiscordID != nil && *gw.CreatorDiscordID == TestResolverID &&
 						gw.Condition == tt.condition &&
@@ -324,13 +324,13 @@ func TestGroupWagerService_CreateGroupWager_Success(t *testing.T) {
 
 func TestGroupWagerService_CreateGroupWager_UserNotFound(t *testing.T) {
 	SetupTestConfig(t) // This sets up the global config for the test
-	
+
 	ctx := context.Background()
 	testResolverID := int64(TestResolverID)
 	mocks := NewTestMocks()
 	helper := NewMockHelper(mocks)
-	
-	service := NewGroupWagerService( // Now we can use the regular constructor!
+
+	service := NewGroupWagerService(
 		mocks.GroupWagerRepo,
 		mocks.UserRepo,
 		mocks.BalanceHistoryRepo,
@@ -363,11 +363,11 @@ func TestGroupWagerService_CreateGroupWager_UserNotFound(t *testing.T) {
 
 func TestGroupWagerService_CreateGroupWager_SystemUser(t *testing.T) {
 	SetupTestConfig(t) // This sets up the global config for the test
-	
+
 	ctx := context.Background()
 	mocks := NewTestMocks()
-	
-	service := NewGroupWagerService( // Now we can use the regular constructor!
+
+	service := NewGroupWagerService(
 		mocks.GroupWagerRepo,
 		mocks.UserRepo,
 		mocks.BalanceHistoryRepo,
@@ -376,7 +376,7 @@ func TestGroupWagerService_CreateGroupWager_SystemUser(t *testing.T) {
 
 	// Setup - system user (ID 0) should skip creator validation
 	// Note: No user lookup expectation needed for system user
-	mocks.GroupWagerRepo.On("CreateWithOptions", ctx, 
+	mocks.GroupWagerRepo.On("CreateWithOptions", ctx,
 		mock.MatchedBy(func(gw *models.GroupWager) bool {
 			return gw.CreatorDiscordID == nil && // System user
 				gw.Condition == "Test condition" &&
@@ -425,11 +425,11 @@ func TestGroupWagerService_CreateGroupWager_SystemUser(t *testing.T) {
 
 func TestGroupWagerService_CancelGroupWager_SystemUser(t *testing.T) {
 	SetupTestConfig(t) // This sets up the global config for the test
-	
+
 	ctx := context.Background()
 	mocks := NewTestMocks()
-	
-	service := NewGroupWagerService( // Now we can use the regular constructor!
+
+	service := NewGroupWagerService(
 		mocks.GroupWagerRepo,
 		mocks.UserRepo,
 		mocks.BalanceHistoryRepo,
@@ -447,7 +447,7 @@ func TestGroupWagerService_CancelGroupWager_SystemUser(t *testing.T) {
 		return gw.State == models.GroupWagerStateCancelled
 	})).Return(nil).Once()
 	mocks.EventPublisher.On("Publish", mock.Anything).Once()
-	
+
 	err := service.CancelGroupWager(ctx, 1, 0) // System user cancelling their own wager
 	require.NoError(t, err)
 
@@ -462,7 +462,7 @@ func TestGroupWagerService_CancelGroupWager_SystemUser(t *testing.T) {
 		return gw.State == models.GroupWagerStateCancelled
 	})).Return(nil).Once()
 	mocks.EventPublisher.On("Publish", mock.Anything).Once()
-	
+
 	err = service.CancelGroupWager(ctx, 2, TestResolverID) // Resolver cancelling
 	require.NoError(t, err)
 
@@ -474,7 +474,7 @@ func TestGroupWagerService_CancelGroupWager_SystemUser(t *testing.T) {
 	}
 	regularUserID := int64(12345)
 	mocks.GroupWagerRepo.On("GetByID", ctx, int64(3)).Return(systemWager3, nil).Once()
-	
+
 	err = service.CancelGroupWager(ctx, 3, regularUserID) // Regular user trying to cancel system wager
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "only the creator or a resolver can cancel")

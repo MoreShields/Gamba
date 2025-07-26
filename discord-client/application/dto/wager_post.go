@@ -1,5 +1,7 @@
 package dto
 
+import "time"
+
 // HouseWagerPostDTO contains all the information needed to post a house wager to Discord
 type HouseWagerPostDTO struct {
 	// Guild and channel information
@@ -7,10 +9,11 @@ type HouseWagerPostDTO struct {
 	ChannelID int64 // If 0, use guild's primary channel
 
 	// Wager information
-	WagerID     int64
-	Title       string
-	Description string
-	Options     []WagerOptionDTO
+	WagerID      int64
+	Title        string
+	Description  string
+	Options      []WagerOptionDTO
+	VotingEndsAt *time.Time // When the voting period ends
 
 	// Summoner information for context
 	SummonerInfo SummonerInfoDTO

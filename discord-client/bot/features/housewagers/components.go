@@ -281,15 +281,6 @@ func (f *Feature) handleHouseWagerBetModal(s *discordgo.Session, i *discordgo.In
 		return
 	}
 
-	// Get updated user balance
-	user, err := uow.UserRepository().GetByDiscordID(context.Background(), userID)
-	if err != nil {
-		uow.Rollback()
-		log.Errorf("Failed to get user after bet: %v", err)
-		common.RespondWithError(s, i, "Failed to get updated balance")
-		return
-	}
-
 	// Commit the transaction
 	if err := uow.Commit(); err != nil {
 		log.Errorf("Failed to commit house wager bet transaction: %v", err)
@@ -300,20 +291,29 @@ func (f *Feature) handleHouseWagerBetModal(s *discordgo.Session, i *discordgo.In
 	// Calculate potential payout
 	potentialPayout := float64(betAmount) * selectedOption.OddsMultiplier
 
+	// Extract summoner name from condition (format: "SummonerName#TagLine - QueueType")
+	summonerName := "Unknown"
+	if wagerDetail.Wager != nil && wagerDetail.Wager.Condition != "" {
+		// Split by " - " to separate summoner and queue type
+		parts := strings.Split(wagerDetail.Wager.Condition, " - ")
+		if len(parts) > 0 {
+			// Extract just the summoner name (before the #)
+			summonerParts := strings.Split(parts[0], "#")
+			if len(summonerParts) > 0 {
+				summonerName = summonerParts[0]
+			}
+		}
+	}
+
 	// Respond with success
 	embed := &discordgo.MessageEmbed{
 		Title:       "✅ Bet Placed Successfully!",
-		Description: fmt.Sprintf("You bet **%s bits** on **%s**", common.FormatBalance(betAmount), selectedOption.OptionText),
+		Description: fmt.Sprintf("You bet **%s bits** on **%s %s**", common.FormatBalance(betAmount), summonerName, selectedOption.OptionText),
 		Color:       common.ColorPrimary,
 		Fields: []*discordgo.MessageEmbedField{
 			{
 				Name:   "💰 Potential Payout",
-				Value:  fmt.Sprintf("**%s bits** (%.2fx)", common.FormatBalance(int64(potentialPayout)), selectedOption.OddsMultiplier),
-				Inline: true,
-			},
-			{
-				Name:   "💳 New Balance",
-				Value:  fmt.Sprintf("**%s bits**", common.FormatBalance(user.Balance)),
+				Value:  fmt.Sprintf("%.2fx odds", selectedOption.OddsMultiplier),
 				Inline: true,
 			},
 		},

@@ -3,8 +3,10 @@ package housewagers
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
+	"gambler/discord-client/application"
 	"gambler/discord-client/application/dto"
 	"gambler/discord-client/bot/common"
 	"gambler/discord-client/service"
@@ -28,7 +30,7 @@ func NewFeature(session *discordgo.Session, uowFactory service.UnitOfWorkFactory
 }
 
 // PostHouseWager implements the application.DiscordPoster interface
-func (f *Feature) PostHouseWager(ctx context.Context, dto dto.HouseWagerPostDTO) error {
+func (f *Feature) PostHouseWager(ctx context.Context, dto dto.HouseWagerPostDTO) (*application.PostResult, error) {
 	log.WithFields(log.Fields{
 		"guild":   dto.GuildID,
 		"channel": dto.ChannelID,
@@ -37,7 +39,7 @@ func (f *Feature) PostHouseWager(ctx context.Context, dto dto.HouseWagerPostDTO)
 
 	// Validate channel ID
 	if dto.ChannelID == 0 {
-		return fmt.Errorf("invalid channel ID: %d", dto.ChannelID)
+		return nil, fmt.Errorf("invalid channel ID: %d", dto.ChannelID)
 	}
 
 	// Create embed and components
@@ -53,17 +55,26 @@ func (f *Feature) PostHouseWager(ctx context.Context, dto dto.HouseWagerPostDTO)
 	channelIDStr := fmt.Sprintf("%d", dto.ChannelID)
 	message, err := f.session.ChannelMessageSendComplex(channelIDStr, messageData)
 	if err != nil {
-		return fmt.Errorf("failed to send house wager message: %w", err)
+		return nil, fmt.Errorf("failed to send house wager message: %w", err)
+	}
+
+	// Parse message ID to int64
+	messageID, err := strconv.ParseInt(message.ID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse message ID: %w", err)
 	}
 
 	log.WithFields(log.Fields{
 		"guild":     dto.GuildID,
 		"channel":   dto.ChannelID,
 		"wagerID":   dto.WagerID,
-		"messageID": message.ID,
+		"messageID": messageID,
 	}).Info("Successfully posted house wager to Discord")
 
-	return nil
+	return &application.PostResult{
+		MessageID: messageID,
+		ChannelID: dto.ChannelID,
+	}, nil
 }
 
 // HandleInteraction handles house wager button interactions and modals

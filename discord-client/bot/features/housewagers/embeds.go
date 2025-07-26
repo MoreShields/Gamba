@@ -22,7 +22,7 @@ func CreateHouseWagerEmbed(houseWager dto.HouseWagerPostDTO) *discordgo.MessageE
 		},
 	}
 
-	// Add summoner information field
+	// Add summoner information field with more emphasis
 	summonerValue := fmt.Sprintf("**%s#%s**\n🎮 %s\n🆔 %s",
 		houseWager.SummonerInfo.GameName,
 		houseWager.SummonerInfo.TagLine,
@@ -32,21 +32,7 @@ func CreateHouseWagerEmbed(houseWager dto.HouseWagerPostDTO) *discordgo.MessageE
 	embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
 		Name:   "📊 Game Info",
 		Value:  summonerValue,
-		Inline: true,
-	})
-
-	// Add betting instructions
-	embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
-		Name:   "💰 How to Bet",
-		Value:  "Click the buttons below to place your bet!\nFixed odds - no pools, guaranteed payouts.",
-		Inline: true,
-	})
-
-	// Add house edge information
-	embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
-		Name:   "🏠 House Edge",
-		Value:  "Even odds (1:1)\nNo house edge on this wager",
-		Inline: true,
+		Inline: true, // Position alongside betting options
 	})
 
 	// Add betting options with fixed odds
@@ -63,8 +49,25 @@ func CreateHouseWagerEmbed(houseWager dto.HouseWagerPostDTO) *discordgo.MessageE
 		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
 			Name:   "🎯 Betting Options",
 			Value:  optionsText,
-			Inline: false,
+			Inline: true, // Position alongside game info
 		})
+	}
+
+	// Add voting period information if available
+	if houseWager.VotingEndsAt != nil {
+		if houseWager.VotingEndsAt.After(time.Now()) {
+			embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
+				Name:   "🟢 Betting Open",
+				Value:  fmt.Sprintf("**Ends <t:%d:R>**", houseWager.VotingEndsAt.Unix()),
+				Inline: true,
+			})
+		} else {
+			embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
+				Name:   "🟠 Betting Closed",
+				Value:  fmt.Sprintf("**Ended <t:%d:R>**", houseWager.VotingEndsAt.Unix()),
+				Inline: true,
+			})
+		}
 	}
 
 	return embed

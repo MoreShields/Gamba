@@ -28,7 +28,7 @@ func newGuildSettingsRepositoryWithTx(tx queryable) *GuildSettingsRepository {
 func (r *GuildSettingsRepository) GetOrCreateGuildSettings(ctx context.Context, guildID int64) (*models.GuildSettings, error) {
 	// First try to get existing settings
 	query := `
-		SELECT guild_id, primary_channel_id, high_roller_role_id
+		SELECT guild_id, primary_channel_id, lol_channel_id, high_roller_role_id
 		FROM guild_settings
 		WHERE guild_id = $1
 	`
@@ -37,6 +37,7 @@ func (r *GuildSettingsRepository) GetOrCreateGuildSettings(ctx context.Context, 
 	err := r.q.QueryRow(ctx, query, guildID).Scan(
 		&settings.GuildID,
 		&settings.PrimaryChannelID,
+		&settings.LolChannelID,
 		&settings.HighRollerRoleID,
 	)
 	
@@ -50,14 +51,15 @@ func (r *GuildSettingsRepository) GetOrCreateGuildSettings(ctx context.Context, 
 	
 	// If not found, create default settings
 	insertQuery := `
-		INSERT INTO guild_settings (guild_id, primary_channel_id, high_roller_role_id)
-		VALUES ($1, NULL, NULL)
-		RETURNING guild_id, primary_channel_id, high_roller_role_id
+		INSERT INTO guild_settings (guild_id, primary_channel_id, lol_channel_id, high_roller_role_id)
+		VALUES ($1, NULL, NULL, NULL)
+		RETURNING guild_id, primary_channel_id, lol_channel_id, high_roller_role_id
 	`
 	
 	err = r.q.QueryRow(ctx, insertQuery, guildID).Scan(
 		&settings.GuildID,
 		&settings.PrimaryChannelID,
+		&settings.LolChannelID,
 		&settings.HighRollerRoleID,
 	)
 	
@@ -73,13 +75,15 @@ func (r *GuildSettingsRepository) UpdateGuildSettings(ctx context.Context, setti
 	query := `
 		UPDATE guild_settings
 		SET primary_channel_id = $2,
-		    high_roller_role_id = $3
+		    lol_channel_id = $3,
+		    high_roller_role_id = $4
 		WHERE guild_id = $1
 	`
 	
 	result, err := r.q.Exec(ctx, query, 
 		settings.GuildID,
 		settings.PrimaryChannelID,
+		settings.LolChannelID,
 		settings.HighRollerRoleID,
 	)
 	

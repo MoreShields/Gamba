@@ -592,7 +592,7 @@ func (s *groupWagerService) UpdateMessageIDs(ctx context.Context, groupWagerID i
 	return nil
 }
 
-// TransitionExpiredWagers finds and transitions expired active wagers to pending_resolution
+// TransitionExpiredWagers finds and transitions active wagers to pending_resolution once their betting window is exhausted
 func (s *groupWagerService) TransitionExpiredWagers(ctx context.Context) error {
 	// Find expired active wagers
 	expiredWagers, err := s.groupWagerRepo.GetExpiredActiveWagers(ctx)

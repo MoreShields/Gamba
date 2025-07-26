@@ -7,6 +7,7 @@ import (
 	"gambler/discord-client/database"
 	"gambler/discord-client/models"
 	"gambler/discord-client/service"
+
 	"github.com/jackc/pgx/v5"
 )
 
@@ -19,11 +20,6 @@ type GroupWagerRepository struct {
 // NewGroupWagerRepository creates a new consolidated group wager repository
 func NewGroupWagerRepository(db *database.DB) *GroupWagerRepository {
 	return &GroupWagerRepository{q: db.Pool}
-}
-
-// newGroupWagerRepositoryWithTx creates a new group wager repository with a transaction
-func newGroupWagerRepositoryWithTx(tx queryable) service.GroupWagerRepository {
-	return &GroupWagerRepository{q: tx}
 }
 
 // newGroupWagerRepository creates a new group wager repository with a transaction and guild scope
@@ -161,7 +157,6 @@ func (r *GroupWagerRepository) GetDetailByMessageID(ctx context.Context, message
 
 	return r.GetDetailByID(ctx, wager.ID)
 }
-
 
 // GetByID retrieves a group wager by its ID
 func (r *GroupWagerRepository) GetByID(ctx context.Context, id int64) (*models.GroupWager, error) {

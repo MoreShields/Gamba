@@ -5,13 +5,19 @@ import (
 	"gambler/discord-client/application/dto"
 )
 
+// PostResult contains the result of posting a message to Discord
+type PostResult struct {
+	MessageID int64
+	ChannelID int64
+}
+
 // DiscordPoster defines the interface for posting messages to Discord
 // This abstraction allows the application layer to communicate with Discord
 // without direct dependency on the Discord API
 type DiscordPoster interface {
 	// PostHouseWager posts a house wager to the appropriate Discord channel
-	// Returns an error if the posting fails
-	PostHouseWager(ctx context.Context, dto dto.HouseWagerPostDTO) error
+	// Returns the messageID and channelID of the posted message, or an error if posting fails
+	PostHouseWager(ctx context.Context, dto dto.HouseWagerPostDTO) (*PostResult, error)
 }
 
 // LoLHandler defines the interface for handling LoL game events

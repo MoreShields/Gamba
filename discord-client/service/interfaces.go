@@ -252,7 +252,10 @@ type GuildSettingsService interface {
 	GetOrCreateSettings(ctx context.Context, guildID int64) (*models.GuildSettings, error)
 
 	// UpdatePrimaryChannel updates the primary channel for a guild
-	UpdatePrimaryChannel(ctx context.Context, guildID int64, channelID int64) error
+	UpdatePrimaryChannel(ctx context.Context, guildID int64, channelID *int64) error
+
+	// UpdateLolChannel updates the LOL channel for a guild
+	UpdateLolChannel(ctx context.Context, guildID int64, channelID *int64) error
 
 	// UpdateHighRollerRole updates the high roller role for a guild
 	UpdateHighRollerRole(ctx context.Context, guildID int64, roleID *int64) error
