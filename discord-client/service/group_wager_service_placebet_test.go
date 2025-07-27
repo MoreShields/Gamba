@@ -148,14 +148,13 @@ func TestGroupWagerService_PlaceBet_TableDriven(t *testing.T) {
 			fullScenario := tc.setupFunc(scenario)
 
 			// Setup common mocks
-			fixture.Helper.ExpectWagerLookup(TestWagerID, fullScenario.Wager)
-			
 			// Create detail from scenario
 			detail := &models.GroupWagerDetail{
 				Wager:        fullScenario.Wager,
 				Options:      fullScenario.Options,
 				Participants: fullScenario.Participants,
 			}
+			fixture.Helper.ExpectWagerDetailLookup(TestWagerID, detail)
 			fixture.Helper.ExpectWagerDetailLookup(TestWagerID, detail)
 
 			// Setup user mock if user exists in scenario
@@ -235,7 +234,6 @@ func TestGroupWagerService_PlaceBet_CompleteFlow(t *testing.T) {
 			Build()
 
 		// Setup mocks for successful bet
-		fixture.Helper.ExpectWagerLookup(TestWagerID, scenario.Wager)
 		fixture.Helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
 			Wager:        scenario.Wager,
 			Options:      scenario.Options,
@@ -283,7 +281,6 @@ func TestGroupWagerService_PlaceBet_CompleteFlow(t *testing.T) {
 			Build()
 
 		// Setup mocks for successful bet
-		fixture.Helper.ExpectWagerLookup(TestWagerID, scenario.Wager)
 		fixture.Helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
 			Wager:        scenario.Wager,
 			Options:      scenario.Options,
@@ -329,7 +326,6 @@ func TestGroupWagerService_PlaceBet_EdgeCases(t *testing.T) {
 			Build()
 
 		// Setup mocks
-		fixture.Helper.ExpectWagerLookup(TestWagerID, scenario.Wager)
 		fixture.Helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
 			Wager:        scenario.Wager,
 			Options:      scenario.Options,

@@ -74,9 +74,9 @@ func TestGroupWagerService_CancelGroupWager(t *testing.T) {
 			groupWagerID: 1,
 			cancellerID:  &creatorID,
 			setupMocks: func(mocks *TestMocks, helper *MockHelper) {
-				mocks.GroupWagerRepo.On("GetByID", helper.ctx, int64(1)).Return(nil, errors.New("db error"))
+				mocks.GroupWagerRepo.On("GetDetailByID", helper.ctx, int64(1)).Return(nil, errors.New("db error"))
 			},
-			expectedError: "failed to get group wager: db error",
+			expectedError: "failed to get group wager detail: db error",
 		},
 		{
 			name:         "successful cancellation of pending_resolution wager by creator",

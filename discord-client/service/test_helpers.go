@@ -223,8 +223,14 @@ func (h *MockHelper) ExpectUserNotFound(userID int64) {
 }
 
 // ExpectWagerLookup sets up wager lookup expectations
+// This now mocks GetDetailByID since all service methods use GetDetailByID
 func (h *MockHelper) ExpectWagerLookup(wagerID int64, wager *models.GroupWager) {
-	h.mocks.GroupWagerRepo.On("GetByID", h.ctx, wagerID).Return(wager, nil)
+	detail := &models.GroupWagerDetail{
+		Wager:        wager,
+		Options:      []*models.GroupWagerOption{},
+		Participants: []*models.GroupWagerParticipant{},
+	}
+	h.mocks.GroupWagerRepo.On("GetDetailByID", h.ctx, wagerID).Return(detail, nil)
 }
 
 // ExpectWagerDetailLookup sets up wager detail lookup expectations
@@ -437,7 +443,7 @@ func (h *MockHelper) ExpectBetValidation(wagerID int64, wager *models.GroupWager
 
 // ExpectWagerNotFound sets up mocks for wager not found scenario
 func (h *MockHelper) ExpectWagerNotFound(wagerID int64) {
-	h.mocks.GroupWagerRepo.On("GetByID", h.ctx, wagerID).Return(nil, nil)
+	h.mocks.GroupWagerRepo.On("GetDetailByID", h.ctx, wagerID).Return(nil, nil)
 }
 
 // ExpectInsufficientBalance sets up mocks for insufficient balance scenario

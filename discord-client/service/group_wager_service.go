@@ -156,14 +156,16 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 		return nil, fmt.Errorf("bet amount must be positive")
 	}
 
-	// Get the group wager
-	groupWager, err := s.groupWagerRepo.GetByID(ctx, groupWagerID)
+	// Get full detail including options and wager
+	detail, err := s.groupWagerRepo.GetDetailByID(ctx, groupWagerID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get group wager: %w", err)
+		return nil, fmt.Errorf("failed to get group wager detail: %w", err)
 	}
-	if groupWager == nil {
+	if detail == nil || detail.Wager == nil {
 		return nil, fmt.Errorf("group wager not found")
 	}
+
+	groupWager := detail.Wager
 
 	// Check if betting is allowed
 	if !groupWager.CanAcceptBets() {
@@ -179,15 +181,6 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 		default:
 			return nil, fmt.Errorf("group wager is not accepting bets (state: %s)", groupWager.State)
 		}
-	}
-
-	// Get full detail including options
-	detail, err := s.groupWagerRepo.GetDetailByID(ctx, groupWagerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get group wager detail: %w", err)
-	}
-	if detail == nil {
-		return nil, fmt.Errorf("group wager not found")
 	}
 
 	options := detail.Options
@@ -585,11 +578,16 @@ func (s *groupWagerService) IsResolver(discordID int64) bool {
 
 // UpdateMessageIDs updates the message and channel IDs for a group wager
 func (s *groupWagerService) UpdateMessageIDs(ctx context.Context, groupWagerID int64, messageID int64, channelID int64) error {
-	// Get the group wager
-	groupWager, err := s.groupWagerRepo.GetByID(ctx, groupWagerID)
+	// Get the group wager detail
+	detail, err := s.groupWagerRepo.GetDetailByID(ctx, groupWagerID)
 	if err != nil {
-		return fmt.Errorf("failed to get group wager: %w", err)
+		return fmt.Errorf("failed to get group wager detail: %w", err)
 	}
+	if detail == nil || detail.Wager == nil {
+		return fmt.Errorf("group wager not found")
+	}
+
+	groupWager := detail.Wager
 
 	// Update message and channel IDs
 	groupWager.MessageID = messageID
@@ -637,14 +635,16 @@ func (s *groupWagerService) TransitionExpiredWagers(ctx context.Context) error {
 
 // CancelGroupWager cancels an active group wager
 func (s *groupWagerService) CancelGroupWager(ctx context.Context, groupWagerID int64, cancellerID *int64) error {
-	// Get the group wager
-	groupWager, err := s.groupWagerRepo.GetByID(ctx, groupWagerID)
+	// Get the group wager detail
+	detail, err := s.groupWagerRepo.GetDetailByID(ctx, groupWagerID)
 	if err != nil {
-		return fmt.Errorf("failed to get group wager: %w", err)
+		return fmt.Errorf("failed to get group wager detail: %w", err)
 	}
-	if groupWager == nil {
+	if detail == nil || detail.Wager == nil {
 		return fmt.Errorf("group wager not found")
 	}
+
+	groupWager := detail.Wager
 
 	// Check if canceller is authorized (creator or resolver)
 	// Allow system cancellation when cancellerID is nil

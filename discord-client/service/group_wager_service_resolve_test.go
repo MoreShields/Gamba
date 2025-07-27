@@ -165,9 +165,9 @@ func TestGroupWagerService_ResolveGroupWager_ValidationErrors(t *testing.T) {
 		},
 		{
 			name: "wager not found",
-			setupFunc: func(mocks *TestMocks, helper *MockHelper) string {
-				mocks.GroupWagerRepo.On("GetByID", ctx, int64(TestWagerID)).Return(nil, nil)
-				return "Yes"
+			setupFunc: func(mocks *TestMocks, helper *MockHelper) int64 {
+				mocks.GroupWagerRepo.On("GetDetailByID", ctx, int64(TestWagerID)).Return(nil, nil)
+				return TestOption1ID
 			},
 			resolverID:    TestResolverID,
 			expectedError: "group wager not found",
@@ -179,8 +179,12 @@ func TestGroupWagerService_ResolveGroupWager_ValidationErrors(t *testing.T) {
 					ID:    TestWagerID,
 					State: models.GroupWagerStateResolved,
 				}
-				helper.ExpectWagerLookup(TestWagerID, wager)
-				return "Yes"
+				helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
+					Wager:        wager,
+					Options:      []*models.GroupWagerOption{},
+					Participants: []*models.GroupWagerParticipant{},
+				})
+				return TestOption1ID
 			},
 			resolverID:    TestResolverID,
 			expectedError: "cannot be resolved",
@@ -194,7 +198,6 @@ func TestGroupWagerService_ResolveGroupWager_ValidationErrors(t *testing.T) {
 					WithParticipant(TestUser1ID, 0, 1000). // Only 1 participant
 					Build()
 
-				helper.ExpectWagerLookup(TestWagerID, scenario.Wager)
 				helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
 					Wager:        scenario.Wager,
 					Options:      scenario.Options,
@@ -217,7 +220,6 @@ func TestGroupWagerService_ResolveGroupWager_ValidationErrors(t *testing.T) {
 					WithParticipant(TestUser3ID, 0, 1500). // All on option 0
 					Build()
 
-				helper.ExpectWagerLookup(TestWagerID, scenario.Wager)
 				helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
 					Wager:        scenario.Wager,
 					Options:      scenario.Options,
@@ -240,7 +242,6 @@ func TestGroupWagerService_ResolveGroupWager_ValidationErrors(t *testing.T) {
 					WithParticipant(TestUser3ID, 0, 1500).
 					Build()
 
-				helper.ExpectWagerLookup(TestWagerID, scenario.Wager)
 				helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
 					Wager:        scenario.Wager,
 					Options:      scenario.Options,
@@ -291,7 +292,6 @@ func setupResolutionMocks(t *testing.T, helper *MockHelper, mocks *TestMocks, sc
 	ctx := context.Background()
 
 	// Basic lookups
-	helper.ExpectWagerLookup(TestWagerID, scenario.Wager)
 	helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
 		Wager:        scenario.Wager,
 		Options:      scenario.Options,
@@ -478,7 +478,6 @@ func TestGroupWagerService_HouseWager_SpecificScenarios(t *testing.T) {
 			Build()
 
 		// Setup mocks for bet
-		fixture.Helper.ExpectWagerLookup(TestWagerID, scenario.Wager)
 		fixture.Helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
 			Wager:        scenario.Wager,
 			Options:      scenario.Options,
@@ -531,7 +530,6 @@ func TestGroupWagerService_HouseWager_SpecificScenarios(t *testing.T) {
 		winningOptionID := scenario.Options[2].ID
 
 		// Setup mocks - no balance changes for losers
-		fixture.Helper.ExpectWagerLookup(TestWagerID, scenario.Wager)
 		fixture.Helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
 			Wager:        scenario.Wager,
 			Options:      scenario.Options,
@@ -606,7 +604,6 @@ func TestGroupWagerService_ResolveGroupWager_BalanceUpdateFailure(t *testing.T) 
 	winningOptionText := scenario.Options[0].OptionText
 
 	// Setup basic mocks
-	helper.ExpectWagerLookup(TestWagerID, scenario.Wager)
 	helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
 		Wager:        scenario.Wager,
 		Options:      scenario.Options,

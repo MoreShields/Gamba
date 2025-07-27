@@ -64,12 +64,12 @@ func TestGroupWagerService_EdgeCases(t *testing.T) {
 		fixture.Reset()
 
 		// Test handling of database connection errors
-		fixture.Mocks.GroupWagerRepo.On("GetByID", fixture.Ctx, int64(TestWagerID)).Return(nil, errors.New("connection failed"))
+		fixture.Mocks.GroupWagerRepo.On("GetDetailByID", fixture.Ctx, int64(TestWagerID)).Return(nil, errors.New("connection failed"))
 
 		_, err := fixture.Service.PlaceBet(fixture.Ctx, TestWagerID, TestUser1ID, TestOption1ID, 1000)
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to get group wager")
+		assert.Contains(t, err.Error(), "failed to get group wager detail")
 		fixture.AssertAllMocks()
 	})
 
@@ -82,7 +82,6 @@ func TestGroupWagerService_EdgeCases(t *testing.T) {
 			WithOptions("Yes", "No").
 			Build()
 
-		fixture.Helper.ExpectWagerLookup(TestWagerID, scenario.Wager)
 		fixture.Helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
 			Wager:        scenario.Wager,
 			Options:      scenario.Options,
@@ -153,7 +152,6 @@ func TestGroupWagerService_EdgeCases(t *testing.T) {
 			WithUser(TestUser1ID, "poor_user", 500). // Only 500 balance
 			Build()
 
-		fixture.Helper.ExpectWagerLookup(TestWagerID, scenario.Wager)
 		fixture.Helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
 			Wager:        scenario.Wager,
 			Options:      scenario.Options,
@@ -206,7 +204,6 @@ func TestGroupWagerService_EdgeCases(t *testing.T) {
 			WithUser(TestUser1ID, "user1", TestInitialBalance).
 			Build()
 
-		fixture.Helper.ExpectWagerLookup(TestWagerID, scenario.Wager)
 		fixture.Helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
 			Wager:        scenario.Wager,
 			Options:      scenario.Options,
@@ -235,7 +232,6 @@ func TestGroupWagerService_EdgeCases(t *testing.T) {
 			WithUser(TestUser1ID, "user1", TestInitialBalance).
 			Build()
 
-		fixture.Helper.ExpectWagerLookup(TestWagerID, scenario.Wager)
 		fixture.Helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
 			Wager:        scenario.Wager,
 			Options:      scenario.Options,
@@ -336,7 +332,6 @@ func TestGroupWagerService_DataIntegrityEdgeCases(t *testing.T) {
 			WithOptions("Yes", "No").
 			Build()
 
-		fixture.Helper.ExpectWagerLookup(TestWagerID, scenario.Wager)
 		fixture.Helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
 			Wager:        scenario.Wager,
 			Options:      scenario.Options,
