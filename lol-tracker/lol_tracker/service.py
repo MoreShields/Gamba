@@ -358,7 +358,7 @@ class LoLTrackerService:
             # This would require fetching match details from the Match API
 
             # Publish the event
-            subject = "lol.gamestate"
+            subject = "lol.gamestate.changed"
             await self.message_bus.publish(subject, event.SerializeToString())
 
             logger.info(
