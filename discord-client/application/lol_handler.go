@@ -211,13 +211,12 @@ func (h *LoLHandlerImpl) createHouseWagerForGuild(
 		uow.EventBus(),
 	)
 
-	// Format description with op.gg link for storage in condition field
+	// Format title and description for house wager
+	title := fmt.Sprintf("%s Ranked Match", gameStarted.SummonerName)
 	opggURL := fmt.Sprintf("https://www.op.gg/summoners/na/%s-%s",
 		gameStarted.SummonerName, gameStarted.TagLine)
-	description := fmt.Sprintf("Place your bets on %s's game outcome!\n[Track on OP.GG](%s)", 
-		gameStarted.SummonerName, opggURL)
 
-	// Create the house wager with formatted description as condition
+	// Create the house wager with formatted title as condition
 	options := []string{"Win", "Loss"}
 	oddsMultipliers := []float64{1.0, 1.0} // Even odds for now
 	votingPeriodMinutes := 5               // 5 minutes for betting
@@ -226,7 +225,7 @@ func (h *LoLHandlerImpl) createHouseWagerForGuild(
 	wagerDetail, err := groupWagerService.CreateGroupWager(
 		ctx,
 		nil,
-		description, // Store the formatted description as the condition
+		title, // Store the formatted title as the condition (like group wagers)
 		options,
 		votingPeriodMinutes,
 		0, // Message ID will be set after posting
@@ -267,8 +266,8 @@ func (h *LoLHandlerImpl) createHouseWagerForGuild(
 		GuildID:      guild.GuildID,
 		ChannelID:    channelID,
 		WagerID:      wagerDetail.Wager.ID,
-		Title:        "New Game Started!",
-		Description:  description, // Reuse the formatted description with op.gg link
+		Title:        title, // Use the same title stored in condition
+		Description:  fmt.Sprintf("[Track on OP.GG](%s)", opggURL),
 		State:        string(wagerDetail.Wager.State),
 		Options:      make([]dto.WagerOptionDTO, len(wagerDetail.Options)),
 		VotingEndsAt: wagerDetail.Wager.VotingEndsAt,

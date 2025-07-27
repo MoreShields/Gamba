@@ -6,16 +6,17 @@ import "gambler/discord-client/models"
 // This is used when a house wager needs to be displayed or updated in Discord
 func GroupWagerDetailToHouseWagerPostDTO(detail *models.GroupWagerDetail) HouseWagerPostDTO {
 	dto := HouseWagerPostDTO{
-		GuildID:      detail.Wager.GuildID,
-		ChannelID:    detail.Wager.ChannelID,
-		WagerID:      detail.Wager.ID,
-		Title:        "New Game Started!",
-		Description:  detail.Wager.Condition,
-		State:        string(detail.Wager.State),
-		Options:      make([]WagerOptionDTO, len(detail.Options)),
-		VotingEndsAt: detail.Wager.VotingEndsAt,
-		Participants: make([]ParticipantDTO, len(detail.Participants)),
-		TotalPot:     detail.Wager.TotalPot,
+		GuildID:         detail.Wager.GuildID,
+		ChannelID:       detail.Wager.ChannelID,
+		WagerID:         detail.Wager.ID,
+		Title:           detail.Wager.Condition, // Use condition as title (like group wagers)
+		Description:     "",                     // Description will be set separately if needed
+		State:           string(detail.Wager.State),
+		Options:         make([]WagerOptionDTO, len(detail.Options)),
+		VotingEndsAt:    detail.Wager.VotingEndsAt,
+		WinningOptionID: detail.Wager.WinningOptionID,
+		Participants:    make([]ParticipantDTO, len(detail.Participants)),
+		TotalPot:        detail.Wager.TotalPot,
 	}
 
 	// Convert options

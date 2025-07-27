@@ -9,12 +9,13 @@ type HouseWagerPostDTO struct {
 	ChannelID int64 // If 0, use guild's primary channel
 
 	// Wager information
-	WagerID      int64
-	Title        string
-	Description  string
-	State        string    // Wager state (active, pending_resolution, resolved, cancelled)
-	Options      []WagerOptionDTO
-	VotingEndsAt *time.Time // When the voting period ends
+	WagerID         int64
+	Title           string
+	Description     string
+	State           string    // Wager state (active, pending_resolution, resolved, cancelled)
+	Options         []WagerOptionDTO
+	VotingEndsAt    *time.Time // When the voting period ends
+	WinningOptionID *int64     // ID of the winning option (only set when resolved)
 
 	// Participant information for real-time display
 	Participants []ParticipantDTO

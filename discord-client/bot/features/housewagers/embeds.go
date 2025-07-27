@@ -10,6 +10,7 @@ import (
 	"gambler/discord-client/bot/common"
 
 	"github.com/bwmarrin/discordgo"
+	log "github.com/sirupsen/logrus"
 )
 
 // createProgressBar generates a visual progress bar using Unicode block characters
@@ -44,6 +45,59 @@ func getMultiplierEmoji(multiplier float64) string {
 
 // CreateHouseWagerEmbed creates an embed for a house wager
 func CreateHouseWagerEmbed(houseWager dto.HouseWagerPostDTO) *discordgo.MessageEmbed {
+	// Check if this is a resolved wager and delegate to resolved embed
+	if houseWager.State == "resolved" {
+		// Find the winning option and calculate total payout
+		var winningOption string
+		var totalPayout int64
+
+		// Find the winning option using WinningOptionID
+		if houseWager.WinningOptionID != nil {
+			for _, option := range houseWager.Options {
+				if option.ID == *houseWager.WinningOptionID {
+					winningOption = option.Text
+
+					// Calculate total payout by looking at winners (participants who bet on winning option)
+					for _, participant := range houseWager.Participants {
+						if participant.OptionID == *houseWager.WinningOptionID {
+							// For house wagers, payout = bet amount * multiplier
+							totalPayout += int64(float64(participant.Amount) * option.Multiplier)
+						}
+					}
+					break
+				}
+			}
+		}
+
+		// This should never happen if validation worked correctly
+		if winningOption == "" {
+			log.WithFields(log.Fields{
+				"wagerID":         houseWager.WagerID,
+				"winningOptionID": houseWager.WinningOptionID,
+				"optionCount":     len(houseWager.Options),
+				"state":           houseWager.State,
+			}).Error("Resolved house wager missing valid winning option - this indicates a data integrity issue")
+
+			// Return an error embed instead of continuing with invalid data
+			return &discordgo.MessageEmbed{
+				Title:       "⚠️ Wager Resolution Error",
+				Description: "This wager has been marked as resolved but the winning option could not be determined.",
+				Color:       common.ColorDanger,
+				Footer: &discordgo.MessageEmbedFooter{
+					Text: fmt.Sprintf("House Wager ID: %d | ERROR", houseWager.WagerID),
+				},
+			}
+		}
+
+		return CreateHouseWagerResolvedEmbed(houseWager, winningOption, totalPayout)
+	}
+
+	// For active or non-resolved wagers, use the base embed
+	return createBaseHouseWagerEmbed(houseWager)
+}
+
+// createBaseHouseWagerEmbed creates the base embed for a house wager (used by both active and resolved embeds)
+func createBaseHouseWagerEmbed(houseWager dto.HouseWagerPostDTO) *discordgo.MessageEmbed {
 	// Build footer text
 	footerText := fmt.Sprintf("House Wager ID: %d", houseWager.WagerID)
 
@@ -75,11 +129,13 @@ func CreateHouseWagerEmbed(houseWager dto.HouseWagerPostDTO) *discordgo.MessageE
 				Inline: true,
 			})
 		} else {
-			embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
-				Name:   "🟠 Betting Closed",
-				Value:  "",
-				Inline: true,
-			})
+			if houseWager.State != "resolved" {
+				embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
+					Name:   "🟠 Betting Closed",
+					Value:  "",
+					Inline: true,
+				})
+			}
 		}
 	}
 
@@ -161,7 +217,7 @@ func CreateHouseWagerEmbed(houseWager dto.HouseWagerPostDTO) *discordgo.MessageE
 		}
 
 		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
-			Name:   fmt.Sprintf("%s", option.Text),
+			Name:   option.Text,
 			Value:  fieldValue,
 			Inline: false,
 		})
@@ -170,7 +226,7 @@ func CreateHouseWagerEmbed(houseWager dto.HouseWagerPostDTO) *discordgo.MessageE
 	// Add participant count to footer
 	participantCount := len(houseWager.Participants)
 	if participantCount > 0 {
-		embed.Footer.Text += fmt.Sprintf(" | %d participants", participantCount)
+		embed.Footer.Text += fmt.Sprintf(" • %d participants", participantCount)
 	}
 
 	return embed
@@ -200,20 +256,62 @@ func formatCompactAmount(amount int64) string {
 
 // CreateHouseWagerResolvedEmbed creates an embed for a resolved house wager
 func CreateHouseWagerResolvedEmbed(houseWager dto.HouseWagerPostDTO, winningOption string, totalPayout int64) *discordgo.MessageEmbed {
-	embed := CreateHouseWagerEmbed(houseWager)
+	// Create base embed without calling CreateHouseWagerEmbed to avoid recursion
+	embed := createBaseHouseWagerEmbed(houseWager)
 
 	// Update for resolved state
 	embed.Color = common.ColorPrimary // Blue for resolved
-	embed.Title = "🏆 " + embed.Title + " - RESOLVED"
+	embed.Title = embed.Title + " - RESOLVED"
+
+	// Find winners and show detailed results
+	var winnerInfo strings.Builder
+	var winnerCount int
+
+	if houseWager.WinningOptionID != nil {
+		// Find winning option details
+		var winningOptionObj *dto.WagerOptionDTO
+		for _, option := range houseWager.Options {
+			if option.ID == *houseWager.WinningOptionID {
+				winningOptionObj = &option
+				break
+			}
+		}
+
+		// Count winners and build winner list
+		for _, participant := range houseWager.Participants {
+			if participant.OptionID == *houseWager.WinningOptionID {
+				if winnerCount > 0 {
+					winnerInfo.WriteString(" • ")
+				}
+
+				payout := int64(float64(participant.Amount) * winningOptionObj.Multiplier)
+				winnerInfo.WriteString(fmt.Sprintf("<@%d> (+%s)", participant.DiscordID, formatCompactAmount(payout)))
+				winnerCount++
+			}
+		}
+	}
+
+	// Build result field
+	resultValue := fmt.Sprintf("**%s**", winningOption)
+	if totalPayout > 0 {
+		resultValue += fmt.Sprintf("\nTotal payout: **%s bits**", formatCompactAmount(totalPayout))
+	}
+	if winnerCount > 0 {
+		if winnerCount == 1 {
+			resultValue += fmt.Sprintf("\n**Winner:** %s", winnerInfo.String())
+		} else {
+			resultValue += fmt.Sprintf("\n**Winners (%d):** %s", winnerCount, winnerInfo.String())
+		}
+	} else {
+		resultValue += "\n*No winners - House keeps all bets*"
+	}
 
 	// Add resolution information
 	embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
 		Name:   "🎉 Result",
-		Value:  fmt.Sprintf("**%s** won!\nTotal payout: **%s bits**", winningOption, formatCompactAmount(totalPayout)),
+		Value:  resultValue,
 		Inline: false,
 	})
-
-	embed.Footer.Text += " | RESOLVED"
 
 	return embed
 }
