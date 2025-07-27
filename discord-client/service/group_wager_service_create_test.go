@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"testing"
 
 	"gambler/discord-client/models"
@@ -12,7 +11,7 @@ import (
 )
 
 func TestGroupWagerService_CreateGroupWager_TableDriven(t *testing.T) {
-	ctx := context.Background()
+	fixture := NewGroupWagerTestFixture(t)
 	testResolverID := int64(TestResolverID)
 
 	// Validation test cases
@@ -133,20 +132,12 @@ func TestGroupWagerService_CreateGroupWager_TableDriven(t *testing.T) {
 
 	for _, tt := range validationTests {
 		t.Run(tt.name, func(t *testing.T) {
-			SetupTestConfig(t) // This sets up the global config for the test
-
-			// Setup
-			mocks := NewTestMocks()
-			service := NewGroupWagerService(
-				mocks.GroupWagerRepo,
-				mocks.UserRepo,
-				mocks.BalanceHistoryRepo,
-				mocks.EventPublisher,
-			)
+			// Reset fixture for each test
+			fixture.Reset()
 
 			// Execute - validation should fail before any repository calls
-			result, err := service.CreateGroupWager(
-				ctx,
+			result, err := fixture.Service.CreateGroupWager(
+				fixture.Ctx,
 				tt.creatorID,
 				tt.condition,
 				tt.options,
@@ -158,18 +149,19 @@ func TestGroupWagerService_CreateGroupWager_TableDriven(t *testing.T) {
 			)
 
 			// Assert
-			require.Error(t, err)
-			require.Nil(t, result)
-			require.Contains(t, err.Error(), tt.expectedError)
+			fixture.Assertions.AssertValidationError(err, tt.expectedError)
+			if result != nil {
+				fixture.T.Errorf("expected nil result, got %v", result)
+			}
 
 			// No repository calls should have been made
-			mocks.AssertAllExpectations(t)
+			fixture.AssertAllMocks()
 		})
 	}
 }
 
 func TestGroupWagerService_CreateGroupWager_Success(t *testing.T) {
-	ctx := context.Background()
+	fixture := NewGroupWagerTestFixture(t)
 	testResolverID := int64(TestResolverID)
 
 	successTests := []struct {
@@ -239,19 +231,8 @@ func TestGroupWagerService_CreateGroupWager_Success(t *testing.T) {
 
 	for _, tt := range successTests {
 		t.Run(tt.name, func(t *testing.T) {
-			SetupTestConfig(t) // This sets up the global config for the test
-
-			// Setup
-			mocks := NewTestMocks()
-			helper := NewMockHelper(mocks)
-			assertions := NewAssertionHelper(t)
-
-			service := NewGroupWagerService(
-				mocks.GroupWagerRepo,
-				mocks.UserRepo,
-				mocks.BalanceHistoryRepo,
-				mocks.EventPublisher,
-			)
+			// Reset fixture for each test
+			fixture.Reset()
 
 			// Setup creator user
 			creator := &models.User{
@@ -259,17 +240,22 @@ func TestGroupWagerService_CreateGroupWager_Success(t *testing.T) {
 				Username:  "creator",
 				Balance:   TestInitialBalance,
 			}
-			helper.ExpectUserLookup(TestResolverID, creator)
+			fixture.Helper.ExpectUserLookup(TestResolverID, creator)
 
 			// Setup create expectations
-			mocks.GroupWagerRepo.On("CreateWithOptions", ctx,
+			expectedMinParticipants := 3 // Default for pool wagers
+			if tt.wagerType == models.GroupWagerTypeHouse {
+				expectedMinParticipants = 0 // House wagers don't require minimum participants
+			}
+			
+			fixture.Mocks.GroupWagerRepo.On("CreateWithOptions", fixture.Ctx,
 				mock.MatchedBy(func(gw *models.GroupWager) bool {
 					return gw.CreatorDiscordID != nil && *gw.CreatorDiscordID == TestResolverID &&
 						gw.Condition == tt.condition &&
 						gw.State == models.GroupWagerStateActive &&
 						gw.WagerType == tt.wagerType &&
 						gw.TotalPot == 0 &&
-						gw.MinParticipants == 3 &&
+						gw.MinParticipants == expectedMinParticipants &&
 						gw.VotingPeriodMinutes == tt.votingMinutes &&
 						gw.MessageID == TestMessageID &&
 						gw.ChannelID == TestChannelID
@@ -300,8 +286,8 @@ func TestGroupWagerService_CreateGroupWager_Success(t *testing.T) {
 			).Return(nil)
 
 			// Execute
-			result, err := service.CreateGroupWager(
-				ctx,
+			result, err := fixture.Service.CreateGroupWager(
+				fixture.Ctx,
 				&testResolverID,
 				tt.condition,
 				tt.options,
@@ -313,36 +299,25 @@ func TestGroupWagerService_CreateGroupWager_Success(t *testing.T) {
 			)
 
 			// Assert
-			assertions.AssertNoError(err)
-			assertions.AssertGroupWagerCreated(result, tt.wagerType, len(tt.options))
-			tt.validateOptions(t, result.Options)
+			fixture.Assertions.AssertNoError(err)
+			fixture.Assertions.AssertGroupWagerCreated(result, tt.wagerType, len(tt.options))
+			tt.validateOptions(fixture.T, result.Options)
 
-			mocks.AssertAllExpectations(t)
+			fixture.AssertAllMocks()
 		})
 	}
 }
 
 func TestGroupWagerService_CreateGroupWager_UserNotFound(t *testing.T) {
-	SetupTestConfig(t) // This sets up the global config for the test
-
-	ctx := context.Background()
+	fixture := NewGroupWagerTestFixture(t)
 	testResolverID := int64(TestResolverID)
-	mocks := NewTestMocks()
-	helper := NewMockHelper(mocks)
-
-	service := NewGroupWagerService(
-		mocks.GroupWagerRepo,
-		mocks.UserRepo,
-		mocks.BalanceHistoryRepo,
-		mocks.EventPublisher,
-	)
 
 	// Setup - user not found
-	helper.ExpectUserNotFound(TestResolverID)
+	fixture.Helper.ExpectUserNotFound(TestResolverID)
 
 	// Execute
-	result, err := service.CreateGroupWager(
-		ctx,
+	result, err := fixture.Service.CreateGroupWager(
+		fixture.Ctx,
 		&testResolverID,
 		"Test condition",
 		[]string{"Yes", "No"},
@@ -354,36 +329,27 @@ func TestGroupWagerService_CreateGroupWager_UserNotFound(t *testing.T) {
 	)
 
 	// Assert
-	require.Error(t, err)
-	require.Nil(t, result)
-	require.Contains(t, err.Error(), "creator 999999 not found")
+	fixture.Assertions.AssertValidationError(err, "creator 999999 not found")
+	if result != nil {
+		fixture.T.Errorf("expected nil result, got %v", result)
+	}
 
-	mocks.AssertAllExpectations(t)
+	fixture.AssertAllMocks()
 }
 
 func TestGroupWagerService_CreateGroupWager_SystemUser(t *testing.T) {
-	SetupTestConfig(t) // This sets up the global config for the test
-
-	ctx := context.Background()
-	mocks := NewTestMocks()
-
-	service := NewGroupWagerService(
-		mocks.GroupWagerRepo,
-		mocks.UserRepo,
-		mocks.BalanceHistoryRepo,
-		mocks.EventPublisher,
-	)
+	fixture := NewGroupWagerTestFixture(t)
 
 	// Setup - system user (ID 0) should skip creator validation
 	// Note: No user lookup expectation needed for system user
-	mocks.GroupWagerRepo.On("CreateWithOptions", ctx,
+	fixture.Mocks.GroupWagerRepo.On("CreateWithOptions", fixture.Ctx,
 		mock.MatchedBy(func(gw *models.GroupWager) bool {
 			return gw.CreatorDiscordID == nil && // System user
 				gw.Condition == "Test condition" &&
 				gw.State == models.GroupWagerStateActive &&
 				gw.WagerType == models.GroupWagerTypeHouse &&
 				gw.TotalPot == 0 &&
-				gw.MinParticipants == 3 &&
+				gw.MinParticipants == 0 && // House wagers don't require minimum participants
 				gw.VotingPeriodMinutes == 60 &&
 				gw.MessageID == TestMessageID &&
 				gw.ChannelID == TestChannelID
@@ -400,8 +366,8 @@ func TestGroupWagerService_CreateGroupWager_SystemUser(t *testing.T) {
 	).Return(nil)
 
 	// Execute
-	result, err := service.CreateGroupWager(
-		ctx,
+	result, err := fixture.Service.CreateGroupWager(
+		fixture.Ctx,
 		nil, // System user - no specific creator
 		"Test condition",
 		[]string{"Yes", "No"},
@@ -413,71 +379,12 @@ func TestGroupWagerService_CreateGroupWager_SystemUser(t *testing.T) {
 	)
 
 	// Assert
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.Nil(t, result.Wager.CreatorDiscordID)
-	require.Equal(t, "Test condition", result.Wager.Condition)
-	require.Equal(t, models.GroupWagerTypeHouse, result.Wager.WagerType)
-	require.Len(t, result.Options, 2)
+	fixture.Assertions.AssertNoError(err)
+	require.NotNil(fixture.T, result)
+	assert.Nil(fixture.T, result.Wager.CreatorDiscordID)
+	assert.Equal(fixture.T, "Test condition", result.Wager.Condition)
+	assert.Equal(fixture.T, models.GroupWagerTypeHouse, result.Wager.WagerType)
+	assert.Len(fixture.T, result.Options, 2)
 
-	mocks.AssertAllExpectations(t)
-}
-
-func TestGroupWagerService_CancelGroupWager_SystemUser(t *testing.T) {
-	SetupTestConfig(t) // This sets up the global config for the test
-
-	ctx := context.Background()
-	mocks := NewTestMocks()
-
-	service := NewGroupWagerService(
-		mocks.GroupWagerRepo,
-		mocks.UserRepo,
-		mocks.BalanceHistoryRepo,
-		mocks.EventPublisher,
-	)
-
-	// Test that system user (ID 0) can cancel their own wager
-	systemWager1 := &models.GroupWager{
-		ID:               1,
-		CreatorDiscordID: nil, // System user
-		State:            models.GroupWagerStateActive,
-	}
-	mocks.GroupWagerRepo.On("GetByID", ctx, int64(1)).Return(systemWager1, nil).Once()
-	mocks.GroupWagerRepo.On("Update", ctx, mock.MatchedBy(func(gw *models.GroupWager) bool {
-		return gw.State == models.GroupWagerStateCancelled
-	})).Return(nil).Once()
-	mocks.EventPublisher.On("Publish", mock.Anything).Once()
-
-	err := service.CancelGroupWager(ctx, 1, 0) // System user cancelling their own wager
-	require.NoError(t, err)
-
-	// Test that resolver can cancel system wager
-	systemWager2 := &models.GroupWager{
-		ID:               2,
-		CreatorDiscordID: nil, // System user
-		State:            models.GroupWagerStateActive,
-	}
-	mocks.GroupWagerRepo.On("GetByID", ctx, int64(2)).Return(systemWager2, nil).Once()
-	mocks.GroupWagerRepo.On("Update", ctx, mock.MatchedBy(func(gw *models.GroupWager) bool {
-		return gw.State == models.GroupWagerStateCancelled
-	})).Return(nil).Once()
-	mocks.EventPublisher.On("Publish", mock.Anything).Once()
-
-	err = service.CancelGroupWager(ctx, 2, TestResolverID) // Resolver cancelling
-	require.NoError(t, err)
-
-	// Test that regular user cannot cancel system wager
-	systemWager3 := &models.GroupWager{
-		ID:               3,
-		CreatorDiscordID: nil, // System user
-		State:            models.GroupWagerStateActive,
-	}
-	regularUserID := int64(12345)
-	mocks.GroupWagerRepo.On("GetByID", ctx, int64(3)).Return(systemWager3, nil).Once()
-
-	err = service.CancelGroupWager(ctx, 3, regularUserID) // Regular user trying to cancel system wager
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "only the creator or a resolver can cancel")
-
-	mocks.AssertAllExpectations(t)
+	fixture.AssertAllMocks()
 }

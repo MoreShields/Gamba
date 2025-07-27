@@ -78,6 +78,7 @@ func (e WagerResolvedEvent) Type() EventType {
 // GroupWagerStateChangeEvent represents a group wager state transition
 type GroupWagerStateChangeEvent struct {
 	GroupWagerID int64
+	GuildID      int64
 	OldState     string
 	NewState     string
 	MessageID    int64

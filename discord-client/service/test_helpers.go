@@ -298,6 +298,174 @@ func (h *MockHelper) ExpectEventPublish(eventType string) {
 	h.mocks.EventPublisher.On("Publish", mock.AnythingOfType(eventType)).Return()
 }
 
+// ExpectSuccessfulResolution sets up all mocks for a successful wager resolution
+func (h *MockHelper) ExpectSuccessfulResolution(scenario *GroupWagerScenario, winningOptionID int64, wagerType models.GroupWagerType) {
+	// Basic lookups
+	h.ExpectWagerLookup(scenario.Wager.ID, scenario.Wager)
+	h.ExpectWagerDetailLookup(scenario.Wager.ID, &models.GroupWagerDetail{
+		Wager:        scenario.Wager,
+		Options:      scenario.Options,
+		Participants: scenario.Participants,
+	})
+	
+	// User lookups for all participants
+	for _, participant := range scenario.Participants {
+		if user, exists := scenario.Users[participant.DiscordID]; exists {
+			h.ExpectUserLookup(participant.DiscordID, user)
+		}
+	}
+	
+	// Setup balance changes
+	winners := getWinners(scenario.Participants, winningOptionID)
+	losers := getLosers(scenario.Participants, winningOptionID)
+	h.ExpectResolutionBalanceChanges(scenario, winners, losers, winningOptionID, wagerType)
+	
+	// Update participant payouts
+	h.mocks.GroupWagerRepo.On("UpdateParticipantPayouts", h.ctx, mock.Anything).Return(nil)
+	
+	// Update wager state
+	h.mocks.GroupWagerRepo.On("Update", h.ctx, mock.MatchedBy(func(gw *models.GroupWager) bool {
+		return gw.ID == scenario.Wager.ID && gw.State == models.GroupWagerStateResolved
+	})).Return(nil)
+	
+	// State change event
+	h.ExpectEventPublish("events.GroupWagerStateChangeEvent")
+}
+
+// ExpectResolutionBalanceChanges sets up balance change expectations for resolution
+func (h *MockHelper) ExpectResolutionBalanceChanges(scenario *GroupWagerScenario, winners, losers []*models.GroupWagerParticipant, winningOptionID int64, wagerType models.GroupWagerType) {
+	// Find winning option
+	var winningOption *models.GroupWagerOption
+	for _, opt := range scenario.Options {
+		if opt.ID == winningOptionID {
+			winningOption = opt
+			break
+		}
+	}
+	
+	// Setup winner balance updates
+	for _, winner := range winners {
+		user := scenario.Users[winner.DiscordID]
+		var payout int64
+		var balanceChange int64
+		
+		if wagerType == models.GroupWagerTypePool {
+			payout = winner.CalculatePayout(winningOption.TotalAmount, scenario.Wager.TotalPot)
+		} else {
+			payout = int64(float64(winner.Amount) * winningOption.OddsMultiplier)
+		}
+		
+		balanceChange = payout - winner.Amount
+		newBalance := user.Balance + balanceChange
+		
+		h.ExpectBalanceUpdate(winner.DiscordID, newBalance)
+		h.ExpectBalanceHistoryRecord(winner.DiscordID, balanceChange, models.TransactionTypeGroupWagerWin)
+		h.ExpectEventPublish("events.BalanceChangeEvent")
+	}
+	
+	// Setup loser balance updates
+	for _, loser := range losers {
+		user := scenario.Users[loser.DiscordID]
+		balanceChange := -loser.Amount
+		newBalance := user.Balance + balanceChange
+		
+		h.ExpectBalanceUpdate(loser.DiscordID, newBalance)
+		h.ExpectBalanceHistoryRecord(loser.DiscordID, balanceChange, models.TransactionTypeGroupWagerLoss)
+		h.ExpectEventPublish("events.BalanceChangeEvent")
+	}
+}
+
+// ExpectSuccessfulBet sets up all mocks for a successful bet placement
+func (h *MockHelper) ExpectSuccessfulBet(wagerID, userID, optionID, amount int64, scenario *GroupWagerScenario) {
+	// Basic validations
+	h.ExpectBetValidation(wagerID, scenario.Wager, scenario.Users[userID])
+	h.ExpectWagerDetailLookup(wagerID, &models.GroupWagerDetail{
+		Wager:        scenario.Wager,
+		Options:      scenario.Options,
+		Participants: scenario.Participants,
+	})
+	
+	// Check for existing participant
+	var existingParticipant *models.GroupWagerParticipant
+	for _, p := range scenario.Participants {
+		if p.DiscordID == userID {
+			existingParticipant = p
+			break
+		}
+	}
+	h.ExpectParticipantLookup(wagerID, userID, existingParticipant)
+	
+	// Save participant
+	if existingParticipant == nil {
+		h.ExpectNewParticipant(wagerID, userID, optionID, amount)
+	} else {
+		h.mocks.GroupWagerRepo.On("SaveParticipant", h.ctx, mock.MatchedBy(func(p *models.GroupWagerParticipant) bool {
+			return p.ID == existingParticipant.ID && p.OptionID == optionID && p.Amount == amount
+		})).Return(nil)
+	}
+	
+	// Update option total
+	var option *models.GroupWagerOption
+	for _, opt := range scenario.Options {
+		if opt.ID == optionID {
+			option = opt
+			break
+		}
+	}
+	newTotal := option.TotalAmount + amount
+	if existingParticipant != nil && existingParticipant.OptionID != optionID {
+		newTotal = amount // Switching options
+	}
+	h.ExpectOptionTotalUpdate(optionID, newTotal)
+	
+	// Update wager pot
+	h.mocks.GroupWagerRepo.On("Update", h.ctx, mock.MatchedBy(func(gw *models.GroupWager) bool {
+		return gw.ID == wagerID
+	})).Return(nil)
+	
+	// Pool wager odds recalculation
+	if scenario.Wager.IsPoolWager() {
+		h.ExpectOddsRecalculation(wagerID, scenario.Options)
+	}
+}
+
+// ExpectBetValidation sets up mocks for bet validation checks
+func (h *MockHelper) ExpectBetValidation(wagerID int64, wager *models.GroupWager, user *models.User) {
+	h.ExpectWagerLookup(wagerID, wager)
+	h.ExpectUserLookup(user.DiscordID, user)
+}
+
+// ExpectWagerNotFound sets up mocks for wager not found scenario
+func (h *MockHelper) ExpectWagerNotFound(wagerID int64) {
+	h.mocks.GroupWagerRepo.On("GetByID", h.ctx, wagerID).Return(nil, nil)
+}
+
+// ExpectInsufficientBalance sets up mocks for insufficient balance scenario
+func (h *MockHelper) ExpectInsufficientBalance(userID int64, user *models.User) {
+	h.ExpectUserLookup(userID, user)
+}
+
+// Helper functions to get winners and losers
+func getWinners(participants []*models.GroupWagerParticipant, winningOptionID int64) []*models.GroupWagerParticipant {
+	var winners []*models.GroupWagerParticipant
+	for _, p := range participants {
+		if p.OptionID == winningOptionID {
+			winners = append(winners, p)
+		}
+	}
+	return winners
+}
+
+func getLosers(participants []*models.GroupWagerParticipant, winningOptionID int64) []*models.GroupWagerParticipant {
+	var losers []*models.GroupWagerParticipant
+	for _, p := range participants {
+		if p.OptionID != winningOptionID {
+			losers = append(losers, p)
+		}
+	}
+	return losers
+}
+
 // SetupTestConfig initializes a test configuration for the current test
 // This should be called at the beginning of every test that uses services
 func SetupTestConfig(t *testing.T) {

@@ -50,3 +50,8 @@ func FormatTransferResult(amount int64, recipientID string) string {
 func FormatDiscordTimestamp(t time.Time, format string) string {
 	return fmt.Sprintf("<t:%d:%s>", t.Unix(), format)
 }
+
+// FormatDiscordMessageLink creates a Discord message link from guild, channel, and message IDs
+func FormatDiscordMessageLink(guildID, channelID, messageID int64) string {
+	return fmt.Sprintf("https://discord.com/channels/%d/%d/%d", guildID, channelID, messageID)
+}

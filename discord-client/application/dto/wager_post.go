@@ -12,25 +12,33 @@ type HouseWagerPostDTO struct {
 	WagerID      int64
 	Title        string
 	Description  string
+	State        string    // Wager state (active, pending_resolution, resolved, cancelled)
 	Options      []WagerOptionDTO
 	VotingEndsAt *time.Time // When the voting period ends
 
-	// Summoner information for context
-	SummonerInfo SummonerInfoDTO
+	// Participant information for real-time display
+	Participants []ParticipantDTO
+	TotalPot     int64
 }
 
 // WagerOptionDTO represents a single option in a house wager
 type WagerOptionDTO struct {
-	ID         int64
-	Text       string
-	Order      int16
-	Multiplier float64
+	ID          int64
+	Text        string
+	Order       int16
+	Multiplier  float64
+	TotalAmount int64 // Total amount bet on this option
 }
 
-// SummonerInfoDTO contains information about the summoner and game
-type SummonerInfoDTO struct {
-	GameName  string
-	TagLine   string
-	QueueType string
-	GameID    string
+// ParticipantDTO represents a participant in a house wager
+type ParticipantDTO struct {
+	DiscordID int64
+	OptionID  int64
+	Amount    int64
+}
+
+// PostResult contains the result of posting a wager to Discord
+type PostResult struct {
+	MessageID int64
+	ChannelID int64
 }

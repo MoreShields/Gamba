@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"gambler/discord-client/application/dto"
 	"gambler/discord-client/bot/common"
@@ -17,13 +18,28 @@ import (
 
 // CreateHouseWagerComponents creates the button components for a house wager
 func CreateHouseWagerComponents(houseWager dto.HouseWagerPostDTO) []discordgo.MessageComponent {
+	// Only show components for active wagers that haven't expired
+	// Check if wager is active and voting period is still active
+	log.Infof("CreateHouseWagerComponents: wagerID=%d, state='%s'", houseWager.WagerID, houseWager.State)
+	
+	if houseWager.State != "active" {
+		// Wager is not active (resolved, cancelled, pending_resolution), no components
+		log.Infof("Hiding components for wager %d because state is '%s' (not 'active')", houseWager.WagerID, houseWager.State)
+		return []discordgo.MessageComponent{}
+	}
+	
+	if houseWager.VotingEndsAt != nil && houseWager.VotingEndsAt.Before(time.Now()) {
+		// Voting period has expired, no components
+		return []discordgo.MessageComponent{}
+	}
+
 	var components []discordgo.MessageComponent
 	var currentRow []discordgo.MessageComponent
 
 	// Create buttons for each betting option
 	for i, option := range houseWager.Options {
 		emoji := getOptionEmoji(i + 1)
-		
+
 		button := discordgo.Button{
 			Label:    fmt.Sprintf("%s (%.2fx)", option.Text, option.Multiplier),
 			Style:    getBetButtonStyle(i + 1),
@@ -291,32 +307,16 @@ func (f *Feature) handleHouseWagerBetModal(s *discordgo.Session, i *discordgo.In
 	// Calculate potential payout
 	potentialPayout := float64(betAmount) * selectedOption.OddsMultiplier
 
-	// Extract summoner name from condition (format: "SummonerName#TagLine - QueueType")
-	summonerName := "Unknown"
-	if wagerDetail.Wager != nil && wagerDetail.Wager.Condition != "" {
-		// Split by " - " to separate summoner and queue type
-		parts := strings.Split(wagerDetail.Wager.Condition, " - ")
-		if len(parts) > 0 {
-			// Extract just the summoner name (before the #)
-			summonerParts := strings.Split(parts[0], "#")
-			if len(summonerParts) > 0 {
-				summonerName = summonerParts[0]
-			}
-		}
-	}
+	// Create Discord message link to original wager
+	wagerLink := common.FormatDiscordMessageLink(guildID, wagerDetail.Wager.ChannelID, wagerDetail.Wager.MessageID)
 
 	// Respond with success
 	embed := &discordgo.MessageEmbed{
-		Title:       "✅ Bet Placed Successfully!",
-		Description: fmt.Sprintf("You bet **%s bits** on **%s %s**", common.FormatBalance(betAmount), summonerName, selectedOption.OptionText),
-		Color:       common.ColorPrimary,
-		Fields: []*discordgo.MessageEmbedField{
-			{
-				Name:   "💰 Potential Payout",
-				Value:  fmt.Sprintf("%.2fx odds", selectedOption.OddsMultiplier),
-				Inline: true,
-			},
-		},
+		Title: "✅ Bet Placed Successfully!",
+		Description: fmt.Sprintf("You bet **%s bits** on **%s**\n[View original wager](%s)",
+			common.FormatBalance(betAmount), selectedOption.OptionText, wagerLink),
+		Color:  common.ColorPrimary,
+		Fields: []*discordgo.MessageEmbedField{},
 	}
 
 	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -329,11 +329,91 @@ func (f *Feature) handleHouseWagerBetModal(s *discordgo.Session, i *discordgo.In
 		log.Errorf("Failed to respond to house wager bet: %v", err)
 	}
 
+	// Update the original house wager message to show new participant
+	f.updateHouseWagerMessage(s, i.Message, wagerID, guildID)
+
 	log.WithFields(log.Fields{
-		"userID":    userID,
-		"wagerID":   wagerID,
-		"optionID":  optionID,
-		"amount":    betAmount,
-		"payout":    potentialPayout,
+		"userID":   userID,
+		"wagerID":  wagerID,
+		"optionID": optionID,
+		"amount":   betAmount,
+		"payout":   potentialPayout,
 	}).Info("House wager bet placed successfully")
+}
+
+// updateHouseWagerMessage updates a house wager message with current participant state
+func (f *Feature) updateHouseWagerMessage(s *discordgo.Session, msg *discordgo.Message, wagerID int64, guildID int64) {
+	ctx := context.Background()
+	
+	// Create unit of work
+	uow := f.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(ctx); err != nil {
+		log.Printf("Error beginning transaction for house wager update: %v", err)
+		return
+	}
+	defer uow.Rollback()
+
+	// Get updated wager details
+	detail, err := uow.GroupWagerRepository().GetDetailByID(ctx, wagerID)
+	if err != nil {
+		log.Printf("Error getting house wager detail for update: %v", err)
+		return
+	}
+	if detail == nil {
+		log.Printf("House wager not found for update: %d", wagerID)
+		return
+	}
+
+	// Convert to HouseWagerPostDTO for embed creation
+	houseWagerDTO := dto.HouseWagerPostDTO{
+		GuildID:      detail.Wager.GuildID,
+		ChannelID:    detail.Wager.ChannelID,
+		WagerID:      detail.Wager.ID,
+		Title:        "New Game Started!",
+		Description:  detail.Wager.Condition, // This now contains the formatted description with op.gg link
+		State:        string(detail.Wager.State),
+		Options:      make([]dto.WagerOptionDTO, len(detail.Options)),
+		VotingEndsAt: detail.Wager.VotingEndsAt,
+		Participants: make([]dto.ParticipantDTO, len(detail.Participants)),
+		TotalPot:     detail.Wager.TotalPot,
+	}
+
+	// Convert options
+	for i, opt := range detail.Options {
+		houseWagerDTO.Options[i] = dto.WagerOptionDTO{
+			ID:          opt.ID,
+			Text:        opt.OptionText,
+			Order:       opt.OptionOrder,
+			Multiplier:  opt.OddsMultiplier,
+			TotalAmount: opt.TotalAmount,
+		}
+	}
+
+	// Convert participants
+	for i, participant := range detail.Participants {
+		houseWagerDTO.Participants[i] = dto.ParticipantDTO{
+			DiscordID: participant.DiscordID,
+			OptionID:  participant.OptionID,
+			Amount:    participant.Amount,
+		}
+	}
+
+	// Create updated embed and components
+	embed := CreateHouseWagerEmbed(houseWagerDTO)
+	components := CreateHouseWagerComponents(houseWagerDTO)
+
+	// Update the Discord message
+	_, err = s.ChannelMessageEditComplex(&discordgo.MessageEdit{
+		Channel:    msg.ChannelID,
+		ID:         msg.ID,
+		Embeds:     &[]*discordgo.MessageEmbed{embed},
+		Components: &components,
+	})
+
+	if err != nil {
+		log.Errorf("Failed to update house wager message (channel: %s, message: %s): %v",
+			msg.ChannelID, msg.ID, err)
+	} else {
+		log.Debugf("Successfully updated house wager message for wager %d", wagerID)
+	}
 }

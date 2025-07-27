@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"gambler/discord-client/application"
+	"gambler/discord-client/application/dto"
 	"gambler/discord-client/bot/common"
 	"gambler/discord-client/bot/features/balance"
 	"gambler/discord-client/bot/features/betting"
@@ -90,6 +92,7 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory servi
 	bot.settings = settings.NewFeature(dg, uowFactory)
 	bot.summoner = summoner.NewFeature(dg, uowFactory, summonerClient, config.GuildID)
 
+
 	// Register handlers
 	dg.AddHandler(bot.handleCommands)
 	dg.AddHandler(bot.handleInteractions)
@@ -106,9 +109,6 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory servi
 		return nil, fmt.Errorf("error registering commands: %w", err)
 	}
 
-	// Subscribe to group wager state change events to update Discord embeds
-	eventBus.Subscribe(events.EventTypeGroupWagerStateChange, bot.handleGroupWagerStateChange)
-	log.Info("Group wager state change listener enabled")
 
 	// Subscribe to balance change events for high roller role updates
 	eventBus.Subscribe(events.EventTypeBalanceChange, func(ctx context.Context, event events.Event) {
@@ -172,10 +172,12 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory servi
 	return bot, nil
 }
 
-// GetDiscordPoster returns the housewagers feature as a DiscordPoster implementation
-
-func (b *Bot) GetDiscordPoster() *housewagers.Feature {
-	return b.houseWagers
+// GetDiscordPoster returns a DiscordPoster implementation that supports both operations
+func (b *Bot) GetDiscordPoster() application.DiscordPoster {
+	return &discordPoster{
+		houseWagers: b.houseWagers,
+		groupWagers: b.groupWagers,
+	}
 }
 
 // Close gracefully shuts down the bot
@@ -440,83 +442,6 @@ func (b *Bot) routeModalInteraction(s *discordgo.Session, i *discordgo.Interacti
 	}
 }
 
-// handleGroupWagerStateChange handles group wager state change events and updates Discord embeds
-func (b *Bot) handleGroupWagerStateChange(ctx context.Context, event events.Event) {
-	e, ok := event.(events.GroupWagerStateChangeEvent)
-	if !ok {
-		return
-	}
-	log.Infof("handleGroupWagerStateChange for wager %d", e.GroupWagerID)
-
-	// Skip if no message to update
-	if e.MessageID == 0 || e.ChannelID == 0 {
-		log.Errorf("Failed to handle group wager state change, missing messageID or channelID.")
-		return
-	}
-
-	// First, get the group wager to determine guild ID
-	// We'll use a temporary UnitOfWork with guild ID 0 to get the guild info from the wager
-	tempUow := b.uowFactory.CreateForGuild(0)
-	if err := tempUow.Begin(ctx); err != nil {
-		log.Errorf("Failed to begin temp transaction: %v", err)
-		return
-	}
-
-	// Get basic wager info to determine guild
-	wager, err := tempUow.GroupWagerRepository().GetByID(ctx, e.GroupWagerID)
-	tempUow.Rollback()
-
-	if err != nil || wager == nil {
-		log.Errorf("Failed to get group wager %d for guild determination: %v", e.GroupWagerID, err)
-		return
-	}
-
-	// Now create guild-scoped unit of work
-	uow := b.uowFactory.CreateForGuild(wager.GuildID)
-	if err := uow.Begin(ctx); err != nil {
-		log.Errorf("Failed to begin transaction: %v", err)
-		return
-	}
-	defer uow.Rollback()
-
-	// Instantiate service with repositories from UnitOfWork
-	groupWagerService := service.NewGroupWagerService(
-		uow.GroupWagerRepository(),
-		uow.UserRepository(),
-		uow.BalanceHistoryRepository(),
-		uow.EventBus(),
-	)
-
-	// Get updated wager details with proper guild scoping
-	detail, err := groupWagerService.GetGroupWagerDetail(ctx, e.GroupWagerID)
-	if err != nil {
-		log.Errorf("Failed to get group wager detail for event update: %v", err)
-		return
-	}
-
-	// Create updated embed and components
-	embed := groupwagers.CreateGroupWagerEmbed(detail)
-	components := groupwagers.CreateGroupWagerComponents(detail)
-
-	// Update the Discord message
-	channelID := strconv.FormatInt(e.ChannelID, 10)
-	messageID := strconv.FormatInt(e.MessageID, 10)
-
-	_, err = b.session.ChannelMessageEditComplex(&discordgo.MessageEdit{
-		Channel:    channelID,
-		ID:         messageID,
-		Embeds:     &[]*discordgo.MessageEmbed{embed},
-		Components: &components,
-	})
-
-	if err != nil {
-		log.Errorf("Failed to update group wager message (channel: %s, message: %s): %v",
-			channelID, messageID, err)
-	} else {
-		log.Debugf("Successfully updated group wager message for wager %d (state: %s -> %s)",
-			e.GroupWagerID, e.OldState, e.NewState)
-	}
-}
 
 // handleGuildCreate handles when the bot joins a new guild
 func (b *Bot) handleGuildCreate(s *discordgo.Session, g *discordgo.GuildCreate) {
@@ -557,3 +482,26 @@ func (b *Bot) handleGuildCreate(s *discordgo.Session, g *discordgo.GuildCreate) 
 	log.Infof("Bot joined new guild: %s (ID: %d, Primary Channel: %v, High Roller Role: %v, lol-channel: %v)",
 		g.Name, settings.GuildID, settings.PrimaryChannelID, settings.HighRollerRoleID, settings.LolChannelID)
 }
+
+// discordPoster implements the application.DiscordPoster interface
+// by delegating to the appropriate feature based on the operation
+type discordPoster struct {
+	houseWagers *housewagers.Feature
+	groupWagers *groupwagers.Feature
+}
+
+// PostHouseWager delegates to the houseWagers feature
+func (p *discordPoster) PostHouseWager(ctx context.Context, dto dto.HouseWagerPostDTO) (*application.PostResult, error) {
+	return p.houseWagers.PostHouseWager(ctx, dto)
+}
+
+// UpdateHouseWager delegates to the houseWagers feature
+func (p *discordPoster) UpdateHouseWager(ctx context.Context, messageID, channelID int64, dto dto.HouseWagerPostDTO) error {
+	return p.houseWagers.UpdateHouseWager(ctx, messageID, channelID, dto)
+}
+
+// UpdateGroupWager delegates to the groupWagers feature
+func (p *discordPoster) UpdateGroupWager(ctx context.Context, messageID, channelID int64, detail interface{}) error {
+	return p.groupWagers.UpdateGroupWager(ctx, messageID, channelID, detail)
+}
+

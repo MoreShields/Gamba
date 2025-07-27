@@ -38,7 +38,6 @@ type BalanceHistoryRepository interface {
 	GetByDateRange(ctx context.Context, discordID int64, from, to time.Time) ([]*models.BalanceHistory, error)
 }
 
-
 // BetRepository defines the interface for bet data access
 type BetRepository interface {
 	// Create creates a new bet record
@@ -81,7 +80,6 @@ type GamblingService interface {
 	// Returns remaining amount and any error
 	CheckDailyLimit(ctx context.Context, discordID int64, betAmount int64) (remaining int64, err error)
 }
-
 
 // WagerRepository defines the interface for wager data access
 type WagerRepository interface {
@@ -176,6 +174,7 @@ type GroupWagerRepository interface {
 	CreateWithOptions(ctx context.Context, wager *models.GroupWager, options []*models.GroupWagerOption) error
 	GetByID(ctx context.Context, id int64) (*models.GroupWager, error)
 	GetByMessageID(ctx context.Context, messageID int64) (*models.GroupWager, error)
+	GetByExternalReference(ctx context.Context, ref models.ExternalReference) (*models.GroupWager, error)
 	Update(ctx context.Context, wager *models.GroupWager) error
 	GetActiveByUser(ctx context.Context, discordID int64) ([]*models.GroupWager, error)
 	GetAll(ctx context.Context, state *models.GroupWagerState) ([]*models.GroupWager, error)
@@ -194,10 +193,10 @@ type GroupWagerRepository interface {
 	UpdateOptionTotal(ctx context.Context, optionID int64, totalAmount int64) error
 	UpdateOptionOdds(ctx context.Context, optionID int64, oddsMultiplier float64) error
 	UpdateAllOptionOdds(ctx context.Context, groupWagerID int64, oddsMultipliers map[int64]float64) error
-	
+
 	// Stats operations
 	GetStats(ctx context.Context, discordID int64) (*models.GroupWagerStats, error)
-	
+
 	// Expiration operations
 	GetExpiredActiveWagers(ctx context.Context) ([]*models.GroupWager, error)
 	GetWagersPendingResolution(ctx context.Context) ([]*models.GroupWager, error)
@@ -213,7 +212,7 @@ type GroupWagerService interface {
 	PlaceBet(ctx context.Context, groupWagerID int64, userID int64, optionID int64, amount int64) (*models.GroupWagerParticipant, error)
 
 	// ResolveGroupWager resolves a group wager with the winning option
-	ResolveGroupWager(ctx context.Context, groupWagerID int64, resolverID int64, winningOptionText string) (*models.GroupWagerResult, error)
+	ResolveGroupWager(ctx context.Context, groupWagerID int64, resolverID *int64, winningOptionID int64) (*models.GroupWagerResult, error)
 
 	// GetGroupWagerDetail retrieves full details of a group wager
 	GetGroupWagerDetail(ctx context.Context, groupWagerID int64) (*models.GroupWagerDetail, error)
@@ -229,12 +228,12 @@ type GroupWagerService interface {
 
 	// UpdateMessageIDs updates the message and channel IDs for a group wager
 	UpdateMessageIDs(ctx context.Context, groupWagerID int64, messageID int64, channelID int64) error
-	
+
 	// TransitionExpiredWagers finds and transitions expired active wagers to pending_resolution
 	TransitionExpiredWagers(ctx context.Context) error
 
 	// CancelGroupWager cancels an active group wager
-	CancelGroupWager(ctx context.Context, groupWagerID int64, cancellerID int64) error
+	CancelGroupWager(ctx context.Context, groupWagerID int64, cancellerID *int64) error
 }
 
 // GuildSettingsRepository defines the interface for guild settings data access
@@ -291,7 +290,6 @@ type SummonerWatchService interface {
 	// ListWatches returns all summoner watches for a specific guild
 	ListWatches(ctx context.Context, guildID int64) ([]*models.SummonerWatchDetail, error)
 }
-
 
 // UnitOfWork defines the interface for transactional repository operations
 type UnitOfWork interface {

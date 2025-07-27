@@ -339,7 +339,7 @@ func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Int
 	)
 
 	// Resolve the wager
-	result, err := groupWagerService.ResolveGroupWager(ctx, groupWagerID, resolverID, winningOptionText)
+	result, err := groupWagerService.ResolveGroupWager(ctx, groupWagerID, &resolverID, winningOptionID)
 	if err != nil {
 		log.Printf("Error resolving group wager: %v", err)
 		common.FollowUpWithError(s, i, fmt.Sprintf("Failed to resolve wager: %v", err))
@@ -488,7 +488,7 @@ func (f *Feature) handleGroupWagerCancel(s *discordgo.Session, i *discordgo.Inte
 	channelID := detail.Wager.ChannelID
 
 	// Cancel the wager
-	err = groupWagerService.CancelGroupWager(ctx, groupWagerID, cancellerID)
+	err = groupWagerService.CancelGroupWager(ctx, groupWagerID, &cancellerID)
 	if err != nil {
 		log.Printf("Error cancelling group wager: %v", err)
 		common.FollowUpWithError(s, i, fmt.Sprintf("Failed to cancel wager: %v", err))

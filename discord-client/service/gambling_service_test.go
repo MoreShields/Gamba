@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"gambler/discord-client/config"
 	"gambler/discord-client/models"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +13,10 @@ import (
 )
 
 func TestGamblingService_PlaceBet_Win(t *testing.T) {
+	// Set up test config
+	config.SetTestConfig(config.NewTestConfig())
+	defer config.ResetConfig()
+
 	ctx := context.Background()
 
 	// Setup mocks
@@ -76,6 +81,10 @@ func TestGamblingService_PlaceBet_Win(t *testing.T) {
 }
 
 func TestGamblingService_PlaceBet_Loss(t *testing.T) {
+	// Set up test config
+	config.SetTestConfig(config.NewTestConfig())
+	defer config.ResetConfig()
+
 	ctx := context.Background()
 
 	// Setup mocks
@@ -137,6 +146,10 @@ func TestGamblingService_PlaceBet_Loss(t *testing.T) {
 }
 
 func TestGamblingService_PlaceBet_InvalidProbability(t *testing.T) {
+	// Set up test config
+	config.SetTestConfig(config.NewTestConfig())
+	defer config.ResetConfig()
+
 	ctx := context.Background()
 	mockUserRepo := new(MockUserRepository)
 	mockBalanceHistoryRepo := new(MockBalanceHistoryRepository)
@@ -167,6 +180,10 @@ func TestGamblingService_PlaceBet_InvalidProbability(t *testing.T) {
 }
 
 func TestGamblingService_PlaceBet_InvalidAmount(t *testing.T) {
+	// Set up test config
+	config.SetTestConfig(config.NewTestConfig())
+	defer config.ResetConfig()
+
 	ctx := context.Background()
 	mockUserRepo := new(MockUserRepository)
 	mockBalanceHistoryRepo := new(MockBalanceHistoryRepository)
@@ -191,6 +208,10 @@ func TestGamblingService_PlaceBet_InvalidAmount(t *testing.T) {
 }
 
 func TestGamblingService_PlaceBet_InsufficientBalance(t *testing.T) {
+	// Set up test config
+	config.SetTestConfig(config.NewTestConfig())
+	defer config.ResetConfig()
+
 	ctx := context.Background()
 
 	// Setup mocks
@@ -227,6 +248,10 @@ func TestGamblingService_PlaceBet_InsufficientBalance(t *testing.T) {
 }
 
 func TestGamblingService_PlaceBet_UserNotFound(t *testing.T) {
+	// Set up test config
+	config.SetTestConfig(config.NewTestConfig())
+	defer config.ResetConfig()
+
 	ctx := context.Background()
 
 	// Setup mocks
@@ -254,6 +279,10 @@ func TestGamblingService_PlaceBet_UserNotFound(t *testing.T) {
 }
 
 func TestGamblingService_PlaceBet_TransactionRollback(t *testing.T) {
+	// Set up test config
+	config.SetTestConfig(config.NewTestConfig())
+	defer config.ResetConfig()
+
 	ctx := context.Background()
 
 	// Setup mocks

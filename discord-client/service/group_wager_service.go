@@ -94,6 +94,12 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID *int
 	now := time.Now()
 	votingEndTime := now.Add(time.Duration(votingPeriodMinutes) * time.Minute)
 
+	// Set minimum participants based on wager type
+	minParticipants := 3 // Default for pool wagers
+	if wagerType == models.GroupWagerTypeHouse {
+		minParticipants = 0 // House wagers don't require minimum participants
+	}
+
 	// Create the group wager
 	groupWager := &models.GroupWager{
 		CreatorDiscordID:    creatorID,
@@ -101,7 +107,7 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID *int
 		State:               models.GroupWagerStateActive,
 		WagerType:           wagerType,
 		TotalPot:            0,
-		MinParticipants:     3,
+		MinParticipants:     minParticipants,
 		VotingPeriodMinutes: votingPeriodMinutes,
 		VotingStartsAt:      &now,
 		VotingEndsAt:        &votingEndTime,
@@ -164,7 +170,15 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 		if groupWager.IsActive() && groupWager.IsVotingPeriodExpired() {
 			return nil, fmt.Errorf("voting period has ended, bets can no longer be placed or changed")
 		}
-		return nil, fmt.Errorf("group wager is not accepting bets (state: %s)", groupWager.State)
+		// Provide user-friendly error messages for specific states
+		switch groupWager.State {
+		case models.GroupWagerStateResolved:
+			return nil, fmt.Errorf("cannot place bets on resolved wager")
+		case models.GroupWagerStateCancelled:
+			return nil, fmt.Errorf("cannot place bets on cancelled wager")
+		default:
+			return nil, fmt.Errorf("group wager is not accepting bets (state: %s)", groupWager.State)
+		}
 	}
 
 	// Get full detail including options
@@ -195,7 +209,7 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 	if user == nil {
-		return nil, fmt.Errorf("user not found")
+		return nil, fmt.Errorf("user %d not found", userID)
 	}
 
 	// Check for existing participation
@@ -283,33 +297,26 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 }
 
 // ResolveGroupWager resolves a group wager with the winning option
-func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID int64, resolverID int64, winningOptionText string) (*models.GroupWagerResult, error) {
-	// Check if user is a resolver
-	if !s.IsResolver(resolverID) {
+func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID int64, resolverID *int64, winningOptionID int64) (*models.GroupWagerResult, error) {
+	// Check if user is a resolver (skip check for system resolution when resolverID is nil)
+	if resolverID != nil && !s.IsResolver(*resolverID) {
 		return nil, fmt.Errorf("user is not authorized to resolve group wagers")
 	}
 
-	// Get the group wager
-	groupWager, err := s.groupWagerRepo.GetByID(ctx, groupWagerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get group wager: %w", err)
-	}
-	if groupWager == nil {
-		return nil, fmt.Errorf("group wager not found")
-	}
-
-	// Check if wager can be resolved
-	if !groupWager.IsActive() && !groupWager.IsPendingResolution() {
-		return nil, fmt.Errorf("group wager cannot be resolved (current state: %s)", groupWager.State)
-	}
-
-	// Get full detail to get participants and options
+	// Get full detail to get participants and options (this includes the wager with external reference)
 	detail, err := s.groupWagerRepo.GetDetailByID(ctx, groupWagerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get group wager detail: %w", err)
 	}
-	if detail == nil {
+	if detail == nil || detail.Wager == nil {
 		return nil, fmt.Errorf("group wager not found")
+	}
+
+	groupWager := detail.Wager
+
+	// Check if wager can be resolved
+	if !groupWager.IsActive() && !groupWager.IsPendingResolution() {
+		return nil, fmt.Errorf("group wager cannot be resolved (current state: %s)", groupWager.State)
 	}
 
 	participants := detail.Participants
@@ -320,18 +327,22 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 		participantsByOption[p.OptionID] = append(participantsByOption[p.OptionID], p)
 	}
 
-	if len(participants) < groupWager.MinParticipants {
-		return nil, fmt.Errorf("insufficient participants: have %d, need %d", len(participants), groupWager.MinParticipants)
-	}
-
-	optionsWithParticipants := 0
-	for _, parts := range participantsByOption {
-		if len(parts) > 0 {
-			optionsWithParticipants++
+	// Skip participant validation for house wagers
+	// House wagers should resolve regardless of participation since the house provides liquidity
+	if !groupWager.IsHouseWager() {
+		if len(participants) < groupWager.MinParticipants {
+			return nil, fmt.Errorf("insufficient participants: have %d, need %d", len(participants), groupWager.MinParticipants)
 		}
-	}
-	if optionsWithParticipants < 2 {
-		return nil, fmt.Errorf("need participants on at least 2 different options")
+
+		optionsWithParticipants := 0
+		for _, parts := range participantsByOption {
+			if len(parts) > 0 {
+				optionsWithParticipants++
+			}
+		}
+		if optionsWithParticipants < 2 {
+			return nil, fmt.Errorf("need participants on at least 2 different options")
+		}
 	}
 
 	// Get the winning option from detail by exact text match
@@ -501,8 +512,7 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 	now := time.Now()
 	oldState := groupWager.State
 	groupWager.State = models.GroupWagerStateResolved
-	groupWager.ResolverDiscordID = &resolverID
-	winningOptionID := winningOption.ID
+	groupWager.ResolverDiscordID = resolverID
 	groupWager.WinningOptionID = &winningOptionID
 	groupWager.ResolvedAt = &now
 
@@ -513,6 +523,7 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 	// Publish state change event
 	s.eventPublisher.Publish(events.GroupWagerStateChangeEvent{
 		GroupWagerID: groupWager.ID,
+		GuildID:      groupWager.GuildID,
 		OldState:     string(oldState),
 		NewState:     string(groupWager.State),
 		MessageID:    groupWager.MessageID,
@@ -613,6 +624,7 @@ func (s *groupWagerService) TransitionExpiredWagers(ctx context.Context) error {
 		// Publish state change event
 		s.eventPublisher.Publish(events.GroupWagerStateChangeEvent{
 			GroupWagerID: wager.ID,
+			GuildID:      wager.GuildID,
 			OldState:     string(oldState),
 			NewState:     string(wager.State),
 			MessageID:    wager.MessageID,
@@ -624,7 +636,7 @@ func (s *groupWagerService) TransitionExpiredWagers(ctx context.Context) error {
 }
 
 // CancelGroupWager cancels an active group wager
-func (s *groupWagerService) CancelGroupWager(ctx context.Context, groupWagerID int64, cancellerID int64) error {
+func (s *groupWagerService) CancelGroupWager(ctx context.Context, groupWagerID int64, cancellerID *int64) error {
 	// Get the group wager
 	groupWager, err := s.groupWagerRepo.GetByID(ctx, groupWagerID)
 	if err != nil {
@@ -635,8 +647,13 @@ func (s *groupWagerService) CancelGroupWager(ctx context.Context, groupWagerID i
 	}
 
 	// Check if canceller is authorized (creator or resolver)
-	if (groupWager.CreatorDiscordID == nil || cancellerID != *groupWager.CreatorDiscordID) && !s.IsResolver(cancellerID) {
-		return fmt.Errorf("only the creator or a resolver can cancel a group wager")
+	// Allow system cancellation when cancellerID is nil
+	if cancellerID != nil {
+		isCreator := groupWager.CreatorDiscordID != nil && *cancellerID == *groupWager.CreatorDiscordID
+		isResolver := s.IsResolver(*cancellerID)
+		if !isCreator && !isResolver {
+			return fmt.Errorf("only the creator or a resolver can cancel a group wager")
+		}
 	}
 
 	// Check if wager can be cancelled (only active or pending_resolution states)
@@ -656,6 +673,7 @@ func (s *groupWagerService) CancelGroupWager(ctx context.Context, groupWagerID i
 	// Publish state change event
 	s.eventPublisher.Publish(events.GroupWagerStateChangeEvent{
 		GroupWagerID: groupWager.ID,
+		GuildID:      groupWager.GuildID,
 		OldState:     string(oldState),
 		NewState:     string(groupWager.State),
 		MessageID:    groupWager.MessageID,

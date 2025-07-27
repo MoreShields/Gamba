@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	"gambler/discord-client/application/dto"
 	"gambler/discord-client/models"
@@ -16,10 +15,6 @@ import (
 type LoLHandlerImpl struct {
 	uowFactory    service.UnitOfWorkFactory
 	discordPoster DiscordPoster
-
-	// Track active game wagers: gameID -> (guildID -> wagerID)
-	activeGameWagers map[string]map[int64]int64
-	activeGameMu     sync.RWMutex
 }
 
 // NewLoLHandler creates a new LoL event handler
@@ -28,9 +23,8 @@ func NewLoLHandler(
 	discordPoster DiscordPoster,
 ) LoLHandler {
 	return &LoLHandlerImpl{
-		uowFactory:       uowFactory,
-		discordPoster:    discordPoster,
-		activeGameWagers: make(map[string]map[int64]int64),
+		uowFactory:    uowFactory,
+		discordPoster: discordPoster,
 	}
 }
 
@@ -40,7 +34,7 @@ func (h *LoLHandlerImpl) HandleGameStarted(ctx context.Context, gameStarted dto.
 		"summoner": fmt.Sprintf("%s#%s", gameStarted.SummonerName, gameStarted.TagLine),
 		"gameId":   gameStarted.GameID,
 		"queue":    gameStarted.QueueType,
-	}).Info("Game started, creating house wagers")
+	}).Info("handling Game start")
 
 	// Query guilds watching this summoner
 	// Use a temporary UoW to query without guild scope
@@ -62,22 +56,18 @@ func (h *LoLHandlerImpl) HandleGameStarted(ctx context.Context, gameStarted dto.
 		return nil
 	}
 
-	// Track wagers for this game
-	h.activeGameMu.Lock()
-	if _, exists := h.activeGameWagers[gameStarted.GameID]; !exists {
-		h.activeGameWagers[gameStarted.GameID] = make(map[int64]int64)
-	}
-	h.activeGameMu.Unlock()
-
 	// Create a house wager for each watching guild
-	for _, guild := range guilds {
-		if err := h.createHouseWagerForGuild(ctx, guild, gameStarted); err != nil {
-			log.WithFields(log.Fields{
-				"guild":    guild.GuildID,
-				"summoner": fmt.Sprintf("%s#%s", gameStarted.SummonerName, gameStarted.TagLine),
-				"error":    err,
-			}).Error("Failed to create house wager for guild")
-			// Continue with other guilds
+	// Currently only creating wagers for ranked games.
+	if gameStarted.QueueType == "RANKED_SOLO_5x5" {
+		for _, guild := range guilds {
+			if err := h.createHouseWagerForGuild(ctx, guild, gameStarted); err != nil {
+				log.WithFields(log.Fields{
+					"guild":    guild.GuildID,
+					"summoner": fmt.Sprintf("%s#%s", gameStarted.SummonerName, gameStarted.TagLine),
+					"error":    err,
+				}).Error("Failed to create house wager for guild")
+				// Continue with other guilds
+			}
 		}
 	}
 
@@ -93,34 +83,97 @@ func (h *LoLHandlerImpl) HandleGameEnded(ctx context.Context, gameEnded dto.Game
 		"duration": gameEnded.DurationSeconds,
 	}).Info("Game ended, resolving house wagers")
 
-	// Look up active wagers for this game
-	h.activeGameMu.RLock()
-	guildWagers, exists := h.activeGameWagers[gameEnded.GameID]
-	h.activeGameMu.RUnlock()
+	// Query guilds watching this summoner to find relevant wagers
+	tempUow := h.uowFactory.CreateForGuild(0)
+	if err := tempUow.Begin(ctx); err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tempUow.Rollback()
 
-	if !exists || len(guildWagers) == 0 {
+	guilds, err := tempUow.SummonerWatchRepository().GetGuildsWatchingSummoner(ctx, gameEnded.SummonerName, gameEnded.TagLine)
+	if err != nil {
+		return fmt.Errorf("failed to get guilds watching summoner: %w", err)
+	}
+
+	if len(guilds) == 0 {
 		log.WithFields(log.Fields{
-			"gameId": gameEnded.GameID,
-		}).Debug("No active wagers found for game")
+			"summoner": fmt.Sprintf("%s#%s", gameEnded.SummonerName, gameEnded.TagLine),
+		}).Debug("No guilds watching this summoner")
 		return nil
 	}
 
-	// Resolve wager for each guild
-	for guildID, wagerID := range guildWagers {
-		if err := h.resolveHouseWager(ctx, guildID, wagerID, gameEnded.Won); err != nil {
+	// Create external reference for this game
+	externalRef := models.ExternalReference{
+		System: models.SystemLeagueOfLegends,
+		ID:     gameEnded.GameID,
+	}
+
+	// Look up and resolve wagers for each guild
+	resolvedCount := 0
+	for _, guild := range guilds {
+		// Create a scoped UoW for this guild to query wagers
+		guildUow := h.uowFactory.CreateForGuild(guild.GuildID)
+		if err := guildUow.Begin(ctx); err != nil {
 			log.WithFields(log.Fields{
-				"guild":   guildID,
-				"wagerID": wagerID,
+				"guild": guild.GuildID,
+				"error": err,
+			}).Error("Failed to begin transaction for guild")
+			continue
+		}
+
+		// Find the wager for this game in this guild
+		log.WithFields(log.Fields{
+			"guild":          guild.GuildID,
+			"gameId":         gameEnded.GameID,
+			"externalSystem": externalRef.System,
+		}).Debug("Looking up wager by external reference")
+
+		wager, err := guildUow.GroupWagerRepository().GetByExternalReference(ctx, externalRef)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"guild":  guild.GuildID,
+				"gameId": gameEnded.GameID,
+				"error":  err,
+			}).Error("Failed to query wager by external reference")
+			guildUow.Rollback()
+			continue
+		}
+
+		if wager == nil {
+			log.WithFields(log.Fields{
+				"guild":  guild.GuildID,
+				"gameId": gameEnded.GameID,
+			}).Debug("No wager found for this game in guild")
+			guildUow.Rollback()
+			continue
+		}
+
+		log.WithFields(log.Fields{
+			"guild":   guild.GuildID,
+			"gameId":  gameEnded.GameID,
+			"wagerID": wager.ID,
+		}).Debug("Found wager for external reference")
+
+		guildUow.Rollback() // Close the query transaction
+
+		// Resolve the wager
+		if err := h.resolveHouseWager(ctx, guild.GuildID, wager.ID, gameEnded.Won); err != nil {
+			log.WithFields(log.Fields{
+				"guild":   guild.GuildID,
+				"wagerID": wager.ID,
 				"error":   err,
 			}).Error("Failed to resolve house wager")
 			// Continue with other guilds
+		} else {
+			resolvedCount++
 		}
 	}
 
-	// Clean up tracking
-	h.activeGameMu.Lock()
-	delete(h.activeGameWagers, gameEnded.GameID)
-	h.activeGameMu.Unlock()
+	log.WithFields(log.Fields{
+		"gameId":        gameEnded.GameID,
+		"resolvedCount": resolvedCount,
+		"totalGuilds":   len(guilds),
+	}).Info("Completed resolving house wagers for game")
 
 	return nil
 }
@@ -158,8 +211,13 @@ func (h *LoLHandlerImpl) createHouseWagerForGuild(
 		uow.EventBus(),
 	)
 
-	// Create the house wager
-	condition := fmt.Sprintf("%s#%s - %s", gameStarted.SummonerName, gameStarted.TagLine, h.getQueueTypeDisplay(gameStarted.QueueType))
+	// Format description with op.gg link for storage in condition field
+	opggURL := fmt.Sprintf("https://www.op.gg/summoners/na/%s-%s",
+		gameStarted.SummonerName, gameStarted.TagLine)
+	description := fmt.Sprintf("Place your bets on %s's game outcome!\n[Track on OP.GG](%s)", 
+		gameStarted.SummonerName, opggURL)
+
+	// Create the house wager with formatted description as condition
 	options := []string{"Win", "Loss"}
 	oddsMultipliers := []float64{1.0, 1.0} // Even odds for now
 	votingPeriodMinutes := 5               // 5 minutes for betting
@@ -168,7 +226,7 @@ func (h *LoLHandlerImpl) createHouseWagerForGuild(
 	wagerDetail, err := groupWagerService.CreateGroupWager(
 		ctx,
 		nil,
-		condition,
+		description, // Store the formatted description as the condition
 		options,
 		votingPeriodMinutes,
 		0, // Message ID will be set after posting
@@ -181,10 +239,21 @@ func (h *LoLHandlerImpl) createHouseWagerForGuild(
 		return fmt.Errorf("failed to create group wager: %w", err)
 	}
 
-	// Track the wager
-	h.activeGameMu.Lock()
-	h.activeGameWagers[gameStarted.GameID][guild.GuildID] = wagerDetail.Wager.ID
-	h.activeGameMu.Unlock()
+	// Set the external reference for this game
+	wagerDetail.Wager.SetExternalReference(models.SystemLeagueOfLegends, gameStarted.GameID)
+
+	log.WithFields(log.Fields{
+		"guild":          guild.GuildID,
+		"wagerID":        wagerDetail.Wager.ID,
+		"gameID":         gameStarted.GameID,
+		"externalSystem": models.SystemLeagueOfLegends,
+	}).Debug("Setting external reference for house wager")
+
+	// Update the wager with the external reference
+	if err := uow.GroupWagerRepository().Update(ctx, wagerDetail.Wager); err != nil {
+		uow.Rollback()
+		return fmt.Errorf("failed to update wager with external reference: %w", err)
+	}
 
 	// Build DTO for Discord posting
 	channelID := int64(0)
@@ -198,27 +267,36 @@ func (h *LoLHandlerImpl) createHouseWagerForGuild(
 		GuildID:      guild.GuildID,
 		ChannelID:    channelID,
 		WagerID:      wagerDetail.Wager.ID,
-		Title:        "🎮 New Game Started!",
-		Description:  fmt.Sprintf("Place your bets on %s's game outcome!", gameStarted.SummonerName),
+		Title:        "New Game Started!",
+		Description:  description, // Reuse the formatted description with op.gg link
+		State:        string(wagerDetail.Wager.State),
 		Options:      make([]dto.WagerOptionDTO, len(wagerDetail.Options)),
 		VotingEndsAt: wagerDetail.Wager.VotingEndsAt,
-		SummonerInfo: dto.SummonerInfoDTO{
-			GameName:  gameStarted.SummonerName,
-			TagLine:   gameStarted.TagLine,
-			QueueType: h.getQueueTypeDisplay(gameStarted.QueueType),
-			GameID:    gameStarted.GameID,
-		},
 	}
 
 	// Convert options to DTOs
 	for i, opt := range wagerDetail.Options {
 		postDTO.Options[i] = dto.WagerOptionDTO{
-			ID:         opt.ID,
-			Text:       opt.OptionText,
-			Order:      opt.OptionOrder,
-			Multiplier: opt.OddsMultiplier,
+			ID:          opt.ID,
+			Text:        opt.OptionText,
+			Order:       opt.OptionOrder,
+			Multiplier:  opt.OddsMultiplier,
+			TotalAmount: opt.TotalAmount,
 		}
 	}
+
+	// Convert participants to DTOs
+	postDTO.Participants = make([]dto.ParticipantDTO, len(wagerDetail.Participants))
+	for i, participant := range wagerDetail.Participants {
+		postDTO.Participants[i] = dto.ParticipantDTO{
+			DiscordID: participant.DiscordID,
+			OptionID:  participant.OptionID,
+			Amount:    participant.Amount,
+		}
+	}
+
+	// Set total pot
+	postDTO.TotalPot = wagerDetail.Wager.TotalPot
 
 	// Post to Discord
 	postResult, err := h.discordPoster.PostHouseWager(ctx, postDTO)
@@ -298,6 +376,15 @@ func (h *LoLHandlerImpl) resolveHouseWager(ctx context.Context, guildID, wagerID
 		return fmt.Errorf("could not determine winning option")
 	}
 
+	log.WithFields(log.Fields{
+		"guild":           guildID,
+		"wagerID":         wagerID,
+		"wagerState":      wagerDetail.Wager.State,
+		"participants":    len(wagerDetail.Participants),
+		"winningOptionID": winningOptionID,
+		"won":             won,
+	}).Debug("Attempting to resolve house wager")
+
 	// Create group wager service
 	groupWagerService := service.NewGroupWagerService(
 		uow.GroupWagerRepository(),
@@ -307,13 +394,14 @@ func (h *LoLHandlerImpl) resolveHouseWager(ctx context.Context, guildID, wagerID
 	)
 
 	// For house wagers, use nil to indicate system resolution (no human resolver)
-	// Note: This requires the service to be updated to handle system resolution
-	// For now, we'll use a special system resolver approach
-	systemUserID := int64(-1) // Use -1 to indicate system resolution, different from 0
-
 	// Resolve the wager
-	result, err := groupWagerService.ResolveGroupWager(ctx, wagerID, systemUserID, winningOptionID)
+	result, err := groupWagerService.ResolveGroupWager(ctx, wagerID, nil, winningOptionID)
 	if err != nil {
+		log.WithFields(log.Fields{
+			"guild":   guildID,
+			"wagerID": wagerID,
+			"error":   err,
+		}).Error("Failed to resolve group wager in service")
 		uow.Rollback()
 		return fmt.Errorf("failed to resolve group wager: %w", err)
 	}

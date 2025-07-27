@@ -77,6 +77,18 @@ func Run(ctx context.Context) error {
 	lolHandler := application.NewLoLHandler(uowFactory, discordBot.GetDiscordPoster())
 	log.Println("LoL handler initialized successfully")
 
+	// Initialize wager state event handler for internal state changes
+	log.Println("Initializing wager state event handler...")
+	wagerStateHandler := application.NewWagerStateEventHandler(uowFactory, discordBot.GetDiscordPoster())
+	
+	// Subscribe to group wager state change events
+	eventBus.Subscribe(events.EventTypeGroupWagerStateChange, func(ctx context.Context, event events.Event) {
+		if err := wagerStateHandler.HandleGroupWagerStateChange(ctx, event); err != nil {
+			log.Printf("Failed to handle group wager state change: %v", err)
+		}
+	})
+	log.Println("Wager state event handler initialized and subscribed successfully")
+
 	// Initialize and start message consumer
 	log.Printf("Initializing message consumer with NATS servers: %s...", cfg.NATSServers)
 	messageConsumer := infrastructure.NewMessageConsumer(cfg.NATSServers, lolHandler)

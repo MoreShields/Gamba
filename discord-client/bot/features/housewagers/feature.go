@@ -77,6 +77,54 @@ func (f *Feature) PostHouseWager(ctx context.Context, dto dto.HouseWagerPostDTO)
 	}, nil
 }
 
+// UpdateHouseWager implements the application.DiscordPoster interface
+func (f *Feature) UpdateHouseWager(ctx context.Context, messageID, channelID int64, dto dto.HouseWagerPostDTO) error {
+	log.WithFields(log.Fields{
+		"messageID": messageID,
+		"channel":   channelID,
+		"wagerID":   dto.WagerID,
+		"state":     dto.State,
+	}).Info("Updating house wager message in Discord")
+
+	// Validate parameters
+	if messageID == 0 {
+		return fmt.Errorf("invalid message ID: %d", messageID)
+	}
+	if channelID == 0 {
+		return fmt.Errorf("invalid channel ID: %d", channelID)
+	}
+
+	// Create embed and components
+	embed := CreateHouseWagerEmbed(dto)
+	components := CreateHouseWagerComponents(dto)
+
+	// Convert IDs to strings for Discord API
+	channelIDStr := fmt.Sprintf("%d", channelID)
+	messageIDStr := fmt.Sprintf("%d", messageID)
+
+	// Update the message
+	messageEdit := &discordgo.MessageEdit{
+		Channel:    channelIDStr,
+		ID:         messageIDStr,
+		Embeds:     &[]*discordgo.MessageEmbed{embed},
+		Components: &components,
+	}
+
+	_, err := f.session.ChannelMessageEditComplex(messageEdit)
+	if err != nil {
+		return fmt.Errorf("failed to update house wager message: %w", err)
+	}
+
+	log.WithFields(log.Fields{
+		"messageID": messageID,
+		"channel":   channelID,
+		"wagerID":   dto.WagerID,
+		"state":     dto.State,
+	}).Info("Successfully updated house wager message")
+
+	return nil
+}
+
 // HandleInteraction handles house wager button interactions and modals
 func (f *Feature) HandleInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	switch i.Type {
