@@ -148,6 +148,14 @@ func (m *MockGroupWagerRepository) GetByMessageID(ctx context.Context, messageID
 	return args.Get(0).(*models.GroupWager), args.Error(1)
 }
 
+func (m *MockGroupWagerRepository) GetByExternalReference(ctx context.Context, ref models.ExternalReference) (*models.GroupWager, error) {
+	args := m.Called(ctx, ref)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.GroupWager), args.Error(1)
+}
+
 func (m *MockGroupWagerRepository) Update(ctx context.Context, wager *models.GroupWager) error {
 	args := m.Called(ctx, wager)
 	return args.Error(0)

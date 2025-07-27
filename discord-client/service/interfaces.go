@@ -38,7 +38,6 @@ type BalanceHistoryRepository interface {
 	GetByDateRange(ctx context.Context, discordID int64, from, to time.Time) ([]*models.BalanceHistory, error)
 }
 
-
 // BetRepository defines the interface for bet data access
 type BetRepository interface {
 	// Create creates a new bet record
@@ -81,7 +80,6 @@ type GamblingService interface {
 	// Returns remaining amount and any error
 	CheckDailyLimit(ctx context.Context, discordID int64, betAmount int64) (remaining int64, err error)
 }
-
 
 // WagerRepository defines the interface for wager data access
 type WagerRepository interface {
@@ -176,6 +174,7 @@ type GroupWagerRepository interface {
 	CreateWithOptions(ctx context.Context, wager *models.GroupWager, options []*models.GroupWagerOption) error
 	GetByID(ctx context.Context, id int64) (*models.GroupWager, error)
 	GetByMessageID(ctx context.Context, messageID int64) (*models.GroupWager, error)
+	GetByExternalReference(ctx context.Context, ref models.ExternalReference) (*models.GroupWager, error)
 	Update(ctx context.Context, wager *models.GroupWager) error
 	GetActiveByUser(ctx context.Context, discordID int64) ([]*models.GroupWager, error)
 	GetAll(ctx context.Context, state *models.GroupWagerState) ([]*models.GroupWager, error)
@@ -194,10 +193,10 @@ type GroupWagerRepository interface {
 	UpdateOptionTotal(ctx context.Context, optionID int64, totalAmount int64) error
 	UpdateOptionOdds(ctx context.Context, optionID int64, oddsMultiplier float64) error
 	UpdateAllOptionOdds(ctx context.Context, groupWagerID int64, oddsMultipliers map[int64]float64) error
-	
+
 	// Stats operations
 	GetStats(ctx context.Context, discordID int64) (*models.GroupWagerStats, error)
-	
+
 	// Expiration operations
 	GetExpiredActiveWagers(ctx context.Context) ([]*models.GroupWager, error)
 	GetWagersPendingResolution(ctx context.Context) ([]*models.GroupWager, error)
@@ -207,13 +206,13 @@ type GroupWagerRepository interface {
 // GroupWagerService defines the interface for group wager operations
 type GroupWagerService interface {
 	// CreateGroupWager creates a new group wager with options
-	CreateGroupWager(ctx context.Context, creatorID int64, condition string, options []string, votingPeriodMinutes int, messageID, channelID int64, wagerType models.GroupWagerType, oddsMultipliers []float64) (*models.GroupWagerDetail, error)
+	CreateGroupWager(ctx context.Context, creatorID *int64, condition string, options []string, votingPeriodMinutes int, messageID, channelID int64, wagerType models.GroupWagerType, oddsMultipliers []float64) (*models.GroupWagerDetail, error)
 
 	// PlaceBet allows a user to place or update their bet on a group wager option
 	PlaceBet(ctx context.Context, groupWagerID int64, userID int64, optionID int64, amount int64) (*models.GroupWagerParticipant, error)
 
 	// ResolveGroupWager resolves a group wager with the winning option
-	ResolveGroupWager(ctx context.Context, groupWagerID int64, resolverID int64, winningOptionText string) (*models.GroupWagerResult, error)
+	ResolveGroupWager(ctx context.Context, groupWagerID int64, resolverID *int64, winningOptionID int64) (*models.GroupWagerResult, error)
 
 	// GetGroupWagerDetail retrieves full details of a group wager
 	GetGroupWagerDetail(ctx context.Context, groupWagerID int64) (*models.GroupWagerDetail, error)
@@ -229,12 +228,12 @@ type GroupWagerService interface {
 
 	// UpdateMessageIDs updates the message and channel IDs for a group wager
 	UpdateMessageIDs(ctx context.Context, groupWagerID int64, messageID int64, channelID int64) error
-	
+
 	// TransitionExpiredWagers finds and transitions expired active wagers to pending_resolution
 	TransitionExpiredWagers(ctx context.Context) error
 
 	// CancelGroupWager cancels an active group wager
-	CancelGroupWager(ctx context.Context, groupWagerID int64, cancellerID int64) error
+	CancelGroupWager(ctx context.Context, groupWagerID int64, cancellerID *int64) error
 }
 
 // GuildSettingsRepository defines the interface for guild settings data access
@@ -252,7 +251,10 @@ type GuildSettingsService interface {
 	GetOrCreateSettings(ctx context.Context, guildID int64) (*models.GuildSettings, error)
 
 	// UpdatePrimaryChannel updates the primary channel for a guild
-	UpdatePrimaryChannel(ctx context.Context, guildID int64, channelID int64) error
+	UpdatePrimaryChannel(ctx context.Context, guildID int64, channelID *int64) error
+
+	// UpdateLolChannel updates the LOL channel for a guild
+	UpdateLolChannel(ctx context.Context, guildID int64, channelID *int64) error
 
 	// UpdateHighRollerRole updates the high roller role for a guild
 	UpdateHighRollerRole(ctx context.Context, guildID int64, roleID *int64) error
@@ -262,34 +264,31 @@ type GuildSettingsService interface {
 type SummonerWatchRepository interface {
 	// CreateWatch creates a new summoner watch for a guild
 	// Handles upsert of summoner and creation of watch relationship
-	CreateWatch(ctx context.Context, guildID int64, summonerName, region string) (*models.SummonerWatchDetail, error)
+	CreateWatch(ctx context.Context, guildID int64, summonerName, tagLine string) (*models.SummonerWatchDetail, error)
 
 	// GetWatchesByGuild returns all summoner watches for a specific guild
 	GetWatchesByGuild(ctx context.Context, guildID int64) ([]*models.SummonerWatchDetail, error)
 
 	// GetGuildsWatchingSummoner returns all guild-summoner watch relationships for a specific summoner
-	GetGuildsWatchingSummoner(ctx context.Context, summonerName, region string) ([]*models.GuildSummonerWatch, error)
+	GetGuildsWatchingSummoner(ctx context.Context, summonerName, tagLine string) ([]*models.GuildSummonerWatch, error)
 
 	// DeleteWatch removes a summoner watch for a guild
-	DeleteWatch(ctx context.Context, guildID int64, summonerName, region string) error
+	DeleteWatch(ctx context.Context, guildID int64, summonerName, tagLine string) error
 
 	// GetWatch retrieves a specific summoner watch for a guild
-	GetWatch(ctx context.Context, guildID int64, summonerName, region string) (*models.SummonerWatchDetail, error)
+	GetWatch(ctx context.Context, guildID int64, summonerName, tagLine string) (*models.SummonerWatchDetail, error)
 }
 
 // SummonerWatchService defines the interface for summoner watch operations
 type SummonerWatchService interface {
 	// AddWatch creates a new summoner watch for a guild
-	AddWatch(ctx context.Context, guildID int64, summonerName, region string) (*models.SummonerWatchDetail, error)
+	AddWatch(ctx context.Context, guildID int64, summonerName, tagLine string) (*models.SummonerWatchDetail, error)
 
 	// RemoveWatch removes a summoner watch for a guild
-	RemoveWatch(ctx context.Context, guildID int64, summonerName, region string) error
+	RemoveWatch(ctx context.Context, guildID int64, summonerName, tagLine string) error
 
 	// ListWatches returns all summoner watches for a specific guild
 	ListWatches(ctx context.Context, guildID int64) ([]*models.SummonerWatchDetail, error)
-
-	// GetWatchDetails retrieves a specific summoner watch for a guild
-	GetWatchDetails(ctx context.Context, guildID int64, summonerName, region string) (*models.SummonerWatchDetail, error)
 }
 
 // UnitOfWork defines the interface for transactional repository operations

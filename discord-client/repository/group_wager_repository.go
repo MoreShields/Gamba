@@ -7,6 +7,7 @@ import (
 	"gambler/discord-client/database"
 	"gambler/discord-client/models"
 	"gambler/discord-client/service"
+
 	"github.com/jackc/pgx/v5"
 )
 
@@ -19,11 +20,6 @@ type GroupWagerRepository struct {
 // NewGroupWagerRepository creates a new consolidated group wager repository
 func NewGroupWagerRepository(db *database.DB) *GroupWagerRepository {
 	return &GroupWagerRepository{q: db.Pool}
-}
-
-// newGroupWagerRepositoryWithTx creates a new group wager repository with a transaction
-func newGroupWagerRepositoryWithTx(tx queryable) service.GroupWagerRepository {
-	return &GroupWagerRepository{q: tx}
 }
 
 // newGroupWagerRepository creates a new group wager repository with a transaction and guild scope
@@ -41,9 +37,9 @@ func (r *GroupWagerRepository) CreateWithOptions(ctx context.Context, wager *mod
 		INSERT INTO group_wagers (
 			creator_discord_id, guild_id, condition, state, wager_type, total_pot, 
 			min_participants, message_id, channel_id, voting_period_minutes,
-			voting_starts_at, voting_ends_at
+			voting_starts_at, voting_ends_at, external_id, external_system
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		RETURNING id, created_at
 	`
 
@@ -60,6 +56,8 @@ func (r *GroupWagerRepository) CreateWithOptions(ctx context.Context, wager *mod
 		wager.VotingPeriodMinutes,
 		wager.VotingStartsAt,
 		wager.VotingEndsAt,
+		wager.GetExternalID(),
+		wager.GetExternalSystem(),
 	).Scan(&wager.ID, &wager.CreatedAt)
 
 	if err != nil {
@@ -162,7 +160,6 @@ func (r *GroupWagerRepository) GetDetailByMessageID(ctx context.Context, message
 	return r.GetDetailByID(ctx, wager.ID)
 }
 
-
 // GetByID retrieves a group wager by its ID
 func (r *GroupWagerRepository) GetByID(ctx context.Context, id int64) (*models.GroupWager, error) {
 	query := `
@@ -170,12 +167,14 @@ func (r *GroupWagerRepository) GetByID(ctx context.Context, id int64) (*models.G
 			id, creator_discord_id, guild_id, condition, state, wager_type, resolver_discord_id,
 			winning_option_id, total_pot, min_participants, message_id, 
 			channel_id, voting_period_minutes, voting_starts_at, voting_ends_at,
-			created_at, resolved_at
+			created_at, resolved_at, external_id, external_system
 		FROM group_wagers
 		WHERE id = $1
 	`
 
 	var wager models.GroupWager
+	var externalID, externalSystem *string
+	
 	err := r.q.QueryRow(ctx, query, id).Scan(
 		&wager.ID,
 		&wager.CreatorDiscordID,
@@ -194,6 +193,8 @@ func (r *GroupWagerRepository) GetByID(ctx context.Context, id int64) (*models.G
 		&wager.VotingEndsAt,
 		&wager.CreatedAt,
 		&wager.ResolvedAt,
+		&externalID,
+		&externalSystem,
 	)
 
 	if err == pgx.ErrNoRows {
@@ -201,6 +202,14 @@ func (r *GroupWagerRepository) GetByID(ctx context.Context, id int64) (*models.G
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get group wager: %w", err)
+	}
+
+	// Set the external reference if both fields are present
+	if externalID != nil && externalSystem != nil {
+		wager.ExternalRef = &models.ExternalReference{
+			System: models.ExternalSystem(*externalSystem),
+			ID:     *externalID,
+		}
 	}
 
 	return &wager, nil
@@ -213,12 +222,14 @@ func (r *GroupWagerRepository) GetByMessageID(ctx context.Context, messageID int
 			id, creator_discord_id, guild_id, condition, state, wager_type, resolver_discord_id,
 			winning_option_id, total_pot, min_participants, message_id, 
 			channel_id, voting_period_minutes, voting_starts_at, voting_ends_at,
-			created_at, resolved_at
+			created_at, resolved_at, external_id, external_system
 		FROM group_wagers
 		WHERE message_id = $1
 	`
 
 	var wager models.GroupWager
+	var externalID, externalSystem *string
+	
 	err := r.q.QueryRow(ctx, query, messageID).Scan(
 		&wager.ID,
 		&wager.CreatorDiscordID,
@@ -237,6 +248,8 @@ func (r *GroupWagerRepository) GetByMessageID(ctx context.Context, messageID int
 		&wager.VotingEndsAt,
 		&wager.CreatedAt,
 		&wager.ResolvedAt,
+		&externalID,
+		&externalSystem,
 	)
 
 	if err == pgx.ErrNoRows {
@@ -244,6 +257,69 @@ func (r *GroupWagerRepository) GetByMessageID(ctx context.Context, messageID int
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get group wager by message ID: %w", err)
+	}
+
+	// Set the external reference if both fields are present
+	if externalID != nil && externalSystem != nil {
+		wager.ExternalRef = &models.ExternalReference{
+			System: models.ExternalSystem(*externalSystem),
+			ID:     *externalID,
+		}
+	}
+
+	return &wager, nil
+}
+
+// GetByExternalReference retrieves a group wager by its external reference
+func (r *GroupWagerRepository) GetByExternalReference(ctx context.Context, ref models.ExternalReference) (*models.GroupWager, error) {
+	query := `
+		SELECT 
+			id, creator_discord_id, guild_id, condition, state, wager_type, resolver_discord_id,
+			winning_option_id, total_pot, min_participants, message_id, 
+			channel_id, voting_period_minutes, voting_starts_at, voting_ends_at,
+			created_at, resolved_at, external_id, external_system
+		FROM group_wagers
+		WHERE external_id = $1 AND external_system = $2 AND guild_id = $3
+	`
+
+	var wager models.GroupWager
+	var externalID, externalSystem *string
+	
+	err := r.q.QueryRow(ctx, query, ref.ID, string(ref.System), r.guildID).Scan(
+		&wager.ID,
+		&wager.CreatorDiscordID,
+		&wager.GuildID,
+		&wager.Condition,
+		&wager.State,
+		&wager.WagerType,
+		&wager.ResolverDiscordID,
+		&wager.WinningOptionID,
+		&wager.TotalPot,
+		&wager.MinParticipants,
+		&wager.MessageID,
+		&wager.ChannelID,
+		&wager.VotingPeriodMinutes,
+		&wager.VotingStartsAt,
+		&wager.VotingEndsAt,
+		&wager.CreatedAt,
+		&wager.ResolvedAt,
+		&externalID,
+		&externalSystem,
+	)
+
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get group wager by external reference: %w", err)
+	}
+
+	// Set the external reference if both fields are present
+	if externalID != nil && externalSystem != nil {
+		wager.ExternalRef = &models.ExternalReference{
+			System: models.ExternalSystem(*externalSystem),
+			ID:     *externalID,
+		}
 	}
 
 	return &wager, nil
@@ -255,7 +331,8 @@ func (r *GroupWagerRepository) Update(ctx context.Context, wager *models.GroupWa
 		UPDATE group_wagers
 		SET state = $2, resolver_discord_id = $3, winning_option_id = $4,
 		    total_pot = $5, resolved_at = $6, message_id = $7, channel_id = $8,
-		    voting_period_minutes = $9, voting_starts_at = $10, voting_ends_at = $11
+		    voting_period_minutes = $9, voting_starts_at = $10, voting_ends_at = $11,
+		    external_id = $12, external_system = $13
 		WHERE id = $1
 	`
 
@@ -271,6 +348,8 @@ func (r *GroupWagerRepository) Update(ctx context.Context, wager *models.GroupWa
 		wager.VotingPeriodMinutes,
 		wager.VotingStartsAt,
 		wager.VotingEndsAt,
+		wager.GetExternalID(),
+		wager.GetExternalSystem(),
 	)
 
 	if err != nil {
@@ -709,7 +788,7 @@ func (r *GroupWagerRepository) GetExpiredActiveWagers(ctx context.Context) ([]*m
 			id, creator_discord_id, guild_id, condition, state, wager_type, resolver_discord_id,
 			winning_option_id, total_pot, min_participants, message_id, 
 			channel_id, voting_period_minutes, voting_starts_at, voting_ends_at,
-			created_at, resolved_at
+			created_at, resolved_at, external_id, external_system
 		FROM group_wagers
 		WHERE state = 'active' 
 		AND voting_ends_at IS NOT NULL 
@@ -727,6 +806,8 @@ func (r *GroupWagerRepository) GetExpiredActiveWagers(ctx context.Context) ([]*m
 	var wagers []*models.GroupWager
 	for rows.Next() {
 		var wager models.GroupWager
+		var externalID, externalSystem *string
+		
 		err := rows.Scan(
 			&wager.ID,
 			&wager.CreatorDiscordID,
@@ -745,10 +826,21 @@ func (r *GroupWagerRepository) GetExpiredActiveWagers(ctx context.Context) ([]*m
 			&wager.VotingEndsAt,
 			&wager.CreatedAt,
 			&wager.ResolvedAt,
+			&externalID,
+			&externalSystem,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan expired active wager: %w", err)
 		}
+
+		// Set the external reference if both fields are present
+		if externalID != nil && externalSystem != nil {
+			wager.ExternalRef = &models.ExternalReference{
+				System: models.ExternalSystem(*externalSystem),
+				ID:     *externalID,
+			}
+		}
+
 		wagers = append(wagers, &wager)
 	}
 

@@ -225,7 +225,7 @@ func (f *Feature) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo
 
 	// Create the group wager (message ID will be updated after posting)
 	// Default to pool wager with no preset odds for existing bot command
-	groupWagerDetail, err := groupWagerService.CreateGroupWager(ctx, creatorID, condition, options, votingPeriodMinutes, 0, 0, models.GroupWagerTypePool, nil)
+	groupWagerDetail, err := groupWagerService.CreateGroupWager(ctx, &creatorID, condition, options, votingPeriodMinutes, 0, 0, models.GroupWagerTypePool, nil)
 	if err != nil {
 		log.Printf("Error creating group wager: %v", err)
 		common.FollowUpWithError(s, i, fmt.Sprintf("Failed to create group wager: %v", err))
@@ -338,8 +338,32 @@ func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Int
 		uow.EventBus(),
 	)
 
+	// Get wager details to find option ID from text
+	wagerDetail, err := groupWagerService.GetGroupWagerDetail(ctx, groupWagerID)
+	if err != nil {
+		log.Printf("Error getting group wager detail: %v", err)
+		common.FollowUpWithError(s, i, "Failed to get wager details.")
+		return
+	}
+
+	// Find the option ID from the text
+	var winningOptionID int64
+	found := false
+	for _, option := range wagerDetail.Options {
+		if option.OptionText == winningOptionText {
+			winningOptionID = option.ID
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		common.FollowUpWithError(s, i, fmt.Sprintf("No option found with text: %s", winningOptionText))
+		return
+	}
+
 	// Resolve the wager
-	result, err := groupWagerService.ResolveGroupWager(ctx, groupWagerID, resolverID, winningOptionText)
+	result, err := groupWagerService.ResolveGroupWager(ctx, groupWagerID, &resolverID, winningOptionID)
 	if err != nil {
 		log.Printf("Error resolving group wager: %v", err)
 		common.FollowUpWithError(s, i, fmt.Sprintf("Failed to resolve wager: %v", err))
@@ -488,7 +512,7 @@ func (f *Feature) handleGroupWagerCancel(s *discordgo.Session, i *discordgo.Inte
 	channelID := detail.Wager.ChannelID
 
 	// Cancel the wager
-	err = groupWagerService.CancelGroupWager(ctx, groupWagerID, cancellerID)
+	err = groupWagerService.CancelGroupWager(ctx, groupWagerID, &cancellerID)
 	if err != nil {
 		log.Printf("Error cancelling group wager: %v", err)
 		common.FollowUpWithError(s, i, fmt.Sprintf("Failed to cancel wager: %v", err))

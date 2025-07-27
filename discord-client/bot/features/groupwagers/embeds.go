@@ -191,7 +191,7 @@ func CreateGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEm
 		embed.Description += "\n**⏳ AWAITING RESOLUTION**"
 		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
 			Name:   "Status",
-			Value:  "Voting has ended. This wager is ready to be resolved.",
+			Value:  "Voting has ended.",
 			Inline: false,
 		})
 	case models.GroupWagerStateActive:

@@ -1,9 +1,12 @@
 package groupwagers
 
 import (
+	"context"
+	"fmt"
 	"strings"
 
 	"gambler/discord-client/bot/common"
+	"gambler/discord-client/models"
 	"gambler/discord-client/service"
 
 	"github.com/bwmarrin/discordgo"
@@ -82,4 +85,56 @@ func (f *Feature) handleModalSubmit(s *discordgo.Session, i *discordgo.Interacti
 		log.Warnf("Unknown group wager modal customID: %s", customID)
 		common.RespondWithError(s, i, "Unknown group wager modal")
 	}
+}
+
+// UpdateGroupWager implements the application.DiscordPoster interface
+func (f *Feature) UpdateGroupWager(ctx context.Context, messageID, channelID int64, detail interface{}) error {
+	log.WithFields(log.Fields{
+		"messageID": messageID,
+		"channel":   channelID,
+	}).Info("Updating group wager message in Discord")
+
+	// Validate parameters
+	if messageID == 0 {
+		return fmt.Errorf("invalid message ID: %d", messageID)
+	}
+	if channelID == 0 {
+		return fmt.Errorf("invalid channel ID: %d", channelID)
+	}
+
+	// Type assert the detail to GroupWagerDetail
+	groupDetail, ok := detail.(*models.GroupWagerDetail)
+	if !ok {
+		return fmt.Errorf("invalid detail type, expected *models.GroupWagerDetail")
+	}
+
+	// Create embed and components
+	embed := CreateGroupWagerEmbed(groupDetail)
+	components := CreateGroupWagerComponents(groupDetail)
+
+	// Convert IDs to strings for Discord API
+	channelIDStr := fmt.Sprintf("%d", channelID)
+	messageIDStr := fmt.Sprintf("%d", messageID)
+
+	// Update the message
+	messageEdit := &discordgo.MessageEdit{
+		Channel:    channelIDStr,
+		ID:         messageIDStr,
+		Embeds:     &[]*discordgo.MessageEmbed{embed},
+		Components: &components,
+	}
+
+	_, err := f.session.ChannelMessageEditComplex(messageEdit)
+	if err != nil {
+		return fmt.Errorf("failed to update group wager message: %w", err)
+	}
+
+	log.WithFields(log.Fields{
+		"messageID": messageID,
+		"channel":   channelID,
+		"wagerID":   groupDetail.Wager.ID,
+		"state":     groupDetail.Wager.State,
+	}).Info("Successfully updated group wager message")
+
+	return nil
 }

@@ -19,21 +19,19 @@ func TestSummonerWatchService_AddWatch_Success(t *testing.T) {
 	service := NewSummonerWatchService(mockRepo)
 
 	expectedWatch := &models.SummonerWatchDetail{
-		WatchID:      1,
 		GuildID:      12345,
 		WatchedAt:    time.Now(),
-		SummonerID:   100,
-		SummonerName: "TestSummoner",
-		Region:       "NA1",
+		SummonerName: "testsummoner",
+		TagLine:      "gamba",
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
 
 	// Mock expectations
-	mockRepo.On("CreateWatch", ctx, int64(12345), "TestSummoner", "NA1").Return(expectedWatch, nil)
+	mockRepo.On("CreateWatch", ctx, int64(12345), "testsummoner", "gamba").Return(expectedWatch, nil)
 
 	// Execute
-	result, err := service.AddWatch(ctx, 12345, "TestSummoner", "NA1")
+	result, err := service.AddWatch(ctx, 12345, "TestSummoner", "gamba")
 
 	// Assert
 	assert.NoError(t, err)
@@ -92,21 +90,21 @@ func TestSummonerWatchService_AddWatch_InvalidSummonerName(t *testing.T) {
 	}
 }
 
-func TestSummonerWatchService_AddWatch_InvalidRegion(t *testing.T) {
+func TestSummonerWatchService_AddWatch_InvalidTagLine(t *testing.T) {
 	testCases := []struct {
 		name        string
-		region      string
+		tagLine     string
 		expectedErr string
 	}{
 		{
-			name:        "empty region",
-			region:      "",
-			expectedErr: "region cannot be empty",
+			name:        "empty tagLine",
+			tagLine:     "",
+			expectedErr: "tag line cannot be empty",
 		},
 		{
-			name:        "invalid region",
-			region:      "INVALID",
-			expectedErr: "invalid region 'INVALID'",
+			name:        "invalid tagLine",
+			tagLine:     "INVALID",
+			expectedErr: "tag line must be between 2 and 5 characters",
 		},
 	}
 
@@ -117,7 +115,7 @@ func TestSummonerWatchService_AddWatch_InvalidRegion(t *testing.T) {
 			service := NewSummonerWatchService(mockRepo)
 
 			// Execute
-			result, err := service.AddWatch(ctx, 12345, "TestSummoner", tc.region)
+			result, err := service.AddWatch(ctx, 12345, "TestSummoner", tc.tagLine)
 
 			// Assert
 			assert.Error(t, err)
@@ -128,26 +126,24 @@ func TestSummonerWatchService_AddWatch_InvalidRegion(t *testing.T) {
 	}
 }
 
-func TestSummonerWatchService_AddWatch_LowercaseRegion(t *testing.T) {
+func TestSummonerWatchService_AddWatch_LowercaseTagLine(t *testing.T) {
 	ctx := context.Background()
 	mockRepo := new(MockSummonerWatchRepository)
 	service := NewSummonerWatchService(mockRepo)
 
 	expectedWatch := &models.SummonerWatchDetail{
-		WatchID:      1,
 		GuildID:      12345,
 		WatchedAt:    time.Now(),
-		SummonerID:   100,
-		SummonerName: "TestSummoner",
-		Region:       "NA1", // Should be normalized to uppercase
+		SummonerName: "testsummoner",
+		TagLine:      "na1",
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
 
-	// Mock expectations - should call with uppercase region
-	mockRepo.On("CreateWatch", ctx, int64(12345), "TestSummoner", "NA1").Return(expectedWatch, nil)
+	// Mock expectations - should call with lowercase tagLine as is
+	mockRepo.On("CreateWatch", ctx, int64(12345), "testsummoner", "na1").Return(expectedWatch, nil)
 
-	// Execute with lowercase region
+	// Execute with lowercase tagLine
 	result, err := service.AddWatch(ctx, 12345, "TestSummoner", "na1")
 
 	// Assert
@@ -156,49 +152,16 @@ func TestSummonerWatchService_AddWatch_LowercaseRegion(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-func TestSummonerWatchService_AddWatch_ValidRegions(t *testing.T) {
-	validRegions := []string{"NA1", "EUW1", "EUN1", "KR", "BR1", "LA1", "LA2", "OC1", "RU", "TR1", "JP1", "PH2", "SG2", "TH2", "TW2", "VN2"}
-
-	for _, region := range validRegions {
-		t.Run("valid_region_"+region, func(t *testing.T) {
-			ctx := context.Background()
-			mockRepo := new(MockSummonerWatchRepository)
-			service := NewSummonerWatchService(mockRepo)
-
-			expectedWatch := &models.SummonerWatchDetail{
-				WatchID:      1,
-				GuildID:      12345,
-				WatchedAt:    time.Now(),
-				SummonerID:   100,
-				SummonerName: "TestSummoner",
-				Region:       region,
-				CreatedAt:    time.Now(),
-				UpdatedAt:    time.Now(),
-			}
-
-			mockRepo.On("CreateWatch", ctx, int64(12345), "TestSummoner", region).Return(expectedWatch, nil)
-
-			// Execute
-			result, err := service.AddWatch(ctx, 12345, "TestSummoner", region)
-
-			// Assert
-			assert.NoError(t, err)
-			assert.Equal(t, expectedWatch, result)
-			mockRepo.AssertExpectations(t)
-		})
-	}
-}
-
 func TestSummonerWatchService_AddWatch_RepositoryError(t *testing.T) {
 	ctx := context.Background()
 	mockRepo := new(MockSummonerWatchRepository)
 	service := NewSummonerWatchService(mockRepo)
 
 	repoErr := errors.New("repository error")
-	mockRepo.On("CreateWatch", ctx, int64(12345), "TestSummoner", "NA1").Return(nil, repoErr)
+	mockRepo.On("CreateWatch", ctx, int64(12345), "testsummoner", "gamba").Return(nil, repoErr)
 
 	// Execute
-	result, err := service.AddWatch(ctx, 12345, "TestSummoner", "NA1")
+	result, err := service.AddWatch(ctx, 12345, "TestSummoner", "gamba")
 
 	// Assert
 	assert.Error(t, err)
@@ -213,15 +176,14 @@ func TestSummonerWatchService_RemoveWatch_Success(t *testing.T) {
 	service := NewSummonerWatchService(mockRepo)
 
 	existingWatch := &models.SummonerWatchDetail{
-		WatchID:      1,
 		GuildID:      12345,
 		SummonerName: "TestSummoner",
-		Region:       "NA1",
+		TagLine:      "NA1",
 	}
 
 	// Mock expectations
-	mockRepo.On("GetWatch", ctx, int64(12345), "TestSummoner", "NA1").Return(existingWatch, nil)
-	mockRepo.On("DeleteWatch", ctx, int64(12345), "TestSummoner", "NA1").Return(nil)
+	mockRepo.On("GetWatch", ctx, int64(12345), "testsummoner", "na1").Return(existingWatch, nil)
+	mockRepo.On("DeleteWatch", ctx, int64(12345), "testsummoner", "na1").Return(nil)
 
 	// Execute
 	err := service.RemoveWatch(ctx, 12345, "TestSummoner", "NA1")
@@ -237,7 +199,7 @@ func TestSummonerWatchService_RemoveWatch_NotFound(t *testing.T) {
 	service := NewSummonerWatchService(mockRepo)
 
 	// Mock expectations - watch doesn't exist
-	mockRepo.On("GetWatch", ctx, int64(12345), "TestSummoner", "NA1").Return(nil, errors.New("not found"))
+	mockRepo.On("GetWatch", ctx, int64(12345), "testsummoner", "na1").Return(nil, errors.New("not found"))
 
 	// Execute
 	err := service.RemoveWatch(ctx, 12345, "TestSummoner", "NA1")
@@ -269,17 +231,16 @@ func TestSummonerWatchService_RemoveWatch_DeleteError(t *testing.T) {
 	service := NewSummonerWatchService(mockRepo)
 
 	existingWatch := &models.SummonerWatchDetail{
-		WatchID:      1,
 		GuildID:      12345,
-		SummonerName: "TestSummoner",
-		Region:       "NA1",
+		SummonerName: "testsummoner",
+		TagLine:      "NA1",
 	}
 
 	deleteErr := errors.New("delete failed")
 
 	// Mock expectations
-	mockRepo.On("GetWatch", ctx, int64(12345), "TestSummoner", "NA1").Return(existingWatch, nil)
-	mockRepo.On("DeleteWatch", ctx, int64(12345), "TestSummoner", "NA1").Return(deleteErr)
+	mockRepo.On("GetWatch", ctx, int64(12345), "testsummoner", "na1").Return(existingWatch, nil)
+	mockRepo.On("DeleteWatch", ctx, int64(12345), "testsummoner", "na1").Return(deleteErr)
 
 	// Execute
 	err := service.RemoveWatch(ctx, 12345, "TestSummoner", "NA1")
@@ -297,16 +258,14 @@ func TestSummonerWatchService_ListWatches_Success(t *testing.T) {
 
 	expectedWatches := []*models.SummonerWatchDetail{
 		{
-			WatchID:      1,
 			GuildID:      12345,
 			SummonerName: "Summoner1",
-			Region:       "NA1",
+			TagLine:      "NA1",
 		},
 		{
-			WatchID:      2,
 			GuildID:      12345,
 			SummonerName: "Summoner2",
-			Region:       "EUW1",
+			TagLine:      "EUW1",
 		},
 	}
 
@@ -357,63 +316,6 @@ func TestSummonerWatchService_ListWatches_RepositoryError(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-func TestSummonerWatchService_GetWatchDetails_Success(t *testing.T) {
-	ctx := context.Background()
-	mockRepo := new(MockSummonerWatchRepository)
-	service := NewSummonerWatchService(mockRepo)
-
-	expectedWatch := &models.SummonerWatchDetail{
-		WatchID:      1,
-		GuildID:      12345,
-		SummonerName: "TestSummoner",
-		Region:       "NA1",
-	}
-
-	// Mock expectations
-	mockRepo.On("GetWatch", ctx, int64(12345), "TestSummoner", "NA1").Return(expectedWatch, nil)
-
-	// Execute
-	result, err := service.GetWatchDetails(ctx, 12345, "TestSummoner", "NA1")
-
-	// Assert
-	assert.NoError(t, err)
-	assert.Equal(t, expectedWatch, result)
-	mockRepo.AssertExpectations(t)
-}
-
-func TestSummonerWatchService_GetWatchDetails_NotFound(t *testing.T) {
-	ctx := context.Background()
-	mockRepo := new(MockSummonerWatchRepository)
-	service := NewSummonerWatchService(mockRepo)
-
-	// Mock expectations - watch doesn't exist
-	mockRepo.On("GetWatch", ctx, int64(12345), "TestSummoner", "NA1").Return(nil, errors.New("not found"))
-
-	// Execute
-	result, err := service.GetWatchDetails(ctx, 12345, "TestSummoner", "NA1")
-
-	// Assert
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "summoner watch not found")
-	assert.Nil(t, result)
-	mockRepo.AssertExpectations(t)
-}
-
-func TestSummonerWatchService_GetWatchDetails_ValidationError(t *testing.T) {
-	ctx := context.Background()
-	mockRepo := new(MockSummonerWatchRepository)
-	service := NewSummonerWatchService(mockRepo)
-
-	// Execute with invalid region
-	result, err := service.GetWatchDetails(ctx, 12345, "TestSummoner", "INVALID")
-
-	// Assert
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid region")
-	assert.Nil(t, result)
-	mockRepo.AssertNotCalled(t, "GetWatch")
-}
-
 func TestSummonerWatchService_ValidateSummonerName_ValidNames(t *testing.T) {
 	service := &summonerWatchService{}
 
@@ -434,19 +336,31 @@ func TestSummonerWatchService_ValidateSummonerName_ValidNames(t *testing.T) {
 	}
 }
 
-func TestSummonerWatchService_ValidateRegion_CaseInsensitive(t *testing.T) {
+func TestSummonerWatchService_ValidateTagLine(t *testing.T) {
 	service := &summonerWatchService{}
 
-	// Should pass for lowercase since validation converts to uppercase internally
-	err := service.validateRegion("na1")
-	assert.NoError(t, err)
+	// Valid tag lines
+	validCases := []string{"gamba", "test", "123", "AB", "xyz"}
+	for _, tagLine := range validCases {
+		err := service.validateTagLine(tagLine)
+		assert.NoError(t, err, "tag line %s should be valid", tagLine)
+	}
 
-	// Should pass for uppercase
-	err = service.validateRegion("NA1")
-	assert.NoError(t, err)
+	// Invalid cases
+	invalidCases := []struct {
+		tagLine string
+		error   string
+	}{
+		{"", "tag line cannot be empty"},
+		{"a", "tag line must be between 2 and 5 characters"},       // too short
+		{"toolong", "tag line must be between 2 and 5 characters"}, // too long
+		{"test!", "tag line contains invalid characters"},          // special char
+		{"te st", "tag line contains invalid characters"},          // space
+	}
 
-	// Should fail for invalid region
-	err = service.validateRegion("INVALID")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid region 'INVALID'")
+	for _, tc := range invalidCases {
+		err := service.validateTagLine(tc.tagLine)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), tc.error, "tag line %s should fail with expected error", tc.tagLine)
+	}
 }

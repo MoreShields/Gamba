@@ -162,6 +162,76 @@ func (b *Bot) registerCommands() error {
 						},
 					},
 				},
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "primary-channel",
+					Description: "Set the primary channel for bot activities",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionChannel,
+							Name:        "channel",
+							Description: "The channel to set as primary (leave empty to disable)",
+							Required:    false,
+						},
+					},
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "lol-channel",
+					Description: "Set the channel for League of Legends activities",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionChannel,
+							Name:        "channel",
+							Description: "The channel to set for LOL activities (leave empty to disable)",
+							Required:    false,
+						},
+					},
+				},
+			},
+		},
+		{
+			Name:        "summoner",
+			Description: "League of Legends summoner tracking",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "watch",
+					Description: "Start tracking a summoner",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "game_name",
+							Description: "League of Legends game name (e.g., Faker)",
+							Required:    true,
+						},
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "tag",
+							Description: "Riot ID tag line (e.g., KR1)",
+							Required:    true,
+						},
+					},
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "unwatch",
+					Description: "Stop tracking a summoner",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "game_name",
+							Description: "League of Legends game name (e.g., Faker)",
+							Required:    true,
+						},
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "tag",
+							Description: "Riot ID tag line (e.g., KR1)",
+							Required:    true,
+						},
+					},
+				},
 			},
 		},
 	}

@@ -14,8 +14,8 @@ enum GameStatus {
 
 // Events emitted from lol-tracker
 message LoLGameStateChanged {
-  string summoner_name = 1;            // Primary identifier
-  string region = 2;                   // Region
+  string game_name = 1;                // Summoner game name (e.g., "Faker")
+  string tag_line = 2;                 // Riot ID tag line (e.g., "KR1")
   
   GameStatus previous_status = 3;      // Previous game status
   GameStatus current_status = 4;       // Current game status

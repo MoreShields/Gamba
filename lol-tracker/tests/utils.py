@@ -48,11 +48,9 @@ def assert_player_equals(
     if not ignore_id:
         assert actual.id == expected.id
 
-    assert actual.summoner_name == expected.summoner_name
-    assert actual.region == expected.region
+    assert actual.game_name == expected.game_name
+    assert actual.tag_line == expected.tag_line
     assert actual.puuid == expected.puuid
-    assert actual.account_id == expected.account_id
-    assert actual.summoner_id == expected.summoner_id
     assert actual.is_active == expected.is_active
 
 

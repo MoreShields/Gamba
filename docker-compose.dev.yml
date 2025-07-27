@@ -30,8 +30,8 @@ services:
   # Discord bot overrides for development
   discord-migrate:
     build:
-      context: ./discord-client
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: discord-client/Dockerfile
       target: prod
     image: gambler-discord-migrate:dev
     environment:
@@ -48,8 +48,8 @@ services:
 
   discord-bot:
     build:
-      context: ./discord-client
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: discord-client/Dockerfile
       target: dev
     image: gambler-discord-bot:dev
     environment:
@@ -73,17 +73,39 @@ services:
       discord-migrate:
         condition: service_completed_successfully
 
+  # LoL Tracker migration overrides for development
+  lol-tracker-migrate:
+    build:
+      context: .
+      dockerfile: lol-tracker/Dockerfile
+      target: production
+    image: lol-tracker-migrate:dev
+    environment:
+      RIOT_API_KEY: ${RIOT_API_KEY}
+      DATABASE_URL: postgres://gambler:gambler_dev_password@postgres:5432
+      DATABASE_NAME: lol_tracker_db
+      ENVIRONMENT: development
+    working_dir: /app
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    extra_hosts: []
+    profiles: ["lol"]
+
   # LoL Tracker overrides for development
   lol-tracker:
     build:
       context: .
       dockerfile: lol-tracker/Dockerfile
       target: dev
+    image: lol-tracker:dev
     environment:
+      RIOT_API_KEY: ${RIOT_API_KEY}
       DATABASE_URL: postgres://gambler:gambler_dev_password@postgres:5432
       DATABASE_NAME: lol_tracker_db
       ENVIRONMENT: development
-      LOG_LEVEL: debug
+      LOG_LEVEL: info
     volumes:
       - ./lol-tracker/lol_tracker:/app/lol_tracker
       - ./lol-tracker/tests:/app/tests
@@ -95,9 +117,16 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      lol-tracker-migrate:
+        condition: service_completed_successfully
       nats:
         condition: service_healthy
     profiles: ["lol"]
 
 volumes:
   postgres_data:
+
+networks:
+  gamba-bridge:
+    driver: bridge
+    name: gamba-bridge

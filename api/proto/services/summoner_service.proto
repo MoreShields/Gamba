@@ -16,8 +16,8 @@ service SummonerTrackingService {
 
 // Request to start tracking a summoner
 message StartTrackingSummonerRequest {
-  string summoner_name = 1;           // Summoner name to validate and track
-  string region = 2;                  // Region (na1, euw1, etc.)
+  string game_name = 1;               // Game name only (without tag)
+  string tag_line = 2;                // Tag line (without #)
   google.protobuf.Timestamp requested_at = 3;
 }
 
@@ -31,8 +31,8 @@ message StartTrackingSummonerResponse {
 
 // Request to stop tracking a summoner
 message StopTrackingSummonerRequest {
-  string summoner_name = 1;           // Summoner name to stop tracking
-  string region = 2;                  // Region (na1, euw1, etc.)
+  string game_name = 1;               // Game name only (without tag)
+  string tag_line = 2;                // Tag line (without #)
   google.protobuf.Timestamp requested_at = 3;
 }
 
@@ -46,12 +46,10 @@ message StopTrackingSummonerResponse {
 // Validated summoner details from Riot API
 message SummonerDetails {
   string puuid = 1;                   // Player UUID (persistent across regions)
-  string account_id = 2;              // Account ID (region-specific)
-  string summoner_id = 3;             // Summoner ID (region-specific)
-  string summoner_name = 4;           // Exact summoner name from API
-  int32 summoner_level = 5;           // Current summoner level
-  string region = 6;                  // Region where summoner was found
-  int64 last_updated = 7;             // Unix timestamp of last profile update
+  string game_name = 2;               // Exact game name from API (GameName without tag)
+  string tag_line = 3;                // Tag line from Riot ID (without #)
+  int32 summoner_level = 4;           // Current summoner level
+  int64 last_updated = 5;             // Unix timestamp of last profile update
 }
 
 // Structured error codes for validation failures
@@ -61,7 +59,6 @@ enum ValidationError {
   VALIDATION_ERROR_INVALID_REGION = 2;      // Invalid region specified
   VALIDATION_ERROR_API_ERROR = 3;           // Riot API error
   VALIDATION_ERROR_RATE_LIMITED = 4;        // Rate limit exceeded
-  VALIDATION_ERROR_ALREADY_TRACKED = 5;     // Summoner is already being tracked
-  VALIDATION_ERROR_NOT_TRACKED = 6;         // Summoner is not being tracked
-  VALIDATION_ERROR_INTERNAL_ERROR = 7;      // Internal service error
+  VALIDATION_ERROR_NOT_TRACKED = 5;         // Summoner is not being tracked
+  VALIDATION_ERROR_INTERNAL_ERROR = 6;      // Internal service error
 }

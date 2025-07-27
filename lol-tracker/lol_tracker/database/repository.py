@@ -18,19 +18,15 @@ class TrackedPlayerRepository:
 
     async def create(
         self,
-        summoner_name: str,
-        region: str,
-        puuid: Optional[str] = None,
-        account_id: Optional[str] = None,
-        summoner_id: Optional[str] = None,
+        game_name: str,
+        tag_line: str,
+        puuid: str,
     ) -> TrackedPlayer:
         """Create a new tracked player."""
         player = TrackedPlayer(
-            summoner_name=summoner_name,
-            region=region,
+            game_name=game_name,
+            tag_line=tag_line,
             puuid=puuid,
-            account_id=account_id,
-            summoner_id=summoner_id,
         )
         self.session.add(player)
         await self.session.flush()
@@ -43,17 +39,6 @@ class TrackedPlayerRepository:
         )
         return result.scalar_one_or_none()
 
-    async def get_by_summoner_and_region(
-        self, summoner_name: str, region: str
-    ) -> Optional[TrackedPlayer]:
-        """Get a tracked player by summoner name and region."""
-        result = await self.session.execute(
-            select(TrackedPlayer).where(
-                TrackedPlayer.summoner_name == summoner_name,
-                TrackedPlayer.region == region,
-            )
-        )
-        return result.scalar_one_or_none()
 
     async def get_by_puuid(self, puuid: str) -> Optional[TrackedPlayer]:
         """Get a tracked player by PUUID."""
@@ -69,31 +54,16 @@ class TrackedPlayerRepository:
         )
         return list(result.scalars().all())
 
-    async def update_riot_ids(
+    async def update_puuid(
         self,
         player_id: int,
-        puuid: Optional[str] = None,
-        account_id: Optional[str] = None,
-        summoner_id: Optional[str] = None,
+        puuid: str,
     ) -> bool:
-        """Update Riot API IDs for a tracked player."""
-        update_data = {}
-        if puuid is not None:
-            update_data["puuid"] = puuid
-        if account_id is not None:
-            update_data["account_id"] = account_id
-        if summoner_id is not None:
-            update_data["summoner_id"] = summoner_id
-
-        if not update_data:
-            return False
-
-        update_data["updated_at"] = datetime.utcnow()
-
+        """Update PUUID for a tracked player."""
         result = await self.session.execute(
             update(TrackedPlayer)
             .where(TrackedPlayer.id == player_id)
-            .values(**update_data)
+            .values(puuid=puuid, updated_at=datetime.utcnow())
         )
         return result.rowcount > 0
 

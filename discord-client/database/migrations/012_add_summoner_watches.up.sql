@@ -1,14 +1,13 @@
 -- Add summoner watch functionality with normalized schema
 -- Creates two tables: summoners (core summoner data) and guild_summoner_watches (many-to-many relationship)
 
--- Create summoners table to store unique summoner/region combinations
+-- Create summoners table to store unique summoner/tag_line combinations
 CREATE TABLE summoners (
     id SERIAL PRIMARY KEY,
-    summoner_name VARCHAR(255) NOT NULL,
-    region VARCHAR(10) NOT NULL DEFAULT 'NA1',
+    game_name VARCHAR(255) NOT NULL,
+    tag_line VARCHAR(5) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT unique_summoner_region UNIQUE (summoner_name, region)
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Create many-to-many relationship table linking guilds to summoners
@@ -20,10 +19,12 @@ CREATE TABLE guild_summoner_watches (
     CONSTRAINT unique_guild_summoner UNIQUE (guild_id, summoner_id)
 );
 
+-- Create case-insensitive unique constraint for game_name and tag_line
+CREATE UNIQUE INDEX unique_summoner_tagline_ci ON summoners (LOWER(game_name), LOWER(tag_line));
+
 -- Create indexes for efficient querying
-CREATE INDEX idx_summoners_name ON summoners(summoner_name);
-CREATE INDEX idx_summoners_region ON summoners(region);
-CREATE INDEX idx_summoners_name_region ON summoners(summoner_name, region);
+CREATE INDEX idx_summoners_name ON summoners(LOWER(game_name));
+CREATE INDEX idx_summoners_tag_line ON summoners(LOWER(tag_line));
 CREATE INDEX idx_guild_summoner_watches_guild_id ON guild_summoner_watches(guild_id);
 CREATE INDEX idx_guild_summoner_watches_summoner_id ON guild_summoner_watches(summoner_id);
 

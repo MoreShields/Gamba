@@ -32,7 +32,7 @@ func (s *guildSettingsService) GetOrCreateSettings(ctx context.Context, guildID 
 }
 
 // UpdatePrimaryChannel updates the primary channel for a guild
-func (s *guildSettingsService) UpdatePrimaryChannel(ctx context.Context, guildID int64, channelID int64) error {
+func (s *guildSettingsService) UpdatePrimaryChannel(ctx context.Context, guildID int64, channelID *int64) error {
 
 	// Get existing settings
 	settings, err := s.guildSettingsRepo.GetOrCreateGuildSettings(ctx, guildID)
@@ -40,8 +40,28 @@ func (s *guildSettingsService) UpdatePrimaryChannel(ctx context.Context, guildID
 		return fmt.Errorf("failed to get guild settings: %w", err)
 	}
 
-	// Update primary channel
-	settings.PrimaryChannelID = &channelID
+	// Update primary channel (can be nil to disable)
+	settings.PrimaryChannelID = channelID
+
+	// Save updated settings
+	if err := s.guildSettingsRepo.UpdateGuildSettings(ctx, settings); err != nil {
+		return fmt.Errorf("failed to update guild settings: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateLolChannel updates the LOL channel for a guild
+func (s *guildSettingsService) UpdateLolChannel(ctx context.Context, guildID int64, channelID *int64) error {
+
+	// Get existing settings
+	settings, err := s.guildSettingsRepo.GetOrCreateGuildSettings(ctx, guildID)
+	if err != nil {
+		return fmt.Errorf("failed to get guild settings: %w", err)
+	}
+
+	// Update LOL channel (can be nil to disable)
+	settings.LolChannelID = channelID
 
 	// Save updated settings
 	if err := s.guildSettingsRepo.UpdateGuildSettings(ctx, settings); err != nil {

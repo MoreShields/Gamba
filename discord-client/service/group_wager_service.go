@@ -35,7 +35,7 @@ func NewGroupWagerService(
 }
 
 // CreateGroupWager creates a new group wager with options
-func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int64, condition string, options []string, votingPeriodMinutes int, messageID, channelID int64, wagerType models.GroupWagerType, oddsMultipliers []float64) (*models.GroupWagerDetail, error) {
+func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID *int64, condition string, options []string, votingPeriodMinutes int, messageID, channelID int64, wagerType models.GroupWagerType, oddsMultipliers []float64) (*models.GroupWagerDetail, error) {
 	// Validate inputs
 	if condition == "" {
 		return nil, fmt.Errorf("condition cannot be empty")
@@ -46,12 +46,12 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int6
 	if votingPeriodMinutes < 5 || votingPeriodMinutes > 10080 {
 		return nil, fmt.Errorf("voting period must be between 5 minutes and 168 hours (10080 minutes)")
 	}
-	
+
 	// Validate wager type
 	if wagerType != models.GroupWagerTypePool && wagerType != models.GroupWagerTypeHouse {
 		return nil, fmt.Errorf("invalid wager type: %s", wagerType)
 	}
-	
+
 	// Validate odds multipliers for house wagers
 	if wagerType == models.GroupWagerTypeHouse {
 		if len(oddsMultipliers) != len(options) {
@@ -79,18 +79,26 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int6
 		optionMap[lowerOption] = true
 	}
 
-	// Check if creator exists
-	creator, err := s.userRepo.GetByDiscordID(ctx, creatorID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get creator: %w", err)
-	}
-	if creator == nil {
-		return nil, fmt.Errorf("creator not found")
+	// Check if creator exists (skip validation for system-created wagers)
+	if creatorID != nil {
+		creator, err := s.userRepo.GetByDiscordID(ctx, *creatorID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get creator: %w", err)
+		}
+		if creator == nil {
+			return nil, fmt.Errorf("creator %d not found", *creatorID)
+		}
 	}
 
 	// Calculate voting period times
 	now := time.Now()
 	votingEndTime := now.Add(time.Duration(votingPeriodMinutes) * time.Minute)
+
+	// Set minimum participants based on wager type
+	minParticipants := 3 // Default for pool wagers
+	if wagerType == models.GroupWagerTypeHouse {
+		minParticipants = 0 // House wagers don't require minimum participants
+	}
 
 	// Create the group wager
 	groupWager := &models.GroupWager{
@@ -99,7 +107,7 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int6
 		State:               models.GroupWagerStateActive,
 		WagerType:           wagerType,
 		TotalPot:            0,
-		MinParticipants:     3,
+		MinParticipants:     minParticipants,
 		VotingPeriodMinutes: votingPeriodMinutes,
 		VotingStartsAt:      &now,
 		VotingEndsAt:        &votingEndTime,
@@ -119,7 +127,7 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID int6
 			// For pool wagers, start with 0 odds (will be calculated after creation)
 			odds = 0
 		}
-		
+
 		option := &models.GroupWagerOption{
 			OptionText:     optionText,
 			OptionOrder:    int16(i),
@@ -148,30 +156,31 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 		return nil, fmt.Errorf("bet amount must be positive")
 	}
 
-	// Get the group wager
-	groupWager, err := s.groupWagerRepo.GetByID(ctx, groupWagerID)
+	// Get full detail including options and wager
+	detail, err := s.groupWagerRepo.GetDetailByID(ctx, groupWagerID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get group wager: %w", err)
+		return nil, fmt.Errorf("failed to get group wager detail: %w", err)
 	}
-	if groupWager == nil {
+	if detail == nil || detail.Wager == nil {
 		return nil, fmt.Errorf("group wager not found")
 	}
+
+	groupWager := detail.Wager
 
 	// Check if betting is allowed
 	if !groupWager.CanAcceptBets() {
 		if groupWager.IsActive() && groupWager.IsVotingPeriodExpired() {
 			return nil, fmt.Errorf("voting period has ended, bets can no longer be placed or changed")
 		}
-		return nil, fmt.Errorf("group wager is not accepting bets (state: %s)", groupWager.State)
-	}
-
-	// Get full detail including options
-	detail, err := s.groupWagerRepo.GetDetailByID(ctx, groupWagerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get group wager detail: %w", err)
-	}
-	if detail == nil {
-		return nil, fmt.Errorf("group wager not found")
+		// Provide user-friendly error messages for specific states
+		switch groupWager.State {
+		case models.GroupWagerStateResolved:
+			return nil, fmt.Errorf("cannot place bets on resolved wager")
+		case models.GroupWagerStateCancelled:
+			return nil, fmt.Errorf("cannot place bets on cancelled wager")
+		default:
+			return nil, fmt.Errorf("group wager is not accepting bets (state: %s)", groupWager.State)
+		}
 	}
 
 	options := detail.Options
@@ -193,7 +202,7 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 	if user == nil {
-		return nil, fmt.Errorf("user not found")
+		return nil, fmt.Errorf("user %d not found", userID)
 	}
 
 	// Check for existing participation
@@ -281,33 +290,26 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 }
 
 // ResolveGroupWager resolves a group wager with the winning option
-func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID int64, resolverID int64, winningOptionText string) (*models.GroupWagerResult, error) {
-	// Check if user is a resolver
-	if !s.IsResolver(resolverID) {
+func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID int64, resolverID *int64, winningOptionID int64) (*models.GroupWagerResult, error) {
+	// Check if user is a resolver (skip check for system resolution when resolverID is nil)
+	if resolverID != nil && !s.IsResolver(*resolverID) {
 		return nil, fmt.Errorf("user is not authorized to resolve group wagers")
 	}
 
-	// Get the group wager
-	groupWager, err := s.groupWagerRepo.GetByID(ctx, groupWagerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get group wager: %w", err)
-	}
-	if groupWager == nil {
-		return nil, fmt.Errorf("group wager not found")
-	}
-
-	// Check if wager can be resolved
-	if !groupWager.IsActive() && !groupWager.IsPendingResolution() {
-		return nil, fmt.Errorf("group wager cannot be resolved (current state: %s)", groupWager.State)
-	}
-
-	// Get full detail to get participants and options
+	// Get full detail to get participants and options (this includes the wager with external reference)
 	detail, err := s.groupWagerRepo.GetDetailByID(ctx, groupWagerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get group wager detail: %w", err)
 	}
-	if detail == nil {
+	if detail == nil || detail.Wager == nil {
 		return nil, fmt.Errorf("group wager not found")
+	}
+
+	groupWager := detail.Wager
+
+	// Check if wager can be resolved
+	if !groupWager.IsActive() && !groupWager.IsPendingResolution() {
+		return nil, fmt.Errorf("group wager cannot be resolved (current state: %s)", groupWager.State)
 	}
 
 	participants := detail.Participants
@@ -318,32 +320,36 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 		participantsByOption[p.OptionID] = append(participantsByOption[p.OptionID], p)
 	}
 
-	if len(participants) < groupWager.MinParticipants {
-		return nil, fmt.Errorf("insufficient participants: have %d, need %d", len(participants), groupWager.MinParticipants)
-	}
+	// Skip participant validation for house wagers
+	// House wagers should resolve regardless of participation since the house provides liquidity
+	if !groupWager.IsHouseWager() {
+		if len(participants) < groupWager.MinParticipants {
+			return nil, fmt.Errorf("insufficient participants: have %d, need %d", len(participants), groupWager.MinParticipants)
+		}
 
-	optionsWithParticipants := 0
-	for _, parts := range participantsByOption {
-		if len(parts) > 0 {
-			optionsWithParticipants++
+		optionsWithParticipants := 0
+		for _, parts := range participantsByOption {
+			if len(parts) > 0 {
+				optionsWithParticipants++
+			}
+		}
+		if optionsWithParticipants < 2 {
+			return nil, fmt.Errorf("need participants on at least 2 different options")
 		}
 	}
-	if optionsWithParticipants < 2 {
-		return nil, fmt.Errorf("need participants on at least 2 different options")
-	}
 
-	// Get the winning option from detail by exact text match
+	// Get the winning option from detail by ID
 	options := detail.Options
 
 	var winningOption *models.GroupWagerOption
 	for _, opt := range options {
-		if opt.OptionText == winningOptionText {
+		if opt.ID == winningOptionID {
 			winningOption = opt
 			break
 		}
 	}
 	if winningOption == nil {
-		return nil, fmt.Errorf("no option found with text: %s", winningOptionText)
+		return nil, fmt.Errorf("no option found with ID: %d", winningOptionID)
 	}
 
 	// Calculate payouts
@@ -403,7 +409,7 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 		if true {
 			newBalance := user.Balance + balanceChange
 			if err := s.userRepo.UpdateBalance(ctx, winner.DiscordID, newBalance); err != nil {
-			return nil, fmt.Errorf("failed to update winner balance: %w", err)
+				return nil, fmt.Errorf("failed to update winner balance: %w", err)
 			}
 
 			// Record balance history
@@ -425,7 +431,7 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 			}
 
 			if err := RecordBalanceChange(ctx, s.balanceHistoryRepo, s.eventPublisher, history); err != nil {
-			return nil, fmt.Errorf("failed to record winner balance change: %w", err)
+				return nil, fmt.Errorf("failed to record winner balance change: %w", err)
 			}
 
 			// Update participant with balance history ID
@@ -499,8 +505,7 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 	now := time.Now()
 	oldState := groupWager.State
 	groupWager.State = models.GroupWagerStateResolved
-	groupWager.ResolverDiscordID = &resolverID
-	winningOptionID := winningOption.ID
+	groupWager.ResolverDiscordID = resolverID
 	groupWager.WinningOptionID = &winningOptionID
 	groupWager.ResolvedAt = &now
 
@@ -511,6 +516,7 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 	// Publish state change event
 	s.eventPublisher.Publish(events.GroupWagerStateChangeEvent{
 		GroupWagerID: groupWager.ID,
+		GuildID:      groupWager.GuildID,
 		OldState:     string(oldState),
 		NewState:     string(groupWager.State),
 		MessageID:    groupWager.MessageID,
@@ -572,11 +578,16 @@ func (s *groupWagerService) IsResolver(discordID int64) bool {
 
 // UpdateMessageIDs updates the message and channel IDs for a group wager
 func (s *groupWagerService) UpdateMessageIDs(ctx context.Context, groupWagerID int64, messageID int64, channelID int64) error {
-	// Get the group wager
-	groupWager, err := s.groupWagerRepo.GetByID(ctx, groupWagerID)
+	// Get the group wager detail
+	detail, err := s.groupWagerRepo.GetDetailByID(ctx, groupWagerID)
 	if err != nil {
-		return fmt.Errorf("failed to get group wager: %w", err)
+		return fmt.Errorf("failed to get group wager detail: %w", err)
 	}
+	if detail == nil || detail.Wager == nil {
+		return fmt.Errorf("group wager not found")
+	}
+
+	groupWager := detail.Wager
 
 	// Update message and channel IDs
 	groupWager.MessageID = messageID
@@ -590,7 +601,7 @@ func (s *groupWagerService) UpdateMessageIDs(ctx context.Context, groupWagerID i
 	return nil
 }
 
-// TransitionExpiredWagers finds and transitions expired active wagers to pending_resolution
+// TransitionExpiredWagers finds and transitions active wagers to pending_resolution once their betting window is exhausted
 func (s *groupWagerService) TransitionExpiredWagers(ctx context.Context) error {
 	// Find expired active wagers
 	expiredWagers, err := s.groupWagerRepo.GetExpiredActiveWagers(ctx)
@@ -611,6 +622,7 @@ func (s *groupWagerService) TransitionExpiredWagers(ctx context.Context) error {
 		// Publish state change event
 		s.eventPublisher.Publish(events.GroupWagerStateChangeEvent{
 			GroupWagerID: wager.ID,
+			GuildID:      wager.GuildID,
 			OldState:     string(oldState),
 			NewState:     string(wager.State),
 			MessageID:    wager.MessageID,
@@ -622,19 +634,26 @@ func (s *groupWagerService) TransitionExpiredWagers(ctx context.Context) error {
 }
 
 // CancelGroupWager cancels an active group wager
-func (s *groupWagerService) CancelGroupWager(ctx context.Context, groupWagerID int64, cancellerID int64) error {
-	// Get the group wager
-	groupWager, err := s.groupWagerRepo.GetByID(ctx, groupWagerID)
+func (s *groupWagerService) CancelGroupWager(ctx context.Context, groupWagerID int64, cancellerID *int64) error {
+	// Get the group wager detail
+	detail, err := s.groupWagerRepo.GetDetailByID(ctx, groupWagerID)
 	if err != nil {
-		return fmt.Errorf("failed to get group wager: %w", err)
+		return fmt.Errorf("failed to get group wager detail: %w", err)
 	}
-	if groupWager == nil {
+	if detail == nil || detail.Wager == nil {
 		return fmt.Errorf("group wager not found")
 	}
 
+	groupWager := detail.Wager
+
 	// Check if canceller is authorized (creator or resolver)
-	if cancellerID != groupWager.CreatorDiscordID && !s.IsResolver(cancellerID) {
-		return fmt.Errorf("only the creator or a resolver can cancel a group wager")
+	// Allow system cancellation when cancellerID is nil
+	if cancellerID != nil {
+		isCreator := groupWager.CreatorDiscordID != nil && *cancellerID == *groupWager.CreatorDiscordID
+		isResolver := s.IsResolver(*cancellerID)
+		if !isCreator && !isResolver {
+			return fmt.Errorf("only the creator or a resolver can cancel a group wager")
+		}
 	}
 
 	// Check if wager can be cancelled (only active or pending_resolution states)
@@ -654,6 +673,7 @@ func (s *groupWagerService) CancelGroupWager(ctx context.Context, groupWagerID i
 	// Publish state change event
 	s.eventPublisher.Publish(events.GroupWagerStateChangeEvent{
 		GroupWagerID: groupWager.ID,
+		GuildID:      groupWager.GuildID,
 		OldState:     string(oldState),
 		NewState:     string(groupWager.State),
 		MessageID:    groupWager.MessageID,

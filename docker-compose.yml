@@ -2,7 +2,8 @@ services:
   # NATS message broker with JetStream
   nats:
     image: nats:2.10-alpine
-    container_name: gambler-nats
+    container_name: nats
+    hostname: nats
     command: ["-c", "/etc/nats/nats.conf"]
     ports:
       - "4222:4222"  # NATS client port
@@ -61,6 +62,19 @@ services:
         condition: service_completed_successfully
     profiles: ["discord"]
 
+  # LoL Tracker migration service
+  lol-tracker-migrate:
+    container_name: lol-tracker-migrate
+    image: ghcr.io/moreshields/lol-tracker:latest
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_NAME: lol_tracker_db
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: "no"
+    profiles: ["lol"]
+
   # LoL Tracker service
   lol-tracker:
     container_name: lol-tracker
@@ -86,6 +100,8 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
+      lol-tracker-migrate:
+        condition: service_completed_successfully
       nats:
         condition: service_healthy
     healthcheck:
@@ -100,5 +116,6 @@ volumes:
   nats_data:
 
 networks:
-  default:
-    name: gambler-network
+  gamba-bridge:
+    driver: bridge
+    name: gamba-bridge

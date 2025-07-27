@@ -29,29 +29,30 @@ func newSummonerWatchRepository(tx queryable, guildID int64) *SummonerWatchRepos
 
 // CreateWatch creates a new summoner watch for a guild
 // Handles upsert of summoner and creation of watch relationship
-func (r *SummonerWatchRepository) CreateWatch(ctx context.Context, guildID int64, summonerName, region string) (*models.SummonerWatchDetail, error) {
+func (r *SummonerWatchRepository) CreateWatch(ctx context.Context, guildID int64, summonerName, tagLine string) (*models.SummonerWatchDetail, error) {
 	// First, upsert the summoner
 	summonerQuery := `
-		INSERT INTO summoners (summoner_name, region)
-		VALUES ($1, $2)
-		ON CONFLICT (summoner_name, region) 
+		INSERT INTO summoners (game_name, tag_line)
+		VALUES (LOWER($1), LOWER($2))
+		ON CONFLICT (LOWER(game_name), LOWER(tag_line)) 
 		DO UPDATE SET updated_at = NOW()
-		RETURNING id, summoner_name, region, created_at, updated_at`
+		RETURNING id, game_name, tag_line, created_at, updated_at`
 
 	var summoner models.Summoner
-	err := r.q.QueryRow(ctx, summonerQuery, summonerName, region).Scan(
-		&summoner.ID, &summoner.SummonerName, &summoner.Region,
+	err := r.q.QueryRow(ctx, summonerQuery, summonerName, tagLine).Scan(
+		&summoner.ID, &summoner.SummonerName, &summoner.TagLine,
 		&summoner.CreatedAt, &summoner.UpdatedAt,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to upsert summoner %s in %s: %w", summonerName, region, err)
+		return nil, fmt.Errorf("failed to upsert summoner %s#%s: %w", summonerName, tagLine, err)
 	}
 
 	// Then, create the guild watch relationship
 	watchQuery := `
 		INSERT INTO guild_summoner_watches (guild_id, summoner_id)
 		VALUES ($1, $2)
-		ON CONFLICT (guild_id, summoner_id) DO NOTHING
+		ON CONFLICT (guild_id, summoner_id) 
+		DO UPDATE SET created_at = guild_summoner_watches.created_at
 		RETURNING id, guild_id, summoner_id, created_at`
 
 	var watch models.GuildSummonerWatch
@@ -64,12 +65,10 @@ func (r *SummonerWatchRepository) CreateWatch(ctx context.Context, guildID int64
 
 	// Return the combined detail view
 	return &models.SummonerWatchDetail{
-		WatchID:      watch.ID,
 		GuildID:      watch.GuildID,
 		WatchedAt:    watch.CreatedAt,
-		SummonerID:   summoner.ID,
 		SummonerName: summoner.SummonerName,
-		Region:       summoner.Region,
+		TagLine:      summoner.TagLine,
 		CreatedAt:    summoner.CreatedAt,
 		UpdatedAt:    summoner.UpdatedAt,
 	}, nil
@@ -79,12 +78,10 @@ func (r *SummonerWatchRepository) CreateWatch(ctx context.Context, guildID int64
 func (r *SummonerWatchRepository) GetWatchesByGuild(ctx context.Context, guildID int64) ([]*models.SummonerWatchDetail, error) {
 	query := `
 		SELECT 
-			gsw.id as watch_id,
 			gsw.guild_id,
 			gsw.created_at as watched_at,
-			s.id as summoner_id,
-			s.summoner_name,
-			s.region,
+			s.game_name,
+			s.tag_line,
 			s.created_at,
 			s.updated_at
 		FROM guild_summoner_watches gsw
@@ -102,8 +99,8 @@ func (r *SummonerWatchRepository) GetWatchesByGuild(ctx context.Context, guildID
 	for rows.Next() {
 		var watch models.SummonerWatchDetail
 		err := rows.Scan(
-			&watch.WatchID, &watch.GuildID, &watch.WatchedAt,
-			&watch.SummonerID, &watch.SummonerName, &watch.Region,
+			&watch.GuildID, &watch.WatchedAt,
+			&watch.SummonerName, &watch.TagLine,
 			&watch.CreatedAt, &watch.UpdatedAt,
 		)
 		if err != nil {
@@ -120,17 +117,17 @@ func (r *SummonerWatchRepository) GetWatchesByGuild(ctx context.Context, guildID
 }
 
 // GetGuildsWatchingSummoner returns all guild-summoner watch relationships for a specific summoner
-func (r *SummonerWatchRepository) GetGuildsWatchingSummoner(ctx context.Context, summonerName, region string) ([]*models.GuildSummonerWatch, error) {
+func (r *SummonerWatchRepository) GetGuildsWatchingSummoner(ctx context.Context, summonerName, tagLine string) ([]*models.GuildSummonerWatch, error) {
 	query := `
 		SELECT gsw.id, gsw.guild_id, gsw.summoner_id, gsw.created_at
 		FROM guild_summoner_watches gsw
 		JOIN summoners s ON gsw.summoner_id = s.id
-		WHERE s.summoner_name = $1 AND s.region = $2
+		WHERE LOWER(s.game_name) = LOWER($1) AND LOWER(s.tag_line) = LOWER($2)
 		ORDER BY gsw.created_at DESC`
 
-	rows, err := r.q.Query(ctx, query, summonerName, region)
+	rows, err := r.q.Query(ctx, query, summonerName, tagLine)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get guilds watching summoner %s in %s: %w", summonerName, region, err)
+		return nil, fmt.Errorf("failed to get guilds watching summoner %s#%s: %w", summonerName, tagLine, err)
 	}
 	defer rows.Close()
 
@@ -152,55 +149,52 @@ func (r *SummonerWatchRepository) GetGuildsWatchingSummoner(ctx context.Context,
 }
 
 // DeleteWatch removes a summoner watch for a guild
-func (r *SummonerWatchRepository) DeleteWatch(ctx context.Context, guildID int64, summonerName, region string) error {
+func (r *SummonerWatchRepository) DeleteWatch(ctx context.Context, guildID int64, summonerName, tagLine string) error {
 	query := `
 		DELETE FROM guild_summoner_watches 
 		WHERE guild_id = $1 
 		AND summoner_id = (
 			SELECT id FROM summoners 
-			WHERE summoner_name = $2 AND region = $3
+			WHERE LOWER(game_name) = LOWER($2) AND LOWER(tag_line) = LOWER($3)
 		)`
-
-	result, err := r.q.Exec(ctx, query, guildID, summonerName, region)
+	result, err := r.q.Exec(ctx, query, guildID, summonerName, tagLine)
 	if err != nil {
-		return fmt.Errorf("failed to delete watch for guild %d, summoner %s in %s: %w", guildID, summonerName, region, err)
+		return fmt.Errorf("failed to delete watch for guild %d, summoner %s#%s: %w", guildID, summonerName, tagLine, err)
 	}
 
 	rowsAffected := result.RowsAffected()
 	if rowsAffected == 0 {
-		return fmt.Errorf("no watch found for guild %d, summoner %s in %s", guildID, summonerName, region)
+		return fmt.Errorf("no watch found for guild %d, summoner %s#%s", guildID, summonerName, tagLine)
 	}
 
 	return nil
 }
 
 // GetWatch retrieves a specific summoner watch for a guild
-func (r *SummonerWatchRepository) GetWatch(ctx context.Context, guildID int64, summonerName, region string) (*models.SummonerWatchDetail, error) {
+func (r *SummonerWatchRepository) GetWatch(ctx context.Context, guildID int64, summonerName, tagLine string) (*models.SummonerWatchDetail, error) {
 	query := `
 		SELECT 
-			gsw.id as watch_id,
 			gsw.guild_id,
 			gsw.created_at as watched_at,
-			s.id as summoner_id,
-			s.summoner_name,
-			s.region,
+			s.game_name,
+			s.tag_line,
 			s.created_at,
 			s.updated_at
 		FROM guild_summoner_watches gsw
 		JOIN summoners s ON gsw.summoner_id = s.id
-		WHERE gsw.guild_id = $1 AND s.summoner_name = $2 AND s.region = $3`
+		WHERE gsw.guild_id = $1 AND LOWER(s.game_name) = LOWER($2) AND LOWER(s.tag_line) = LOWER($3)`
 
 	var watch models.SummonerWatchDetail
-	err := r.q.QueryRow(ctx, query, guildID, summonerName, region).Scan(
-		&watch.WatchID, &watch.GuildID, &watch.WatchedAt,
-		&watch.SummonerID, &watch.SummonerName, &watch.Region,
+	err := r.q.QueryRow(ctx, query, guildID, summonerName, tagLine).Scan(
+		&watch.GuildID, &watch.WatchedAt,
+		&watch.SummonerName, &watch.TagLine,
 		&watch.CreatedAt, &watch.UpdatedAt,
 	)
 	if err != nil {
 		if err.Error() == "no rows in result set" {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("failed to get watch for guild %d, summoner %s in %s: %w", guildID, summonerName, region, err)
+		return nil, fmt.Errorf("failed to get watch for guild %d, summoner %s#%s: %w", guildID, summonerName, tagLine, err)
 	}
 
 	return &watch, nil

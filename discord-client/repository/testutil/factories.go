@@ -53,7 +53,7 @@ func CreateTestBalanceHistoryWithAmounts(discordID int64, before, after, change 
 func CreateTestGroupWager(creatorID int64, condition string) *models.GroupWager {
 	futureTime := time.Now().Add(24 * time.Hour)
 	return &models.GroupWager{
-		CreatorDiscordID:    creatorID,
+		CreatorDiscordID:    &creatorID,
 		Condition:           condition,
 		State:               models.GroupWagerStateActive,
 		WagerType:           models.GroupWagerTypePool, // Default to pool
@@ -130,11 +130,11 @@ func CreateTestGroupWagerParticipantWithPayout(groupWagerID, discordID, optionID
 }
 
 // CreateTestSummoner creates a test summoner with default values
-func CreateTestSummoner(summonerName, region string) *models.Summoner {
+func CreateTestSummoner(summonerName, tagLine string) *models.Summoner {
 	now := time.Now()
 	return &models.Summoner{
 		SummonerName: summonerName,
-		Region:       region,
+		TagLine:      tagLine,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
@@ -150,15 +150,13 @@ func CreateTestGuildSummonerWatch(guildID, summonerID int64) *models.GuildSummon
 }
 
 // CreateTestSummonerWatchDetail creates a test summoner watch detail
-func CreateTestSummonerWatchDetail(guildID int64, summonerName, region string) *models.SummonerWatchDetail {
+func CreateTestSummonerWatchDetail(guildID int64, summonerName, tagLine string) *models.SummonerWatchDetail {
 	now := time.Now()
 	return &models.SummonerWatchDetail{
-		WatchID:      1,
 		GuildID:      guildID,
 		WatchedAt:    now,
-		SummonerID:   1,
 		SummonerName: summonerName,
-		Region:       region,
+		TagLine:      tagLine,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}

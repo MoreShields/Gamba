@@ -188,7 +188,7 @@ class Config:
                 cast=lambda x: Choices(["json", "text"])(x.lower()),
             ),
             # gRPC server
-            grpc_server_port=config("GRPC_SERVER_PORT", default=50051, cast=int),
+            grpc_server_port=config("GRPC_SERVER_PORT", default=9000, cast=int),
             grpc_server_max_workers=config(
                 "GRPC_SERVER_MAX_WORKERS", default=10, cast=int
             ),

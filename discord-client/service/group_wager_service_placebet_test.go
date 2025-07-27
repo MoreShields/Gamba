@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"testing"
 
 	"gambler/discord-client/models"
@@ -22,7 +21,7 @@ func findParticipantInScenario(participants []*models.GroupWagerParticipant, use
 }
 
 func TestGroupWagerService_PlaceBet_TableDriven(t *testing.T) {
-	ctx := context.Background()
+	fixture := NewGroupWagerTestFixture(t)
 
 	// Test cases that apply to both pool and house wagers
 	testCases := []struct {
@@ -141,46 +140,38 @@ func TestGroupWagerService_PlaceBet_TableDriven(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup
-			mocks := NewTestMocks()
-			helper := NewMockHelper(mocks)
-			service := NewGroupWagerService(
-				mocks.GroupWagerRepo,
-				mocks.UserRepo,
-				mocks.BalanceHistoryRepo,
-				mocks.EventPublisher,
-			)
+			// Reset fixture for each test
+			fixture.Reset()
 
 			// Build scenario
 			scenario := NewGroupWagerScenario()
 			fullScenario := tc.setupFunc(scenario)
 
 			// Setup common mocks
-			helper.ExpectWagerLookup(TestWagerID, fullScenario.Wager)
-			
 			// Create detail from scenario
 			detail := &models.GroupWagerDetail{
 				Wager:        fullScenario.Wager,
 				Options:      fullScenario.Options,
 				Participants: fullScenario.Participants,
 			}
-			helper.ExpectWagerDetailLookup(TestWagerID, detail)
+			fixture.Helper.ExpectWagerDetailLookup(TestWagerID, detail)
+			fixture.Helper.ExpectWagerDetailLookup(TestWagerID, detail)
 
 			// Setup user mock if user exists in scenario
 			if user, exists := fullScenario.Users[TestUser1ID]; exists {
-				helper.ExpectUserLookup(TestUser1ID, user)
+				fixture.Helper.ExpectUserLookup(TestUser1ID, user)
 			}
 
 			// Setup participant lookup mock - needed for all test cases
 			existingParticipant := findParticipantInScenario(fullScenario.Participants, TestUser1ID)
-			helper.ExpectParticipantLookup(TestWagerID, TestUser1ID, existingParticipant)
+			fixture.Helper.ExpectParticipantLookup(TestWagerID, TestUser1ID, existingParticipant)
 
 			// For successful cases, setup additional mocks
 			if tc.name != "insufficient balance" {
 				
 				if existingParticipant != nil {
 					// For existing participants, expect participant update
-					mocks.GroupWagerRepo.On("SaveParticipant", ctx, mock.MatchedBy(func(p *models.GroupWagerParticipant) bool {
+					fixture.Mocks.GroupWagerRepo.On("SaveParticipant", fixture.Ctx, mock.MatchedBy(func(p *models.GroupWagerParticipant) bool {
 						return p.GroupWagerID == TestWagerID &&
 							p.DiscordID == TestUser1ID &&
 							p.OptionID == fullScenario.Options[tc.betOption].ID &&
@@ -190,31 +181,31 @@ func TestGroupWagerService_PlaceBet_TableDriven(t *testing.T) {
 					// Expect option total updates for both old and new options
 					if existingParticipant.OptionID != fullScenario.Options[tc.betOption].ID {
 						// Different option - update old option to 0, new option to bet amount
-						helper.ExpectOptionTotalUpdate(existingParticipant.OptionID, 0)
-						helper.ExpectOptionTotalUpdate(fullScenario.Options[tc.betOption].ID, tc.betAmount)
+						fixture.Helper.ExpectOptionTotalUpdate(existingParticipant.OptionID, 0)
+						fixture.Helper.ExpectOptionTotalUpdate(fullScenario.Options[tc.betOption].ID, tc.betAmount)
 					} else {
 						// Same option - update to new total
-						helper.ExpectOptionTotalUpdate(fullScenario.Options[tc.betOption].ID, tc.betAmount)
+						fixture.Helper.ExpectOptionTotalUpdate(fullScenario.Options[tc.betOption].ID, tc.betAmount)
 					}
 				} else {
 					// For new participants
-					helper.ExpectNewParticipant(TestWagerID, TestUser1ID, fullScenario.Options[tc.betOption].ID, tc.betAmount)
-					helper.ExpectOptionTotalUpdate(fullScenario.Options[tc.betOption].ID, tc.betAmount)
+					fixture.Helper.ExpectNewParticipant(TestWagerID, TestUser1ID, fullScenario.Options[tc.betOption].ID, tc.betAmount)
+					fixture.Helper.ExpectOptionTotalUpdate(fullScenario.Options[tc.betOption].ID, tc.betAmount)
 				}
 				
 				// Expect wager update
-				mocks.GroupWagerRepo.On("Update", ctx, mock.MatchedBy(func(gw *models.GroupWager) bool {
+				fixture.Mocks.GroupWagerRepo.On("Update", fixture.Ctx, mock.MatchedBy(func(gw *models.GroupWager) bool {
 					return gw.ID == TestWagerID
 				})).Return(nil)
 				
 				// For pool wagers, expect odds recalculation
 				if tc.wagerType == models.GroupWagerTypePool {
-					mocks.GroupWagerRepo.On("UpdateAllOptionOdds", ctx, int64(TestWagerID), mock.AnythingOfType("map[int64]float64")).Return(nil)
+					fixture.Mocks.GroupWagerRepo.On("UpdateAllOptionOdds", fixture.Ctx, int64(TestWagerID), mock.AnythingOfType("map[int64]float64")).Return(nil)
 				}
 			}
 
 			// Execute
-			participant, err := service.PlaceBet(ctx, TestWagerID, TestUser1ID, fullScenario.Options[tc.betOption].ID, tc.betAmount)
+			participant, err := fixture.Service.PlaceBet(fixture.Ctx, TestWagerID, TestUser1ID, fullScenario.Options[tc.betOption].ID, tc.betAmount)
 
 			// Validate
 			tc.validate(t, participant, err)
@@ -222,25 +213,18 @@ func TestGroupWagerService_PlaceBet_TableDriven(t *testing.T) {
 			// Only assert expectations if we don't expect errors
 			// (error cases may not call all mocked methods)
 			if err == nil {
-				mocks.AssertAllExpectations(t)
+				fixture.AssertAllMocks()
 			}
 		})
 	}
 }
 
 func TestGroupWagerService_PlaceBet_CompleteFlow(t *testing.T) {
-	ctx := context.Background()
+	fixture := NewGroupWagerTestFixture(t)
 
 	t.Run("pool wager - complete bet flow with odds recalculation", func(t *testing.T) {
-		// Setup
-		mocks := NewTestMocks()
-		helper := NewMockHelper(mocks)
-		service := NewGroupWagerService(
-			mocks.GroupWagerRepo,
-			mocks.UserRepo,
-			mocks.BalanceHistoryRepo,
-			mocks.EventPublisher,
-		)
+		// Reset fixture for this test
+		fixture.Reset()
 
 		// Build scenario
 		scenario := NewGroupWagerScenario().
@@ -250,31 +234,30 @@ func TestGroupWagerService_PlaceBet_CompleteFlow(t *testing.T) {
 			Build()
 
 		// Setup mocks for successful bet
-		helper.ExpectWagerLookup(TestWagerID, scenario.Wager)
-		helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
+		fixture.Helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
 			Wager:        scenario.Wager,
 			Options:      scenario.Options,
 			Participants: scenario.Participants,
 		})
-		helper.ExpectUserLookup(TestUser1ID, scenario.Users[TestUser1ID])
-		helper.ExpectParticipantLookup(TestWagerID, TestUser1ID, nil) // No existing participant
-		helper.ExpectNewParticipant(TestWagerID, TestUser1ID, TestOption1ID, 1000)
-		helper.ExpectOptionTotalUpdate(TestOption1ID, 1000)
+		fixture.Helper.ExpectUserLookup(TestUser1ID, scenario.Users[TestUser1ID])
+		fixture.Helper.ExpectParticipantLookup(TestWagerID, TestUser1ID, nil) // No existing participant
+		fixture.Helper.ExpectNewParticipant(TestWagerID, TestUser1ID, TestOption1ID, 1000)
+		fixture.Helper.ExpectOptionTotalUpdate(TestOption1ID, 1000)
 		
 		// Expect wager pot update
-		mocks.GroupWagerRepo.On("Update", ctx, mock.MatchedBy(func(gw *models.GroupWager) bool {
+		fixture.Mocks.GroupWagerRepo.On("Update", fixture.Ctx, mock.MatchedBy(func(gw *models.GroupWager) bool {
 			return gw.ID == TestWagerID && gw.TotalPot == 1000
 		})).Return(nil)
 		
 		// Expect odds recalculation for pool wager
-		mocks.GroupWagerRepo.On("UpdateAllOptionOdds", ctx, int64(TestWagerID), mock.MatchedBy(func(odds map[int64]float64) bool {
+		fixture.Mocks.GroupWagerRepo.On("UpdateAllOptionOdds", fixture.Ctx, int64(TestWagerID), mock.MatchedBy(func(odds map[int64]float64) bool {
 			// Option 1 should have odds of 1.0 (1000/1000)
 			// Option 2 should have odds of 0 (no bets)
 			return odds[TestOption1ID] == 1.0 && odds[TestOption2ID] == 0
 		})).Return(nil)
 
 		// Execute
-		participant, err := service.PlaceBet(ctx, TestWagerID, TestUser1ID, TestOption1ID, 1000)
+		participant, err := fixture.Service.PlaceBet(fixture.Ctx, TestWagerID, TestUser1ID, TestOption1ID, 1000)
 
 		// Verify
 		require.NoError(t, err)
@@ -282,19 +265,12 @@ func TestGroupWagerService_PlaceBet_CompleteFlow(t *testing.T) {
 		assert.Equal(t, int64(TestOption1ID), participant.OptionID)
 		assert.Equal(t, int64(1000), participant.Amount)
 
-		mocks.AssertAllExpectations(t)
+		fixture.AssertAllMocks()
 	})
 
 	t.Run("house wager - complete bet flow without odds recalculation", func(t *testing.T) {
-		// Setup
-		mocks := NewTestMocks()
-		helper := NewMockHelper(mocks)
-		service := NewGroupWagerService(
-			mocks.GroupWagerRepo,
-			mocks.UserRepo,
-			mocks.BalanceHistoryRepo,
-			mocks.EventPublisher,
-		)
+		// Reset fixture for this test
+		fixture.Reset()
 
 		// Build scenario
 		scenario := NewGroupWagerScenario().
@@ -305,19 +281,18 @@ func TestGroupWagerService_PlaceBet_CompleteFlow(t *testing.T) {
 			Build()
 
 		// Setup mocks for successful bet
-		helper.ExpectWagerLookup(TestWagerID, scenario.Wager)
-		helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
+		fixture.Helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
 			Wager:        scenario.Wager,
 			Options:      scenario.Options,
 			Participants: scenario.Participants,
 		})
-		helper.ExpectUserLookup(TestUser1ID, scenario.Users[TestUser1ID])
-		helper.ExpectParticipantLookup(TestWagerID, TestUser1ID, nil) // No existing participant
-		helper.ExpectNewParticipant(TestWagerID, TestUser1ID, TestOption1ID, 1000)
-		helper.ExpectOptionTotalUpdate(TestOption1ID, 1000)
+		fixture.Helper.ExpectUserLookup(TestUser1ID, scenario.Users[TestUser1ID])
+		fixture.Helper.ExpectParticipantLookup(TestWagerID, TestUser1ID, nil) // No existing participant
+		fixture.Helper.ExpectNewParticipant(TestWagerID, TestUser1ID, TestOption1ID, 1000)
+		fixture.Helper.ExpectOptionTotalUpdate(TestOption1ID, 1000)
 		
 		// Expect wager pot update
-		mocks.GroupWagerRepo.On("Update", ctx, mock.MatchedBy(func(gw *models.GroupWager) bool {
+		fixture.Mocks.GroupWagerRepo.On("Update", fixture.Ctx, mock.MatchedBy(func(gw *models.GroupWager) bool {
 			return gw.ID == TestWagerID && gw.TotalPot == 1000
 		})).Return(nil)
 		
@@ -325,7 +300,7 @@ func TestGroupWagerService_PlaceBet_CompleteFlow(t *testing.T) {
 		// No expectation for UpdateAllOptionOdds
 
 		// Execute
-		participant, err := service.PlaceBet(ctx, TestWagerID, TestUser1ID, TestOption1ID, 1000)
+		participant, err := fixture.Service.PlaceBet(fixture.Ctx, TestWagerID, TestUser1ID, TestOption1ID, 1000)
 
 		// Verify
 		require.NoError(t, err)
@@ -333,23 +308,16 @@ func TestGroupWagerService_PlaceBet_CompleteFlow(t *testing.T) {
 		assert.Equal(t, int64(TestOption1ID), participant.OptionID)
 		assert.Equal(t, int64(1000), participant.Amount)
 
-		mocks.AssertAllExpectations(t)
+		fixture.AssertAllMocks()
 	})
 }
 
 func TestGroupWagerService_PlaceBet_EdgeCases(t *testing.T) {
-	ctx := context.Background()
+	fixture := NewGroupWagerTestFixture(t)
 
 	t.Run("bet on non-existent option", func(t *testing.T) {
-		// Setup
-		mocks := NewTestMocks()
-		helper := NewMockHelper(mocks)
-		service := NewGroupWagerService(
-			mocks.GroupWagerRepo,
-			mocks.UserRepo,
-			mocks.BalanceHistoryRepo,
-			mocks.EventPublisher,
-		)
+		// Reset fixture for this test
+		fixture.Reset()
 
 		// Build scenario
 		scenario := NewGroupWagerScenario().
@@ -358,63 +326,50 @@ func TestGroupWagerService_PlaceBet_EdgeCases(t *testing.T) {
 			Build()
 
 		// Setup mocks
-		helper.ExpectWagerLookup(TestWagerID, scenario.Wager)
-		helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
+		fixture.Helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
 			Wager:        scenario.Wager,
 			Options:      scenario.Options,
 			Participants: scenario.Participants,
 		})
 
 		// Execute with non-existent option ID
-		participant, err := service.PlaceBet(ctx, TestWagerID, TestUser1ID, 99999, 1000)
+		participant, err := fixture.Service.PlaceBet(fixture.Ctx, TestWagerID, TestUser1ID, 99999, 1000)
 
 		// Verify
 		assert.Error(t, err)
 		assert.Nil(t, participant)
 		assert.Contains(t, err.Error(), "invalid option")
 
-		mocks.AssertAllExpectations(t)
+		fixture.AssertAllMocks()
 	})
 
 	t.Run("negative bet amount", func(t *testing.T) {
-		// Setup
-		mocks := NewTestMocks()
-		service := NewGroupWagerService(
-			mocks.GroupWagerRepo,
-			mocks.UserRepo,
-			mocks.BalanceHistoryRepo,
-			mocks.EventPublisher,
-		)
+		// Reset fixture for this test
+		fixture.Reset()
 
 		// Execute - should fail immediately without any repository calls
-		participant, err := service.PlaceBet(ctx, TestWagerID, TestUser1ID, TestOption1ID, -1000)
+		participant, err := fixture.Service.PlaceBet(fixture.Ctx, TestWagerID, TestUser1ID, TestOption1ID, -1000)
 
 		// Verify
 		assert.Error(t, err)
 		assert.Nil(t, participant)
 		assert.Contains(t, err.Error(), "bet amount must be positive")
 
-		mocks.AssertAllExpectations(t)
+		fixture.AssertAllMocks()
 	})
 
 	t.Run("zero bet amount", func(t *testing.T) {
-		// Setup
-		mocks := NewTestMocks()
-		service := NewGroupWagerService(
-			mocks.GroupWagerRepo,
-			mocks.UserRepo,
-			mocks.BalanceHistoryRepo,
-			mocks.EventPublisher,
-		)
+		// Reset fixture for this test
+		fixture.Reset()
 
 		// Execute - should fail immediately without any repository calls
-		participant, err := service.PlaceBet(ctx, TestWagerID, TestUser1ID, TestOption1ID, 0)
+		participant, err := fixture.Service.PlaceBet(fixture.Ctx, TestWagerID, TestUser1ID, TestOption1ID, 0)
 
 		// Verify
 		assert.Error(t, err)
 		assert.Nil(t, participant)
 		assert.Contains(t, err.Error(), "bet amount must be positive")
 
-		mocks.AssertAllExpectations(t)
+		fixture.AssertAllMocks()
 	})
 }

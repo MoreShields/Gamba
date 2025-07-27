@@ -16,6 +16,9 @@ import (
 )
 
 func TestHouseWager_Integration(t *testing.T) {
+	config.SetTestConfig(config.NewTestConfig())
+	defer config.ResetConfig()
+	
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -62,7 +65,7 @@ func TestHouseWager_Integration(t *testing.T) {
 		// Create house wager with fixed odds
 		wagerDetail, err := groupWagerService.CreateGroupWager(
 			ctx,
-			creator.DiscordID,
+			&creator.DiscordID,
 			"Who will win the championship?",
 			[]string{"Team Alpha", "Team Beta", "Team Gamma"},
 			1440, // 24 hours
@@ -73,7 +76,7 @@ func TestHouseWager_Integration(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.NotNil(t, wagerDetail)
-		
+
 		// Verify wager creation
 		assert.Equal(t, models.GroupWagerTypeHouse, wagerDetail.Wager.WagerType)
 		assert.Len(t, wagerDetail.Options, 3)
@@ -100,17 +103,17 @@ func TestHouseWager_Integration(t *testing.T) {
 		// Verify balances are unchanged (bets only reserve funds, don't deduct immediately)
 		user1Updated, err := userRepo.GetByDiscordID(ctx, user1.DiscordID)
 		require.NoError(t, err)
-		assert.Equal(t, int64(100000), user1Updated.Balance) // Balance unchanged
+		assert.Equal(t, int64(100000), user1Updated.Balance)         // Balance unchanged
 		assert.Equal(t, int64(90000), user1Updated.AvailableBalance) // Available reduced by bet
 
 		user2Updated, err := userRepo.GetByDiscordID(ctx, user2.DiscordID)
 		require.NoError(t, err)
-		assert.Equal(t, int64(100000), user2Updated.Balance) // Balance unchanged
+		assert.Equal(t, int64(100000), user2Updated.Balance)         // Balance unchanged
 		assert.Equal(t, int64(95000), user2Updated.AvailableBalance) // Available reduced by bet
 
 		user3Updated, err := userRepo.GetByDiscordID(ctx, user3.DiscordID)
 		require.NoError(t, err)
-		assert.Equal(t, int64(100000), user3Updated.Balance) // Balance unchanged
+		assert.Equal(t, int64(100000), user3Updated.Balance)         // Balance unchanged
 		assert.Equal(t, int64(97500), user3Updated.AvailableBalance) // Available reduced by bet
 
 		// Verify odds didn't change after bets (house wager specific)
@@ -121,11 +124,12 @@ func TestHouseWager_Integration(t *testing.T) {
 		assert.Equal(t, 4.0, updatedDetail.Options[2].OddsMultiplier)
 
 		// Resolve wager - underdog wins!
+		creatorID := creator.DiscordID
 		result, err := groupWagerService.ResolveGroupWager(
 			ctx,
 			wagerDetail.Wager.ID,
-			creator.DiscordID,
-			wagerDetail.Options[2].OptionText, // Team Gamma wins
+			&creatorID,
+			wagerDetail.Options[2].ID, // Team Gamma wins
 		)
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -163,9 +167,10 @@ func TestHouseWager_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create house wager
+		testCreatorID := int64(999999)
 		wagerDetail, err := groupWagerService.CreateGroupWager(
 			ctx,
-			999999,
+			&testCreatorID,
 			"Coin flip",
 			[]string{"Heads", "Tails"},
 			1440, // 24 hours
@@ -179,7 +184,7 @@ func TestHouseWager_Integration(t *testing.T) {
 		// Initial bet on Heads
 		_, err = groupWagerService.PlaceBet(ctx, wagerDetail.Wager.ID, user.DiscordID, wagerDetail.Options[0].ID, 1000)
 		require.NoError(t, err)
-		
+
 		// Add more participants to meet minimum requirement (bet on Heads so they lose)
 		_, err = groupWagerService.PlaceBet(ctx, wagerDetail.Wager.ID, user2.DiscordID, wagerDetail.Options[0].ID, 2000)
 		require.NoError(t, err)
@@ -213,11 +218,12 @@ func TestHouseWager_Integration(t *testing.T) {
 		assert.Equal(t, int64(47000), userAfterBet3.AvailableBalance)
 
 		// Resolve with Tails winning
+		resolverID := int64(999999)
 		result, err := groupWagerService.ResolveGroupWager(
 			ctx,
 			wagerDetail.Wager.ID,
-			999999,
-			wagerDetail.Options[1].OptionText,
+			&resolverID,
+			wagerDetail.Options[1].ID,
 		)
 		require.NoError(t, err)
 
@@ -242,9 +248,10 @@ func TestHouseWager_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create house wager
+		testCreatorID2 := int64(999999)
 		wagerDetail, err := groupWagerService.CreateGroupWager(
 			ctx,
-			999999,
+			&testCreatorID2,
 			"Pick the winner",
 			[]string{"Option A", "Option B", "Option C"},
 			1440, // 24 hours
@@ -280,11 +287,12 @@ func TestHouseWager_Integration(t *testing.T) {
 		assert.Equal(t, int64(17000), loser3After.AvailableBalance)
 
 		// Resolve with Option A winning (no one bet on it)
+		resolverID := int64(999999)
 		result, err := groupWagerService.ResolveGroupWager(
 			ctx,
 			wagerDetail.Wager.ID,
-			999999,
-			wagerDetail.Options[0].OptionText,
+			&resolverID,
+			wagerDetail.Options[0].ID,
 		)
 		require.NoError(t, err)
 

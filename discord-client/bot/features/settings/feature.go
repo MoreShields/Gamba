@@ -30,5 +30,9 @@ func (f *Feature) HandleCommand(s *discordgo.Session, i *discordgo.InteractionCr
 	switch options[0].Name {
 	case "high-roller-role":
 		f.handleHighRollerRole(s, i)
+	case "primary-channel":
+		f.handlePrimaryChannel(s, i)
+	case "lol-channel":
+		f.handleLolChannel(s, i)
 	}
 }

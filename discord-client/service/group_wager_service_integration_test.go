@@ -17,6 +17,9 @@ import (
 )
 
 func TestGroupWagerResolution_Integration(t *testing.T) {
+	config.SetTestConfig(config.NewTestConfig())
+	defer config.ResetConfig()
+	
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -64,7 +67,7 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 		// Create group wager
 		votingEndsAt := time.Now().Add(24 * time.Hour)
 		groupWager := &models.GroupWager{
-			CreatorDiscordID:    resolver.DiscordID,
+			CreatorDiscordID:    &resolver.DiscordID,
 			Condition:           "Will team win the championship?",
 			State:               models.GroupWagerStateActive,
 			WagerType:           models.GroupWagerTypePool,
@@ -91,7 +94,6 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 		require.Len(t, detail.Options, 2)
 
 		yesOptionID := detail.Options[0].ID
-		yesOptionText := detail.Options[0].OptionText
 		noOptionID := detail.Options[1].ID
 
 		// Place bets
@@ -119,7 +121,7 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 		assert.Equal(t, int64(90000), updatedWager.TotalPot)
 
 		// Resolve the wager with "Yes" as winner
-		result, err := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, resolver.DiscordID, yesOptionText)
+		result, err := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, &resolver.DiscordID, yesOptionID)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 
@@ -194,7 +196,7 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 		// Create group wager
 		votingEndsAt := time.Now().Add(24 * time.Hour)
 		groupWager := &models.GroupWager{
-			CreatorDiscordID:    999999,
+			CreatorDiscordID:    &[]int64{999999}[0],
 			Condition:           "Will it rain tomorrow?",
 			State:               models.GroupWagerStateActive,
 			WagerType:           models.GroupWagerTypePool,
@@ -220,7 +222,6 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 
 		rainOptionID := detail.Options[0].ID
 		noRainOptionID := detail.Options[1].ID
-		noRainOptionText := detail.Options[1].OptionText
 
 		// User5 bets on Rain initially
 		_, err = groupWagerService.PlaceBet(ctx, groupWager.ID, user5.DiscordID, rainOptionID, 10000)
@@ -242,13 +243,14 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 		// Add a third participant to meet the 2-option requirement
 		user7, err := userRepo.Create(ctx, 777777, "user7", 100000)
 		require.NoError(t, err)
-		
+
 		// User7 stays on Rain option
 		_, err = groupWagerService.PlaceBet(ctx, groupWager.ID, user7.DiscordID, rainOptionID, 5000)
 		require.NoError(t, err)
 
 		// Resolve with No Rain as winner
-		result, err := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, 999999, noRainOptionText)
+		resolverID := int64(999999)
+		result, err := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, &resolverID, noRainOptionID)
 		require.NoError(t, err)
 
 		// Two winners and one loser
@@ -293,7 +295,7 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 		// Create group wager
 		votingEndsAt := time.Now().Add(24 * time.Hour)
 		groupWager := &models.GroupWager{
-			CreatorDiscordID:    999999,
+			CreatorDiscordID:    &[]int64{999999}[0],
 			Condition:           "Concurrent test wager",
 			State:               models.GroupWagerStateActive,
 			WagerType:           models.GroupWagerTypePool,
@@ -318,9 +320,7 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		optionAID := detail.Options[0].ID
-		optionAText := detail.Options[0].OptionText
 		optionBID := detail.Options[1].ID
-		optionBText := detail.Options[1].OptionText
 
 		// Place bets
 		_, err = groupWagerService.PlaceBet(ctx, groupWager.ID, user8.DiscordID, optionAID, 5000)
@@ -329,12 +329,13 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// First resolution should succeed
-		result1, err1 := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, 999999, optionAText)
+		resolverID := int64(999999)
+		result1, err1 := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, &resolverID, optionAID)
 		require.NoError(t, err1)
 		require.NotNil(t, result1)
 
 		// Second resolution attempt should fail
-		result2, err2 := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, resolver2.DiscordID, optionBText)
+		result2, err2 := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, &resolver2.DiscordID, optionBID)
 		assert.Error(t, err2)
 		assert.Nil(t, result2)
 		assert.Contains(t, err2.Error(), "cannot be resolved")
@@ -342,6 +343,9 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 }
 
 func TestGroupWagerResolution_EdgeCases(t *testing.T) {
+	config.SetTestConfig(config.NewTestConfig())
+	defer config.ResetConfig()
+	
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -377,7 +381,7 @@ func TestGroupWagerResolution_EdgeCases(t *testing.T) {
 		// Create resolver user first
 		resolver, err := userRepo.Create(ctx, 999999, "resolver", 100000)
 		require.NoError(t, err)
-		
+
 		// Create users
 		winner, err := userRepo.Create(ctx, 101010, "winner", 100000)
 		require.NoError(t, err)
@@ -389,7 +393,7 @@ func TestGroupWagerResolution_EdgeCases(t *testing.T) {
 		// Create group wager
 		votingEndsAt := time.Now().Add(24 * time.Hour)
 		groupWager := &models.GroupWager{
-			CreatorDiscordID:    resolver.DiscordID,
+			CreatorDiscordID:    &resolver.DiscordID,
 			Condition:           "Single winner test",
 			State:               models.GroupWagerStateActive,
 			WagerType:           models.GroupWagerTypePool,
@@ -414,7 +418,6 @@ func TestGroupWagerResolution_EdgeCases(t *testing.T) {
 		require.NoError(t, err)
 
 		winningOptionID := detail.Options[0].ID
-		winningOptionText := detail.Options[0].OptionText
 		losingOptionID := detail.Options[1].ID
 
 		// Place bets - only one on winning option
@@ -426,7 +429,7 @@ func TestGroupWagerResolution_EdgeCases(t *testing.T) {
 		require.NoError(t, err)
 
 		// Resolve
-		result, err := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, resolver.DiscordID, winningOptionText)
+		result, err := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, &resolver.DiscordID, winningOptionID)
 		require.NoError(t, err)
 
 		// Single winner gets entire pot
@@ -444,7 +447,7 @@ func TestGroupWagerResolution_EdgeCases(t *testing.T) {
 		// Create resolver user if not exists
 		resolver2, err := userRepo.Create(ctx, 999991, "resolver2", 100000)
 		require.NoError(t, err)
-		
+
 		// Create users
 		user1, err := userRepo.Create(ctx, 404040, "user1", 100000)
 		require.NoError(t, err)
@@ -456,7 +459,7 @@ func TestGroupWagerResolution_EdgeCases(t *testing.T) {
 		// Create group wager
 		votingEndsAt := time.Now().Add(24 * time.Hour)
 		groupWager := &models.GroupWager{
-			CreatorDiscordID:    resolver2.DiscordID,
+			CreatorDiscordID:    &resolver2.DiscordID,
 			Condition:           "Rounding test",
 			State:               models.GroupWagerStateActive,
 			WagerType:           models.GroupWagerTypePool,
@@ -481,7 +484,6 @@ func TestGroupWagerResolution_EdgeCases(t *testing.T) {
 		require.NoError(t, err)
 
 		optionAID := detail.Options[0].ID
-		optionAText := detail.Options[0].OptionText
 		optionBID := detail.Options[1].ID
 
 		// Place bets with amounts that will cause rounding
@@ -493,7 +495,7 @@ func TestGroupWagerResolution_EdgeCases(t *testing.T) {
 		require.NoError(t, err)
 
 		// Resolve with option A as winner
-		result, err := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, resolver2.DiscordID, optionAText)
+		result, err := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, &resolver2.DiscordID, optionAID)
 		require.NoError(t, err)
 
 		// Total pot is 2000, winning option has 1000
