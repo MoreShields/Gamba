@@ -20,7 +20,7 @@ WORKDIR /app
 COPY api/proto ../api/proto
 
 # Copy go mod files
-COPY discord-client/go.mod discord-client/go.sum* ./
+COPY go.mod go.sum* ./
 
 # Download dependencies
 RUN go mod download
@@ -33,7 +33,7 @@ RUN mkdir -p proto && \
         ../api/proto/events/*.proto ../api/proto/models/*.proto ../api/proto/services/*.proto
 
 # Copy discord-client source code
-COPY discord-client ./
+COPY . ./
 
 # Expose port if needed for debugging
 EXPOSE 2345
@@ -56,7 +56,7 @@ WORKDIR /app
 COPY api/proto ../api/proto
 
 # Copy go mod files
-COPY discord-client/go.mod discord-client/go.sum* ./
+COPY go.mod go.sum* ./
 
 # Download dependencies
 RUN go mod download
@@ -69,7 +69,7 @@ RUN mkdir -p proto && \
         ../api/proto/events/*.proto ../api/proto/models/*.proto ../api/proto/services/*.proto
 
 # Copy discord-client source code
-COPY discord-client ./
+COPY . ./
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o gambler .
