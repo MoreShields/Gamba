@@ -16,7 +16,8 @@ type GameEndedDTO struct {
 	GameID            string
 	SummonerName      string
 	TagLine           string
-	Won               bool
+	Win               bool
+	Loss              bool
 	DurationSeconds   int32
 	QueueType         string
 	ChampionPlayed    string
