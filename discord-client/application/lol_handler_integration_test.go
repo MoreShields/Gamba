@@ -133,7 +133,8 @@ func TestLoLHandler_EndToEndFlow(t *testing.T) {
 			SummonerName:    summonerName,
 			TagLine:         tagLine,
 			GameID:          gameID,
-			Won:             true,
+			Win:             true,
+			Loss:            false,
 			DurationSeconds: 1800, // 30 minutes
 		}
 
@@ -223,7 +224,8 @@ func TestLoLHandler_EndToEndFlow_Loss(t *testing.T) {
 		SummonerName:    summonerName,
 		TagLine:         tagLine,
 		GameID:          gameID,
-		Won:             false,
+		Win:             false,
+		Loss:            true,
 		DurationSeconds: 1200, // 20 minutes
 	}
 
@@ -342,7 +344,8 @@ func TestLoLHandler_MultipleGuilds(t *testing.T) {
 		SummonerName:    summonerName,
 		TagLine:         tagLine,
 		GameID:          gameID,
-		Won:             true,
+		Win:             true,
+		Loss:            false,
 		DurationSeconds: 1500,
 	}
 
@@ -396,7 +399,8 @@ func TestLoLHandler_NoWatchingGuilds(t *testing.T) {
 		SummonerName:    "UnwatchedPlayer",
 		TagLine:         "NA1",
 		GameID:          "test-game-nowatcher",
-		Won:             true,
+		Win:             true,
+		Loss:            false,
 		DurationSeconds: 1000,
 	}
 
@@ -430,4 +434,85 @@ func setupTestData(t *testing.T, ctx context.Context, uowFactory service.UnitOfW
 	// Create summoner watch
 	_, err = uow.SummonerWatchRepository().CreateWatch(ctx, guildID, summonerName, tagLine)
 	require.NoError(t, err)
+}
+func TestLoLHandler_ForfeitRemake(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	// Set up test config
+	config.SetTestConfig(config.NewTestConfig())
+	defer config.ResetConfig()
+
+	// Setup test database
+	testDB := testutil.SetupTestDatabase(t)
+	defer testDB.Cleanup(t)
+
+	// Setup test data
+	ctx := context.Background()
+	guildID := int64(77777)
+	summonerName := "ForfeitPlayer"
+	tagLine := "NA1"
+	gameID := "test-game-forfeit"
+
+	// Create UoW factory
+	uowFactory := repository.NewUnitOfWorkFactory(testDB.DB, events.NewBus())
+
+	// Setup guild and summoner watch
+	setupTestData(t, ctx, uowFactory, guildID, summonerName, tagLine)
+
+	// Create mock Discord poster
+	mockPoster := &MockDiscordPoster{}
+
+	// Create LoL handler
+	handler := NewLoLHandler(uowFactory, mockPoster)
+
+	// Game start
+	gameStarted := dto.GameStartedDTO{
+		SummonerName: summonerName,
+		TagLine:      tagLine,
+		GameID:       gameID,
+		QueueType:    "RANKED_SOLO_5x5",
+	}
+
+	err := handler.HandleGameStarted(ctx, gameStarted)
+	require.NoError(t, err)
+
+	// Verify wager was created
+	uow := uowFactory.CreateForGuild(guildID)
+	require.NoError(t, uow.Begin(ctx))
+	
+	externalRef := models.ExternalReference{
+		System: models.SystemLeagueOfLegends,
+		ID:     gameID,
+	}
+	
+	wager, err := uow.GroupWagerRepository().GetByExternalReference(ctx, externalRef)
+	require.NoError(t, err)
+	require.NotNil(t, wager)
+	require.Equal(t, models.GroupWagerStateActive, wager.State)
+	uow.Rollback()
+
+	// Game end - neither win nor loss (forfeit/remake)
+	gameEnded := dto.GameEndedDTO{
+		SummonerName:    summonerName,
+		TagLine:         tagLine,
+		GameID:          gameID,
+		Win:             false,
+		Loss:            false, // Neither win nor loss indicates forfeit/remake
+		DurationSeconds: 300,   // 5 minutes - typical forfeit time
+	}
+
+	err = handler.HandleGameEnded(ctx, gameEnded)
+	require.NoError(t, err)
+
+	// Verify wager was cancelled
+	uow = uowFactory.CreateForGuild(guildID)
+	require.NoError(t, uow.Begin(ctx))
+	defer uow.Rollback()
+
+	wager, err = uow.GroupWagerRepository().GetByExternalReference(ctx, externalRef)
+	require.NoError(t, err)
+	require.NotNil(t, wager)
+	assert.Equal(t, models.GroupWagerStateCancelled, wager.State)
 }
