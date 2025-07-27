@@ -338,18 +338,18 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 		}
 	}
 
-	// Get the winning option from detail by exact text match
+	// Get the winning option from detail by ID
 	options := detail.Options
 
 	var winningOption *models.GroupWagerOption
 	for _, opt := range options {
-		if opt.OptionText == winningOptionText {
+		if opt.ID == winningOptionID {
 			winningOption = opt
 			break
 		}
 	}
 	if winningOption == nil {
-		return nil, fmt.Errorf("no option found with text: %s", winningOptionText)
+		return nil, fmt.Errorf("no option found with ID: %d", winningOptionID)
 	}
 
 	// Calculate payouts

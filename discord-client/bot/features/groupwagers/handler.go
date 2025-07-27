@@ -338,6 +338,30 @@ func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Int
 		uow.EventBus(),
 	)
 
+	// Get wager details to find option ID from text
+	wagerDetail, err := groupWagerService.GetGroupWagerDetail(ctx, groupWagerID)
+	if err != nil {
+		log.Printf("Error getting group wager detail: %v", err)
+		common.FollowUpWithError(s, i, "Failed to get wager details.")
+		return
+	}
+
+	// Find the option ID from the text
+	var winningOptionID int64
+	found := false
+	for _, option := range wagerDetail.Options {
+		if option.OptionText == winningOptionText {
+			winningOptionID = option.ID
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		common.FollowUpWithError(s, i, fmt.Sprintf("No option found with text: %s", winningOptionText))
+		return
+	}
+
 	// Resolve the wager
 	result, err := groupWagerService.ResolveGroupWager(ctx, groupWagerID, &resolverID, winningOptionID)
 	if err != nil {

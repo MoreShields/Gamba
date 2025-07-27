@@ -17,6 +17,9 @@ import (
 )
 
 func TestGroupWagerResolution_Integration(t *testing.T) {
+	config.SetTestConfig(config.NewTestConfig())
+	defer config.ResetConfig()
+	
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -91,7 +94,6 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 		require.Len(t, detail.Options, 2)
 
 		yesOptionID := detail.Options[0].ID
-		yesOptionText := detail.Options[0].OptionText
 		noOptionID := detail.Options[1].ID
 
 		// Place bets
@@ -220,7 +222,6 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 
 		rainOptionID := detail.Options[0].ID
 		noRainOptionID := detail.Options[1].ID
-		noRainOptionText := detail.Options[1].OptionText
 
 		// User5 bets on Rain initially
 		_, err = groupWagerService.PlaceBet(ctx, groupWager.ID, user5.DiscordID, rainOptionID, 10000)
@@ -319,9 +320,7 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		optionAID := detail.Options[0].ID
-		optionAText := detail.Options[0].OptionText
 		optionBID := detail.Options[1].ID
-		optionBText := detail.Options[1].OptionText
 
 		// Place bets
 		_, err = groupWagerService.PlaceBet(ctx, groupWager.ID, user8.DiscordID, optionAID, 5000)
@@ -344,6 +343,9 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 }
 
 func TestGroupWagerResolution_EdgeCases(t *testing.T) {
+	config.SetTestConfig(config.NewTestConfig())
+	defer config.ResetConfig()
+	
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -416,7 +418,6 @@ func TestGroupWagerResolution_EdgeCases(t *testing.T) {
 		require.NoError(t, err)
 
 		winningOptionID := detail.Options[0].ID
-		winningOptionText := detail.Options[0].OptionText
 		losingOptionID := detail.Options[1].ID
 
 		// Place bets - only one on winning option
@@ -483,7 +484,6 @@ func TestGroupWagerResolution_EdgeCases(t *testing.T) {
 		require.NoError(t, err)
 
 		optionAID := detail.Options[0].ID
-		optionAText := detail.Options[0].OptionText
 		optionBID := detail.Options[1].ID
 
 		// Place bets with amounts that will cause rounding
