@@ -91,3 +91,24 @@ async def clean_db_session(
     async with db_manager.get_session() as session:
         yield session
         # This session will commit changes automatically
+
+
+@pytest_asyncio.fixture
+async def lol_tracker_service(test_config: Config, db_manager: DatabaseManager):
+    """Create LoLTrackerService with real database, mocked externals for testing."""
+    from unittest.mock import AsyncMock
+    from lol_tracker.service import LoLTrackerService
+    
+    # Create service with mocked message bus but real database
+    mock_message_bus = AsyncMock()
+    service = LoLTrackerService(test_config, message_bus_client=mock_message_bus)
+    service.db_manager = db_manager
+    
+    # Initialize the service database manager
+    await service.db_manager.initialize()
+    
+    yield service
+    
+    # Cleanup
+    if hasattr(service, 'riot_api_client'):
+        await service.riot_api_client.close()
