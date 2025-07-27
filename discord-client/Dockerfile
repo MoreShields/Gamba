@@ -33,7 +33,7 @@ RUN mkdir -p proto && \
         ../api/proto/events/*.proto ../api/proto/models/*.proto ../api/proto/services/*.proto
 
 # Copy discord-client source code
-COPY discord-client ./
+COPY discord-client/ ./
 
 # Expose port if needed for debugging
 EXPOSE 2345
@@ -69,7 +69,7 @@ RUN mkdir -p proto && \
         ../api/proto/events/*.proto ../api/proto/models/*.proto ../api/proto/services/*.proto
 
 # Copy discord-client source code
-COPY discord-client ./
+COPY discord-client/ ./
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o gambler .

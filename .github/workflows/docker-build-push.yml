@@ -70,7 +70,8 @@ jobs:
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
-        context: discord-client
+        context: .
+        file: discord-client/Dockerfile
         target: prod
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.meta.outputs.tags }}
