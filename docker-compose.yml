@@ -50,6 +50,12 @@ services:
       HIGH_ROLLER_ENABLED: ${HIGH_ROLLER_ENABLED}
       RESOLVER_DISCORD_IDS: ${RESOLVER_DISCORD_IDS}
       
+      # Message streaming configuration
+      STREAM_CHANNEL_TYPES: ${STREAM_CHANNEL_TYPES:-lol_channel}
+      
+      # Message bus configuration
+      MESSAGE_BUS_URL: nats://nats:4222
+      
       # Environment
       ENVIRONMENT: production
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -60,6 +66,8 @@ services:
     depends_on:
       discord-migrate:
         condition: service_completed_successfully
+      nats:
+        condition: service_healthy
     profiles: ["discord"]
 
   # LoL Tracker migration service

@@ -207,7 +207,7 @@ func (c *NATSClient) EnsureLoLEventStream() error {
 }
 
 // Publish publishes a message to the specified subject using JetStream
-func (c *NATSClient) Publish(subject string, data []byte) error {
+func (c *NATSClient) Publish(ctx context.Context, subject string, data []byte) error {
 	if c.js == nil {
 		return fmt.Errorf("not connected to NATS JetStream")
 	}

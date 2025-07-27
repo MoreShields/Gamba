@@ -1,0 +1,66 @@
+syntax = "proto3";
+package gambler.events;
+
+option go_package = "gambler/api/gen/go/events";
+
+import "google/protobuf/timestamp.proto";
+
+// Discord message event published to NATS when messages are streamed
+message DiscordMessageEvent {
+  string subject = 1;                               // NATS subject (e.g., discord.messages.{guild-id}.{channel-id})
+  DiscordMessage message = 2;                       // The Discord message content
+  google.protobuf.Timestamp published_at = 3;      // When this event was published
+}
+
+// Discord message structure
+message DiscordMessage {
+  string id = 1;                                    // Discord message ID
+  string channel_id = 2;                            // Discord channel ID
+  string guild_id = 3;                              // Discord guild ID
+  DiscordUser author = 4;                           // Message author
+  string content = 5;                               // Message text content
+  google.protobuf.Timestamp timestamp = 6;         // When message was created
+  optional google.protobuf.Timestamp edited_timestamp = 7;  // When message was last edited (if applicable)
+  repeated DiscordAttachment attachments = 8;       // File attachments
+  repeated DiscordEmbed embeds = 9;                 // Rich embeds
+  int32 message_type = 10;                          // Discord message type
+  int32 flags = 11;                                 // Discord message flags
+  optional DiscordMessageReference referenced_message = 12;  // Reply reference (if applicable)
+}
+
+// Discord user information
+message DiscordUser {
+  string id = 1;                                    // Discord user ID
+  string username = 2;                              // Username
+  string discriminator = 3;                         // User discriminator (legacy)
+  optional string avatar = 4;                       // Avatar hash
+  bool bot = 5;                                     // Whether user is a bot
+}
+
+// Discord file attachment
+message DiscordAttachment {
+  string id = 1;                                    // Attachment ID
+  string filename = 2;                              // Original filename
+  int32 size = 3;                                   // File size in bytes
+  string url = 4;                                   // Attachment URL
+  string proxy_url = 5;                             // Discord CDN proxy URL
+  optional string content_type = 6;                 // MIME type
+  optional int32 width = 7;                         // Image width (if applicable)
+  optional int32 height = 8;                        // Image height (if applicable)
+}
+
+// Discord rich embed (simplified)
+message DiscordEmbed {
+  optional string type = 1;                         // Embed type
+  optional string title = 2;                        // Embed title
+  optional string description = 3;                  // Embed description
+  optional string url = 4;                          // Embed URL
+  optional int32 color = 5;                         // Embed color
+}
+
+// Discord message reference (for replies)
+message DiscordMessageReference {
+  optional string message_id = 1;                   // Referenced message ID
+  optional string channel_id = 2;                   // Referenced message channel ID
+  optional string guild_id = 3;                     // Referenced message guild ID
+}
