@@ -26,9 +26,9 @@ down: ## Stop all development containers
 
 # Production deployment commands (used by GitHub Actions)
 deploy: ## Deploy all services in production
-	docker-compose -f docker-compose.yml --profile discord pull
-	docker-compose -f docker-compose.yml --profile discord down
-	docker-compose -f docker-compose.yml --profile discord up -d
+	docker-compose -f docker-compose.yml --profile discord --profile lol pull
+	docker-compose -f docker-compose.yml --profile discord --profile lol down
+	docker-compose -f docker-compose.yml --profile discord --profile lol up -d
 
 verify-deployment: ## Verify production deployment status
 	@echo "=== All Services Status ==="

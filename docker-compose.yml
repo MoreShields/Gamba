@@ -69,6 +69,7 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       DATABASE_NAME: lol_tracker_db
+      RIOT_API_KEY: ${RIOT_API_KEY}
     command: ["python", "-m", "alembic", "upgrade", "head"]
     extra_hosts:
       - "host.docker.internal:host-gateway"

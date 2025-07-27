@@ -36,9 +36,10 @@ jobs:
         HIGH_ROLLER_ROLE_ID: ${{ vars.HIGH_ROLLER_ROLE_ID }}
         STARTING_BALANCE: ${{ vars.STARTING_BALANCE }}
         RESOLVER_DISCORD_IDS: ${{ vars.RESOLVER_DISCORD_IDS }}
+        RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
       run: |
         ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
-          "DATABASE_URL='$DATABASE_URL' DISCORD_TOKEN='$DISCORD_TOKEN' HIGH_ROLLER_ENABLED='$HIGH_ROLLER_ENABLED' HIGH_ROLLER_ROLE_ID='$HIGH_ROLLER_ROLE_ID' RESOLVER_DISCORD_IDS='$RESOLVER_DISCORD_IDS' bash -s" << 'EOF'
+          "DATABASE_URL='$DATABASE_URL' DISCORD_TOKEN='$DISCORD_TOKEN' HIGH_ROLLER_ENABLED='$HIGH_ROLLER_ENABLED' HIGH_ROLLER_ROLE_ID='$HIGH_ROLLER_ROLE_ID' RESOLVER_DISCORD_IDS='$RESOLVER_DISCORD_IDS' RIOT_API_KEY='$RIOT_API_KEY' bash -s" << 'EOF'
           
           # Use user's home dir for deployment
           cd ~
@@ -59,6 +60,7 @@ jobs:
           HIGH_ROLLER_ENABLED=$HIGH_ROLLER_ENABLED \
           HIGH_ROLLER_ROLE_ID=$HIGH_ROLLER_ROLE_ID \
           RESOLVER_DISCORD_IDS=$RESOLVER_DISCORD_IDS \
+          RIOT_API_KEY=$RIOT_API_KEY \
           make deploy
           
           # Clean up old images
@@ -75,13 +77,35 @@ jobs:
           
           # Check if bot container is running
           if docker-compose --profile discord ps discord-bot | grep -q "Up"; then
-            echo "Deployment successful - bot container is running"
+            echo "Discord bot deployment successful - container is running"
           else
-            echo "Deployment failed - bot container not running"
+            echo "Discord bot deployment failed - container not running"
             echo "Migration logs:"
             docker-compose --profile discord logs discord-migrate
             echo "Bot logs:"
             docker-compose --profile discord logs discord-bot
+            exit 1
+          fi
+          
+          # Check if lol-tracker container is running
+          if docker-compose --profile lol ps lol-tracker | grep -q "Up"; then
+            echo "LoL tracker deployment successful - container is running"
+          else
+            echo "LoL tracker deployment failed - container not running"
+            echo "Migration logs:"
+            docker-compose --profile lol logs lol-tracker-migrate
+            echo "Tracker logs:"
+            docker-compose --profile lol logs lol-tracker
+            exit 1
+          fi
+          
+          # Check if NATS is running
+          if docker-compose --profile lol ps nats | grep -q "Up"; then
+            echo "NATS deployment successful - container is running"
+          else
+            echo "NATS deployment failed - container not running"
+            echo "NATS logs:"
+            docker-compose --profile lol logs nats
             exit 1
           fi
         EOF

@@ -56,8 +56,8 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Extract metadata
-      id: meta
+    - name: Extract metadata for discord-client
+      id: meta-discord
       uses: docker/metadata-action@v5
       with:
         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
@@ -67,14 +67,37 @@ jobs:
           type=sha,prefix={{branch}}-
           type=raw,value=latest,enable={{is_default_branch}}
 
-    - name: Build and push Docker image
+    - name: Build and push discord-client Docker image
       uses: docker/build-push-action@v5
       with:
         context: .
         file: discord-client/Dockerfile
         target: prod
         push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
+        tags: ${{ steps.meta-discord.outputs.tags }}
+        labels: ${{ steps.meta-discord.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Extract metadata for lol-tracker
+      id: meta-lol
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/moreshields/lol-tracker
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push lol-tracker Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: lol-tracker/Dockerfile
+        target: production
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta-lol.outputs.tags }}
+        labels: ${{ steps.meta-lol.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
