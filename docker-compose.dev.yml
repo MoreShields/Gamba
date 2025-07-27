@@ -58,6 +58,12 @@ services:
       ENVIRONMENT: development
       LOG_LEVEL: debug
       HIGH_ROLLER_ENABLED: true
+      
+      # Message streaming configuration
+      STREAM_CHANNEL_TYPES: ${STREAM_CHANNEL_TYPES:-lol_channel}
+      
+      # Message bus configuration
+      MESSAGE_BUS_URL: nats://nats:4222
     volumes:
       - ./discord-client:/app
       - /app/tmp
@@ -72,6 +78,8 @@ services:
         condition: service_healthy
       discord-migrate:
         condition: service_completed_successfully
+      nats:
+        condition: service_healthy
 
   # LoL Tracker migration overrides for development
   lol-tracker-migrate:

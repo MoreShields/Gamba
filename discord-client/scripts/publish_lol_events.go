@@ -340,7 +340,7 @@ func (p *EventPublisher) publishEvent(ctx context.Context, event *events.LoLGame
 	}
 
 	// Publish to NATS
-	if err := p.natsClient.Publish(subject, data); err != nil {
+	if err := p.natsClient.Publish(context.Background(), subject, data); err != nil {
 		return fmt.Errorf("failed to publish to NATS: %w", err)
 	}
 

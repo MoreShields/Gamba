@@ -37,6 +37,9 @@ type Config struct {
 	// NATS configuration
 	NATSServers string // NATS server addresses (comma-separated)
 
+	// Message streaming configuration
+	StreamChannelTypes []string // Channel types to stream to NATS (e.g., ["lol_channel", "primary_channel"])
+
 	// Environment
 	Environment string // "development" or "production"
 }
@@ -118,6 +121,17 @@ func load() (*Config, error) {
 				if id, err := strconv.ParseInt(idStr, 10, 64); err == nil {
 					config.ResolverDiscordIDs = append(config.ResolverDiscordIDs, id)
 				}
+			}
+		}
+	}
+
+	// Parse stream channel types
+	if streamChannelTypes := os.Getenv("STREAM_CHANNEL_TYPES"); streamChannelTypes != "" {
+		channelTypes := strings.Split(streamChannelTypes, ",")
+		for _, channelType := range channelTypes {
+			channelType = strings.TrimSpace(channelType)
+			if channelType != "" {
+				config.StreamChannelTypes = append(config.StreamChannelTypes, channelType)
 			}
 		}
 	}

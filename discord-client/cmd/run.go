@@ -55,18 +55,27 @@ func Run(ctx context.Context) error {
 	summonerClient := summoner_pb.NewSummonerTrackingServiceClient(summonerConn)
 	log.Println("Summoner tracking service connection established successfully")
 
+	// Initialize NATS client for message streaming
+	log.Printf("Initializing NATS client for message streaming with servers: %s...", cfg.NATSServers)
+	natsClient := infrastructure.NewNATSClient(cfg.NATSServers)
+	if err := natsClient.Connect(ctx); err != nil {
+		return fmt.Errorf("failed to connect to NATS for message streaming: %w", err)
+	}
+	log.Println("NATS client for message streaming connected successfully")
+
 	// Initialize Discord bot
 	log.Println("Initializing Discord bot...")
 	botConfig := bot.Config{
-		Token:          cfg.DiscordToken,
-		GuildID:        cfg.GuildID,
-		GambaChannelID: cfg.GambaChannelID,
+		Token:              cfg.DiscordToken,
+		GuildID:            cfg.GuildID,
+		GambaChannelID:     cfg.GambaChannelID,
+		StreamChannelTypes: cfg.StreamChannelTypes,
 	}
 	gamblingConfig := &betting.GamblingConfig{
 		DailyGambleLimit:    cfg.DailyGambleLimit,
 		DailyLimitResetHour: cfg.DailyLimitResetHour,
 	}
-	discordBot, err := bot.New(botConfig, gamblingConfig, uowFactory, eventBus, summonerClient)
+	discordBot, err := bot.New(botConfig, gamblingConfig, uowFactory, eventBus, summonerClient, natsClient)
 	if err != nil {
 		return fmt.Errorf("failed to initialize Discord bot: %w", err)
 	}
@@ -115,6 +124,13 @@ func Run(ctx context.Context) error {
 	// Close Discord bot connection
 	if err := discordBot.Close(); err != nil {
 		log.Printf("Error closing Discord bot: %v", err)
+	}
+
+	// Close NATS client for message streaming
+	if natsClient != nil {
+		if err := natsClient.Close(); err != nil {
+			log.Printf("Error closing NATS client: %v", err)
+		}
 	}
 
 	// Close summoner tracking client connection
