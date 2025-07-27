@@ -240,6 +240,9 @@ class LoLTrackerService:
                     session, player, riot_game_state, current_status
                 )
 
+                # Commit the transaction
+                await session.commit()
+
                 # Emit event for state change
                 await self._emit_game_state_changed_event(
                     player,
@@ -257,6 +260,8 @@ class LoLTrackerService:
                     await self._update_in_game_state(
                         session, current_db_state, riot_game_state
                     )
+                    # Commit the transaction
+                    await session.commit()
 
     async def _get_riot_game_state(self, player) -> Optional[CurrentGameInfo]:
         """Get current game state from Riot API."""
