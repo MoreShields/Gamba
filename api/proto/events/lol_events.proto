@@ -30,10 +30,9 @@ message LoLGameStateChanged {
 }
 
 message GameResult {
-  bool win = 1;                        // Did the player win?
-  bool loss = 2;                       // Did the player lose?
-  int32 duration_seconds = 3;          // Game duration
-  string queue_type = 4;               // Type of game
-  string champion_played = 5;          // Champion name
+  bool won = 1;                        // Did the player win?
+  int32 duration_seconds = 2;          // Game duration
+  string queue_type = 3;               // Type of game
+  string champion_played = 4;          // Champion name
   
 }
