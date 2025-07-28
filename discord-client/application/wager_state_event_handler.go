@@ -27,9 +27,9 @@ func NewWagerStateEventHandler(uowFactory service.UnitOfWorkFactory, discordPost
 
 // HandleGroupWagerStateChange handles GroupWagerStateChangeEvent and updates Discord messages
 func (h *wagerStateEventHandler) HandleGroupWagerStateChange(ctx context.Context, event interface{}) error {
-	e, ok := event.(events.GroupWagerStateChangeEvent)
-	if !ok {
-		return fmt.Errorf("invalid event type, expected GroupWagerStateChangeEvent")
+	e, err := AssertEventType[events.GroupWagerStateChangeEvent](event, "GroupWagerStateChangeEvent")
+	if err != nil {
+		return err
 	}
 
 	log.Infof("WagerStateEventHandler: handling state change for wager %d (state: %s -> %s)",

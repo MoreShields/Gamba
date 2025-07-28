@@ -33,6 +33,12 @@ func (s *NATSEventSubscriber) Subscribe(eventType events.EventType, handler func
 	subject := s.mapEventTypeToSubject(eventType)
 	s.handlers[subject] = handler
 	
+	log.WithFields(log.Fields{
+		"eventType": eventType,
+		"subject":   subject,
+		"handler":   fmt.Sprintf("%T", handler),
+	}).Info("Registering event handler for subject")
+	
 	// Subscribe to NATS subject with message handling wrapper
 	return s.natsClient.Subscribe(subject, func(data []byte) error {
 		return s.handleMessage(subject, data)
@@ -58,10 +64,12 @@ func (s *NATSEventSubscriber) handleMessage(subject string, data []byte) error {
 	event, err := s.deserializeEvent(eventType, envelope.Payload)
 	if err != nil {
 		log.WithFields(log.Fields{
-			"subject":   subject,
-			"eventType": eventType,
-			"eventId":   envelope.EventId,
-			"error":     err,
+			"subject":           subject,
+			"eventType":         eventType,
+			"envelopeEventType": envelope.EventType,
+			"eventId":           envelope.EventId,
+			"error":             err,
+			"payloadSize":       len(envelope.Payload),
 		}).Error("Failed to deserialize event payload")
 		return fmt.Errorf("failed to deserialize event payload: %w", err)
 	}
@@ -90,6 +98,8 @@ func (s *NATSEventSubscriber) handleMessage(subject string, data []byte) error {
 			"eventType": eventType,
 			"eventId":   envelope.EventId,
 			"error":     err,
+			"handler":   fmt.Sprintf("%T", handler),
+			"eventData": fmt.Sprintf("%+v", event),
 		}).Error("Event handler failed")
 		return err
 	}
