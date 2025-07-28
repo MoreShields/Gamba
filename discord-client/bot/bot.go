@@ -19,7 +19,6 @@ import (
 	"gambler/discord-client/bot/features/summoner"
 	"gambler/discord-client/bot/features/transfer"
 	"gambler/discord-client/bot/features/wagers"
-	"gambler/discord-client/events"
 	"gambler/discord-client/infrastructure"
 	"gambler/discord-client/models"
 	"gambler/discord-client/service"
@@ -43,7 +42,6 @@ type Bot struct {
 	// Core components
 	config         Config
 	session        *discordgo.Session
-	eventBus       *events.Bus
 	uowFactory     service.UnitOfWorkFactory
 	summonerClient summoner_pb.SummonerTrackingServiceClient
 
@@ -69,7 +67,7 @@ type Bot struct {
 }
 
 // New creates a new bot instance with all features
-func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory service.UnitOfWorkFactory, eventBus *events.Bus, summonerClient summoner_pb.SummonerTrackingServiceClient, messagePublisher infrastructure.MessagePublisher) (*Bot, error) {
+func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory service.UnitOfWorkFactory, summonerClient summoner_pb.SummonerTrackingServiceClient, messagePublisher infrastructure.MessagePublisher) (*Bot, error) {
 	// Create Discord session
 	dg, err := discordgo.New("Bot " + config.Token)
 	if err != nil {
@@ -81,7 +79,6 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory servi
 	bot := &Bot{
 		config:           config,
 		session:          dg,
-		eventBus:         eventBus,
 		uowFactory:       uowFactory,
 		summonerClient:   summonerClient,
 		messagePublisher: messagePublisher,
@@ -117,34 +114,6 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory servi
 	}
 
 
-	// Subscribe to balance change events for high roller role updates
-	eventBus.Subscribe(events.EventTypeBalanceChange, func(ctx context.Context, event events.Event) {
-		log.WithFields(log.Fields{
-			"eventType": event.Type(),
-		}).Debug("Received event in bot balance change handler")
-
-		if balanceEvent, ok := event.(events.BalanceChangeEvent); ok {
-			log.WithFields(log.Fields{
-				"userID":          balanceEvent.UserID,
-				"guildID":         balanceEvent.GuildID,
-				"oldBalance":      balanceEvent.OldBalance,
-				"newBalance":      balanceEvent.NewBalance,
-				"transactionType": balanceEvent.TransactionType,
-				"changeAmount":    balanceEvent.ChangeAmount,
-			}).Info("Processing balance change event for high roller role update")
-
-			if err := bot.updateHighRollerRole(ctx, balanceEvent.GuildID); err != nil {
-				log.Errorf("Failed to update high roller role for guild %d: %v", balanceEvent.GuildID, err)
-			} else {
-				log.Debug("High roller role update completed successfully")
-			}
-		} else {
-			log.WithFields(log.Fields{
-				"eventType": event.Type(),
-			}).Warn("Received non-BalanceChangeEvent in balance change handler")
-		}
-	})
-	log.Info("High roller role management enabled")
 
 	// Perform initial sync of high roller role for all guilds
 	go func() {
@@ -163,7 +132,7 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory servi
 				continue
 			}
 
-			if err := bot.updateHighRollerRole(ctx, guildID); err != nil {
+			if err := bot.UpdateHighRollerRole(ctx, guildID); err != nil {
 				log.Errorf("Failed to sync high roller role for guild %s: %v", guild.Name, err)
 			} else {
 				log.Infof("High roller role synced for guild %s", guild.Name)
@@ -208,8 +177,8 @@ func (b *Bot) GetConfig() Config {
 	return b.config
 }
 
-// updateHighRollerRole updates the high roller role based on current balances
-func (b *Bot) updateHighRollerRole(ctx context.Context, guildID int64) error {
+// UpdateHighRollerRole updates the high roller role based on current balances
+func (b *Bot) UpdateHighRollerRole(ctx context.Context, guildID int64) error {
 	// Create guild-scoped unit of work
 	log.Infof("Updating high roller role for guild %d", guildID)
 	uow := b.uowFactory.CreateForGuild(guildID)
