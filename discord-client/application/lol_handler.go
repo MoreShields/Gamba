@@ -11,7 +11,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// LoLHandlerImpl implements the LoLHandler interface
+// LoLHandlerImpl implements the LoLEventHandler interface
 type LoLHandlerImpl struct {
 	uowFactory    service.UnitOfWorkFactory
 	discordPoster DiscordPoster
@@ -21,7 +21,7 @@ type LoLHandlerImpl struct {
 func NewLoLHandler(
 	uowFactory service.UnitOfWorkFactory,
 	discordPoster DiscordPoster,
-) LoLHandler {
+) *LoLHandlerImpl {
 	return &LoLHandlerImpl{
 		uowFactory:    uowFactory,
 		discordPoster: discordPoster,
