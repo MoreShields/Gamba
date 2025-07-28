@@ -142,7 +142,6 @@ class LoLTrackerService:
 
             # For now, just run a simple loop to keep service alive
             while self._running:
-                logger.info("LoL Tracker service running...")
 
                 # Check message bus connection health
                 if not await self.message_bus.is_connected():
@@ -179,10 +178,6 @@ class LoLTrackerService:
                     logger.debug("No tracked players found, skipping poll cycle")
                     await asyncio.sleep(self.config.poll_interval_seconds)
                     continue
-
-                logger.info(
-                    f"Polling game state for {len(tracked_players)} tracked players"
-                )
 
                 # Poll each tracked player
                 for player in tracked_players:

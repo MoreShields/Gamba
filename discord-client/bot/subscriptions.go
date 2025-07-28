@@ -31,7 +31,7 @@ func RegisterBotSubscriptions(
 
 // handleBalanceChangeForHighRoller processes balance change events to update high roller roles
 func handleBalanceChangeForHighRoller(ctx context.Context, event events.Event, bot *Bot) error {
-	balanceEvent, ok := event.(events.BalanceChangeEvent)
+	balanceEvent, ok := event.(*events.BalanceChangeEvent)
 	if !ok {
 		return fmt.Errorf("received non-BalanceChangeEvent in balance change handler")
 	}

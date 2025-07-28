@@ -364,13 +364,22 @@ func (f *Feature) updateHouseWagerMessage(s *discordgo.Session, msg *discordgo.M
 		return
 	}
 
+	// Parse the condition to extract title and description
+	// Split on first newline - everything before is title, everything after is description
+	parts := strings.SplitN(detail.Wager.Condition, "\n", 2)
+	title := parts[0]
+	description := ""
+	if len(parts) > 1 {
+		description = parts[1]
+	}
+
 	// Convert to HouseWagerPostDTO for embed creation
 	houseWagerDTO := dto.HouseWagerPostDTO{
 		GuildID:      detail.Wager.GuildID,
 		ChannelID:    detail.Wager.ChannelID,
 		WagerID:      detail.Wager.ID,
-		Title:        "New Game Started!",
-		Description:  detail.Wager.Condition, // This now contains the formatted description with op.gg link
+		Title:        title,       // Title from first line
+		Description:  description, // Description from remaining lines
 		State:        string(detail.Wager.State),
 		Options:      make([]dto.WagerOptionDTO, len(detail.Options)),
 		VotingEndsAt: detail.Wager.VotingEndsAt,

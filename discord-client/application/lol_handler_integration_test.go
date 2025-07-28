@@ -66,7 +66,7 @@ func TestLoLHandler_EndToEndFlow(t *testing.T) {
 		assert.Len(t, mockPoster.Posts, 1)
 		post := mockPoster.Posts[0]
 		assert.Equal(t, guildID, post.GuildID)
-		assert.Contains(t, post.Description, summonerName)
+		assert.Contains(t, post.Title, summonerName)
 		assert.Len(t, post.Options, 2) // Win/Loss options
 
 		// Verify wager was created in database

@@ -28,6 +28,9 @@ async def main():
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
+    # Set httpx logger to WARNING to reduce noise
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
     logger.info("Starting LoL Tracker service")
 
     # Create and start the service

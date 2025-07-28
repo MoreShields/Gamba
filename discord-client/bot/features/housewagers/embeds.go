@@ -102,9 +102,9 @@ func createBaseHouseWagerEmbed(houseWager dto.HouseWagerPostDTO) *discordgo.Mess
 	footerText := fmt.Sprintf("House Wager ID: %d", houseWager.WagerID)
 
 	embed := &discordgo.MessageEmbed{
-		Title:       houseWager.Title,
-		Description: houseWager.Description,
-		Color:       common.ColorWarning, // Orange for house wagers to distinguish from group wagers
+		Title:       houseWager.Title,       // Title from the DTO
+		Description: houseWager.Description, // Description from the DTO
+		Color:       common.ColorWarning,    // Orange for house wagers to distinguish from group wagers
 		Timestamp:   time.Now().Format("2006-01-02T15:04:05Z07:00"),
 		Footer: &discordgo.MessageEmbedFooter{
 			Text: footerText,
@@ -261,7 +261,14 @@ func CreateHouseWagerResolvedEmbed(houseWager dto.HouseWagerPostDTO, winningOpti
 
 	// Update for resolved state
 	embed.Color = common.ColorPrimary // Blue for resolved
-	embed.Title = embed.Title + " - RESOLVED"
+	
+	// Only append RESOLVED to title if there is a title
+	if embed.Title != "" {
+		embed.Title = embed.Title + " - RESOLVED"
+	} else {
+		// If no title, prepend RESOLVED to description
+		embed.Description = "**RESOLVED**\n\n" + embed.Description
+	}
 
 	// Find winners and show detailed results
 	var winnerInfo strings.Builder
