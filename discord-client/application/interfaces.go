@@ -34,12 +34,13 @@ type WagerStateEventHandler interface {
 	HandleGroupWagerStateChange(ctx context.Context, event interface{}) error
 }
 
-// LoLHandler defines the interface for handling LoL game events
-// This is implemented by the application layer and called by the infrastructure layer
-type LoLHandler interface {
+// LoLEventHandler defines the interface for handling LoL game events
+// This interface receives domain DTOs, not raw bytes
+type LoLEventHandler interface {
 	// HandleGameStarted processes a game started event
 	HandleGameStarted(ctx context.Context, gameStarted dto.GameStartedDTO) error
 	
 	// HandleGameEnded processes a game ended event
 	HandleGameEnded(ctx context.Context, gameEnded dto.GameEndedDTO) error
 }
+
