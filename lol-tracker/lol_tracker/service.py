@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import time
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -15,10 +14,11 @@ from lol_tracker.config import Config
 from lol_tracker.message_bus import MessageBusClient, NATSMessageBusClient
 from lol_tracker.database.connection import DatabaseManager
 from lol_tracker.database.repository import TrackedPlayerRepository, GameStateRepository
-from lol_tracker.riot_api_client import (
+from lol_tracker.riot_api import (
     RiotAPIClient,
     PlayerNotInGameError,
     CurrentGameInfo,
+    create_riot_api_client,
 )
 from lol_tracker.summoner_service import SummonerTrackingService
 from lol_tracker.proto.services import summoner_service_pb2_grpc, summoner_service_pb2
@@ -63,10 +63,8 @@ class LoLTrackerService:
         # Initialize database manager
         self.db_manager = DatabaseManager(config)
 
-        # Initialize Riot API client
-        self.riot_api_client = RiotAPIClient(
-            api_key=config.riot_api_key, request_timeout=config.riot_api_timeout_seconds
-        )
+        # Initialize Riot API client using factory
+        self.riot_api_client = create_riot_api_client(config)
 
         # Initialize gRPC server and service
         self.grpc_server = None
@@ -81,9 +79,9 @@ class LoLTrackerService:
             ThreadPoolExecutor(max_workers=self.config.grpc_server_max_workers)
         )
 
-        # Create summoner service
+        # Create summoner service with shared Riot API client
         self.summoner_service = SummonerTrackingService(
-            self.db_manager, self.config.riot_api_key
+            self.db_manager, self.riot_api_client
         )
 
         # Add service to server
@@ -237,8 +235,16 @@ class LoLTrackerService:
 
                 # Create new game state record
                 new_game_state = await self._create_game_state_record(
-                    session, player, riot_game_state, current_status
+                    session, player, riot_game_state, current_db_state
                 )
+
+                # If transitioning from IN_GAME to NOT_IN_GAME, try to fetch match results
+                if (previous_status == lol_events_pb2.GameStatus.GAME_STATUS_IN_GAME and 
+                    current_status == lol_events_pb2.GameStatus.GAME_STATUS_NOT_IN_GAME and
+                    new_game_state.game_id is not None):
+                    await self._try_update_match_result(session, new_game_state, player)
+                    # Refresh the game state object to get updated match result data
+                    await session.refresh(new_game_state)
 
                 # Commit the transaction
                 await session.commit()
@@ -258,7 +264,7 @@ class LoLTrackerService:
                     and current_db_state
                 ):
                     await self._update_in_game_state(
-                        session, current_db_state, riot_game_state
+                        current_db_state, riot_game_state
                     )
                     # Commit the transaction
                     await session.commit()
@@ -302,7 +308,7 @@ class LoLTrackerService:
         # Champion select detection would require additional API calls
         return lol_events_pb2.GameStatus.GAME_STATUS_IN_GAME
 
-    async def _create_game_state_record(self, session, player, riot_state, status):
+    async def _create_game_state_record(self, session, player, riot_state, previous_state=None):
         """Create a new game state record in the database."""
         if riot_state:
             # Player is in game
@@ -322,19 +328,60 @@ class LoLTrackerService:
                 "player_id": player.id,
                 "status": "NOT_IN_GAME",
             }
+            
+            # Preserve game_id from previous state when transitioning from IN_GAME to NOT_IN_GAME
+            if previous_state and previous_state.status == "IN_GAME" and previous_state.game_id:
+                game_state_data["game_id"] = previous_state.game_id
+                game_state_data["queue_type"] = previous_state.queue_type
 
         game_state_repo = GameStateRepository(session)
         return await game_state_repo.create(**game_state_data)
 
-    async def _update_in_game_state(self, session, db_state, riot_state):
+    async def _update_in_game_state(self, db_state, riot_state):
         """Update an existing in-game state with current info."""
         if riot_state and db_state.game_id == riot_state.game_id:
             # Update game length and other live data
-            updates = {
-                "raw_api_response": str(riot_state.__dict__),
-            }
             # Note: Could update other fields like game_length here if needed
             # For now, we keep it minimal
+            pass
+
+    async def _try_update_match_result(self, session, game_state, player):
+        """Try to fetch and update match results when a game ends."""
+        try:
+            # Convert game_id to match_id format (prefix with region_gameId)
+            match_id = f"NA1_{game_state.game_id}"
+            
+            # Fetch match details from Riot API
+            match_info = await self.riot_api_client.get_match_info(match_id, "na1")
+            
+            # Get player's result from the match
+            participant_result = match_info.get_participant_result(player.puuid)
+            
+            if participant_result:
+                # Update the game state with match results
+                game_state_repo = GameStateRepository(session)
+                await game_state_repo.update_game_result(
+                    game_state.id,
+                    won=participant_result["won"],
+                    duration_seconds=match_info.game_duration,
+                    champion_played=participant_result["champion_name"]
+                )
+                
+                logger.info(
+                    f"Updated match result for {player.game_name}#{player.tag_line}: "
+                    f"{'Won' if participant_result['won'] else 'Lost'} as {participant_result['champion_name']}"
+                )
+            else:
+                logger.warning(
+                    f"Could not find participant result for {player.game_name}#{player.tag_line} "
+                    f"in match {match_id}"
+                )
+                
+        except Exception as e:
+            logger.warning(
+                f"Failed to fetch match result for {player.game_name}#{player.tag_line}, "
+                f"game_id: {game_state.game_id}: {e}"
+            )
 
     async def _emit_game_state_changed_event(
         self, player, previous_status, current_status, game_state, riot_state
@@ -358,9 +405,25 @@ class LoLTrackerService:
             if riot_state:
                 event.game_id = riot_state.game_id
                 event.queue_type = riot_state.queue_type
+            elif game_state.game_id:
+                # When transitioning out of game, use preserved game_id from database
+                event.game_id = game_state.game_id
+                if game_state.queue_type:
+                    event.queue_type = game_state.queue_type
 
-            # TODO: Add game result when transitioning out of IN_GAME
-            # This would require fetching match details from the Match API
+            # Add game result when transitioning from IN_GAME to NOT_IN_GAME
+            if (previous_status == lol_events_pb2.GameStatus.GAME_STATUS_IN_GAME and 
+                current_status == lol_events_pb2.GameStatus.GAME_STATUS_NOT_IN_GAME and
+                game_state.won is not None):
+                
+                # Create GameResult from database record
+                game_result = lol_events_pb2.GameResult(
+                    won=game_state.won,
+                    duration_seconds=game_state.duration_seconds or 0,
+                    queue_type=game_state.queue_type or "",
+                    champion_played=game_state.champion_played or "",
+                )
+                event.game_result.CopyFrom(game_result)
 
             # Publish the event
             subject = "lol.gamestate.changed"
