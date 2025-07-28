@@ -3,20 +3,24 @@ package infrastructure
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"gambler/discord-client/application"
+	"gambler/discord-client/application/dto"
+	events "gambler/discord-client/proto/events"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/proto"
 )
-
-// MessageHandler defines a function that handles raw message bytes
-type MessageHandler func(ctx context.Context, data []byte) error
 
 // MessageConsumer manages NATS subscriptions and routes messages to handlers
 type MessageConsumer struct {
 	natsClient  *NATSClient
-	lolListener *LoLEventListener
-	handlers    map[string]MessageHandler
+	
+	// Handler for LoL events
+	lolHandler  application.LoLEventHandler
+	adapter     *ProtobufToLoLAdapter
+	
 	mu          sync.RWMutex
 	
 	// Context for graceful shutdown
@@ -24,38 +28,24 @@ type MessageConsumer struct {
 	cancel context.CancelFunc
 }
 
-// NewMessageConsumer creates a new message consumer with all handlers configured
-func NewMessageConsumer(natsServers string, lolHandler application.LoLHandler) *MessageConsumer {
+// NewMessageConsumer creates a new message consumer
+func NewMessageConsumer(natsServers string, lolHandler application.LoLEventHandler) *MessageConsumer {
 	ctx, cancel := context.WithCancel(context.Background())
 	
 	// Create NATS client
 	natsClient := NewNATSClient(natsServers)
 	
-	// Create LoL event listener
-	lolListener := NewLoLEventListener(lolHandler)
-	
 	mc := &MessageConsumer{
 		natsClient:  natsClient,
-		lolListener: lolListener,
-		handlers:    make(map[string]MessageHandler),
+		lolHandler:  lolHandler,
+		adapter:     NewProtobufToLoLAdapter(),
 		ctx:         ctx,
 		cancel:      cancel,
 	}
 	
-	// Register LoL event handler
-	mc.RegisterHandler("lol.gamestate.*", lolListener.HandleLoLGameStateChange)
-	
 	return mc
 }
 
-// RegisterHandler registers a handler for a specific subject pattern
-func (mc *MessageConsumer) RegisterHandler(subject string, handler MessageHandler) {
-	mc.mu.Lock()
-	defer mc.mu.Unlock()
-	
-	mc.handlers[subject] = handler
-	log.WithField("subject", subject).Info("Registered message handler")
-}
 
 // Start begins consuming messages from all registered subjects
 func (mc *MessageConsumer) Start(ctx context.Context) error {
@@ -71,22 +61,13 @@ func (mc *MessageConsumer) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to ensure LoL event stream: %w", err)
 	}
 	
-	// Subscribe to all registered subjects
-	mc.mu.RLock()
-	subjects := make([]string, 0, len(mc.handlers))
-	for subject := range mc.handlers {
-		subjects = append(subjects, subject)
-	}
-	mc.mu.RUnlock()
-	
-	// Subscribe to each subject
-	for _, subject := range subjects {
-		if err := mc.subscribe(subject); err != nil {
-			return fmt.Errorf("failed to subscribe to %s: %w", subject, err)
-		}
+	// Subscribe to LoL game state changes
+	lolSubject := "lol.gamestate.*"
+	if err := mc.subscribe(lolSubject); err != nil {
+		return fmt.Errorf("failed to subscribe to %s: %w", lolSubject, err)
 	}
 	
-	log.WithField("subjects", subjects).Info("Message consumer started and subscribed to subjects")
+	log.Info("Message consumer started and subscribed to LoL events")
 	
 	// Wait for shutdown signal
 	<-mc.ctx.Done()
@@ -104,26 +85,51 @@ func (mc *MessageConsumer) Stop() {
 // subscribe sets up a subscription for a specific subject
 func (mc *MessageConsumer) subscribe(subject string) error {
 	return mc.natsClient.Subscribe(subject, func(data []byte) error {
-		mc.mu.RLock()
-		handler, exists := mc.handlers[subject]
-		mc.mu.RUnlock()
-		
-		if !exists {
-			return fmt.Errorf("no handler registered for subject: %s", subject)
-		}
-		
 		// Create a new context for this message
 		ctx := context.Background()
 		
-		// Handle the message
-		if err := handler(ctx, data); err != nil {
-			log.WithFields(log.Fields{
-				"subject": subject,
-				"error":   err,
-			}).Error("Failed to handle message")
-			return err
+		// Route based on subject pattern
+		if strings.HasPrefix(subject, "lol.gamestate.") {
+			return mc.handleLoLGameStateChange(ctx, data)
 		}
 		
-		return nil
+		return fmt.Errorf("unhandled subject: %s", subject)
 	})
+}
+
+// handleLoLGameStateChange processes LoL game state change events
+func (mc *MessageConsumer) handleLoLGameStateChange(ctx context.Context, data []byte) error {
+	// Deserialize the protobuf message
+	event := &events.LoLGameStateChanged{}
+	if err := proto.Unmarshal(data, event); err != nil {
+		return fmt.Errorf("failed to unmarshal LoLGameStateChanged: %w", err)
+	}
+	
+	log.WithFields(log.Fields{
+		"summoner":       fmt.Sprintf("%s#%s", event.GameName, event.TagLine),
+		"previousStatus": event.PreviousStatus,
+		"currentStatus":  event.CurrentStatus,
+		"gameId":         event.GameId,
+	}).Debug("Processing LoL game state change")
+	
+	// Convert protobuf to domain DTO
+	domainEvent, err := mc.adapter.ConvertGameStateChanged(event)
+	if err != nil {
+		// Log and ignore non-relevant transitions
+		log.WithFields(log.Fields{
+			"previousStatus": event.PreviousStatus,
+			"currentStatus":  event.CurrentStatus,
+		}).Debug("Ignoring non-relevant state transition")
+		return nil
+	}
+	
+	// Route to appropriate handler based on event type
+	switch e := domainEvent.(type) {
+	case dto.GameStartedDTO:
+		return mc.lolHandler.HandleGameStarted(ctx, e)
+	case dto.GameEndedDTO:
+		return mc.lolHandler.HandleGameEnded(ctx, e)
+	default:
+		return fmt.Errorf("unexpected event type: %T", domainEvent)
+	}
 }
