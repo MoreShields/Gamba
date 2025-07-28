@@ -17,7 +17,7 @@ services:
       timeout: 10s
       retries: 3
     restart: unless-stopped
-    profiles: ["nats", "lol"]
+    profiles: ["nats", "lol", "discord"]
 
   # Discord bot migration service
   discord-migrate:
