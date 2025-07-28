@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"gambler/discord-client/application/dto"
 	"gambler/discord-client/models"
@@ -211,12 +212,12 @@ func (h *LoLHandlerImpl) createHouseWagerForGuild(
 		uow.EventBus(),
 	)
 
-	// Format title and description for house wager
-	title := fmt.Sprintf("%s Ranked Match", gameStarted.SummonerName)
-	opggURL := fmt.Sprintf("https://www.op.gg/summoners/na/%s-%s",
-		gameStarted.SummonerName, gameStarted.TagLine)
+	// Format the complete description with summoner info and League of Graphs link
+	leagueOfGraphsURL := fmt.Sprintf("https://www.leagueofgraphs.com/match/NA/%s", gameStarted.GameID)
+	condition := fmt.Sprintf("%s - **Ranked Match**\n[View Match Details](%s)",
+		gameStarted.SummonerName, leagueOfGraphsURL)
 
-	// Create the house wager with formatted title as condition
+	// Create the house wager with formatted condition
 	options := []string{"Win", "Loss"}
 	oddsMultipliers := []float64{2.0, 2.0} // 2:1 odds for now
 	votingPeriodMinutes := 5               // 5 minutes for betting
@@ -225,7 +226,7 @@ func (h *LoLHandlerImpl) createHouseWagerForGuild(
 	wagerDetail, err := groupWagerService.CreateGroupWager(
 		ctx,
 		nil,
-		title, // Store the formatted title as the condition (like group wagers)
+		condition, // Store the complete formatted description as the condition
 		options,
 		votingPeriodMinutes,
 		0, // Message ID will be set after posting
@@ -262,12 +263,21 @@ func (h *LoLHandlerImpl) createHouseWagerForGuild(
 		return fmt.Errorf("failed to create group wager: lol-channel is not set for guild %d", guild.GuildID)
 	}
 
+	// Parse the condition to extract title and description
+	// Split on first newline - everything before is title, everything after is description
+	parts := strings.SplitN(condition, "\n", 2)
+	title := parts[0]
+	description := ""
+	if len(parts) > 1 {
+		description = parts[1]
+	}
+
 	postDTO := dto.HouseWagerPostDTO{
 		GuildID:      guild.GuildID,
 		ChannelID:    channelID,
 		WagerID:      wagerDetail.Wager.ID,
-		Title:        title, // Use the same title stored in condition
-		Description:  fmt.Sprintf("[Track on OP.GG](%s)", opggURL),
+		Title:        title,       // Title from first line
+		Description:  description, // Description from remaining lines
 		State:        string(wagerDetail.Wager.State),
 		Options:      make([]dto.WagerOptionDTO, len(wagerDetail.Options)),
 		VotingEndsAt: wagerDetail.Wager.VotingEndsAt,

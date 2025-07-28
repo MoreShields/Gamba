@@ -1,16 +1,29 @@
 package dto
 
-import "gambler/discord-client/models"
+import (
+	"strings"
+
+	"gambler/discord-client/models"
+)
 
 // GroupWagerDetailToHouseWagerPostDTO converts a GroupWagerDetail to a HouseWagerPostDTO
 // This is used when a house wager needs to be displayed or updated in Discord
 func GroupWagerDetailToHouseWagerPostDTO(detail *models.GroupWagerDetail) HouseWagerPostDTO {
+	// Parse the condition to extract title and description
+	// Split on first newline - everything before is title, everything after is description
+	parts := strings.SplitN(detail.Wager.Condition, "\n", 2)
+	title := parts[0]
+	description := ""
+	if len(parts) > 1 {
+		description = parts[1]
+	}
+
 	dto := HouseWagerPostDTO{
 		GuildID:         detail.Wager.GuildID,
 		ChannelID:       detail.Wager.ChannelID,
 		WagerID:         detail.Wager.ID,
-		Title:           detail.Wager.Condition, // Use condition as title (like group wagers)
-		Description:     "",                     // Description will be set separately if needed
+		Title:           title,       // Title from first line
+		Description:     description, // Description from remaining lines
 		State:           string(detail.Wager.State),
 		Options:         make([]WagerOptionDTO, len(detail.Options)),
 		VotingEndsAt:    detail.Wager.VotingEndsAt,

@@ -321,10 +321,6 @@ class RiotAPIClient:
         # Try spectator v5 with PUUID first, fall back to v4 if needed
         url = f"{base_url}/lol/spectator/v5/active-games/by-summoner/{puuid}"
 
-        logger.info(
-            "Fetching current game info", puuid=puuid, region=region
-        )
-
         try:
             data = await self._make_request(url, handle_404_as="not_in_game")
 
