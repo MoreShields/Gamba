@@ -79,8 +79,7 @@ func (h *LoLHandlerImpl) HandleGameEnded(ctx context.Context, gameEnded dto.Game
 	log.WithFields(log.Fields{
 		"summoner": fmt.Sprintf("%s#%s", gameEnded.SummonerName, gameEnded.TagLine),
 		"gameId":   gameEnded.GameID,
-		"win":      gameEnded.Win,
-		"loss":     gameEnded.Loss,
+		"won":      gameEnded.Won,
 		"duration": gameEnded.DurationSeconds,
 	}).Info("Game ended, resolving house wagers")
 
@@ -158,7 +157,7 @@ func (h *LoLHandlerImpl) HandleGameEnded(ctx context.Context, gameEnded dto.Game
 		guildUow.Rollback() // Close the query transaction
 
 		// Resolve the wager
-		if err := h.resolveHouseWager(ctx, guild.GuildID, wager.ID, gameEnded.Win, gameEnded.Loss); err != nil {
+		if err := h.resolveHouseWager(ctx, guild.GuildID, wager.ID, gameEnded.Won, gameEnded.DurationSeconds); err != nil {
 			log.WithFields(log.Fields{
 				"guild":   guild.GuildID,
 				"wagerID": wager.ID,
@@ -337,7 +336,7 @@ func (h *LoLHandlerImpl) createHouseWagerForGuild(
 }
 
 // resolveHouseWager resolves a specific house wager
-func (h *LoLHandlerImpl) resolveHouseWager(ctx context.Context, guildID, wagerID int64, win, loss bool) error {
+func (h *LoLHandlerImpl) resolveHouseWager(ctx context.Context, guildID, wagerID int64, won bool, durationSeconds int32) error {
 	// Create UoW for this guild
 	uow := h.uowFactory.CreateForGuild(guildID)
 	if err := uow.Begin(ctx); err != nil {
@@ -370,12 +369,15 @@ func (h *LoLHandlerImpl) resolveHouseWager(ctx context.Context, guildID, wagerID
 		uow.EventBus(),
 	)
 
-	// Check for edge case: neither win nor loss (forfeit/remake)
-	if !win && !loss {
+	// Check for edge case: forfeit/remake 
+	// Games that are very short (< 10 minutes) and lost are likely forfeit/remake scenarios
+	const forfeitThresholdSeconds = 600 // 10 minutes
+	if !won && durationSeconds < forfeitThresholdSeconds {
 		log.WithFields(log.Fields{
-			"guild":   guildID,
-			"wagerID": wagerID,
-		}).Info("Game ended without win or loss (forfeit/remake), cancelling wager and refunding participants")
+			"guild":           guildID,
+			"wagerID":         wagerID,
+			"durationSeconds": durationSeconds,
+		}).Info("Game ended without win and short duration (forfeit/remake), cancelling wager and refunding participants")
 		
 		// Cancel the wager (nil indicates system cancellation)
 		if err := groupWagerService.CancelGroupWager(ctx, wagerID, nil); err != nil {
@@ -404,7 +406,7 @@ func (h *LoLHandlerImpl) resolveHouseWager(ctx context.Context, guildID, wagerID
 	// Determine winning option based on game result
 	var winningOptionID int64
 	for _, opt := range wagerDetail.Options {
-		if (win && opt.OptionText == "Win") || (loss && opt.OptionText == "Loss") {
+		if (won && opt.OptionText == "Win") || (!won && opt.OptionText == "Loss") {
 			winningOptionID = opt.ID
 			break
 		}
@@ -421,8 +423,7 @@ func (h *LoLHandlerImpl) resolveHouseWager(ctx context.Context, guildID, wagerID
 		"wagerState":      wagerDetail.Wager.State,
 		"participants":    len(wagerDetail.Participants),
 		"winningOptionID": winningOptionID,
-		"win":             win,
-		"loss":            loss,
+		"won":             won,
 	}).Debug("Attempting to resolve house wager")
 
 	// For house wagers, use nil to indicate system resolution (no human resolver)
