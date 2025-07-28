@@ -47,3 +47,4 @@ __pycache__/
 
 # Context
 CLAUDE.md
+.claude/

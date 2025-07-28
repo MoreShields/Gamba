@@ -114,6 +114,7 @@ services:
       DATABASE_NAME: lol_tracker_db
       ENVIRONMENT: development
       LOG_LEVEL: info
+      MOCK_RIOT_API_URL: ${MOCK_RIOT_API_URL}
     volumes:
       - ./lol-tracker/lol_tracker:/app/lol_tracker
       - ./lol-tracker/tests:/app/tests
