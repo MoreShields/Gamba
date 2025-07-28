@@ -259,13 +259,73 @@ func (m *MockGroupWagerRepository) GetGuildsWithActiveWagers(ctx context.Context
 	return args.Get(0).([]int64), args.Error(1)
 }
 
+// MockWagerRepository is a mock implementation of WagerRepository for testing
+type MockWagerRepository struct {
+	mock.Mock
+}
+
+func (m *MockWagerRepository) GetByID(ctx context.Context, wagerID int64) (*models.Wager, error) {
+	args := m.Called(ctx, wagerID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Wager), args.Error(1)
+}
+
+func (m *MockWagerRepository) Create(ctx context.Context, wager *models.Wager) error {
+	args := m.Called(ctx, wager)
+	return args.Error(0)
+}
+
+func (m *MockWagerRepository) UpdateState(ctx context.Context, wagerID int64, newState models.WagerState) error {
+	args := m.Called(ctx, wagerID, newState)
+	return args.Error(0)
+}
+
+func (m *MockWagerRepository) UpdateWinner(ctx context.Context, wagerID int64, winnerID int64) error {
+	args := m.Called(ctx, wagerID, winnerID)
+	return args.Error(0)
+}
+
+// MockWagerVoteRepository is a mock implementation of WagerVoteRepository for testing
+type MockWagerVoteRepository struct {
+	mock.Mock
+}
+
+func (m *MockWagerVoteRepository) Create(ctx context.Context, vote *models.WagerVote) error {
+	args := m.Called(ctx, vote)
+	return args.Error(0)
+}
+
+func (m *MockWagerVoteRepository) GetByWagerAndVoter(ctx context.Context, wagerID int64, voterID int64) (*models.WagerVote, error) {
+	args := m.Called(ctx, wagerID, voterID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.WagerVote), args.Error(1)
+}
+
+func (m *MockWagerVoteRepository) UpdateVote(ctx context.Context, wagerID int64, voterID int64, votedForID int64) error {
+	args := m.Called(ctx, wagerID, voterID, votedForID)
+	return args.Error(0)
+}
+
+func (m *MockWagerVoteRepository) CountVotes(ctx context.Context, wagerID int64) (*models.VoteCount, error) {
+	args := m.Called(ctx, wagerID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.VoteCount), args.Error(1)
+}
+
 // MockEventPublisher is a mock implementation of EventPublisher for testing
 type MockEventPublisher struct {
 	mock.Mock
 }
 
-func (m *MockEventPublisher) Publish(event events.Event) {
-	m.Called(event)
+func (m *MockEventPublisher) Publish(event events.Event) error {
+	args := m.Called(event)
+	return args.Error(0)
 }
 
 // MockGuildSettingsRepository is a mock implementation of GuildSettingsRepository
