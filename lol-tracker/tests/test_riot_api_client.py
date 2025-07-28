@@ -5,7 +5,7 @@ import pytest
 from unittest.mock import Mock, patch
 import httpx
 
-from lol_tracker.riot_api_client import (
+from lol_tracker.riot_api import (
     RiotAPIClient,
     SummonerInfo,
     SummonerNotFoundError,
@@ -213,8 +213,8 @@ class TestRiotAPIClient:
         client = RiotAPIClient("test_api_key")
 
         # Mock time to control timing
-        with patch("lol_tracker.riot_api_client.time.time") as mock_time:
-            with patch("lol_tracker.riot_api_client.asyncio.sleep") as mock_sleep:
+        with patch("lol_tracker.riot_api.riot_api_client.time.time") as mock_time:
+            with patch("lol_tracker.riot_api.riot_api_client.asyncio.sleep") as mock_sleep:
                 # First call - should delay because _last_request_time is 0
                 mock_time.return_value = 0.0
                 await client._rate_limit_delay()

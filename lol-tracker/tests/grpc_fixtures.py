@@ -12,17 +12,25 @@ from grpc_reflection.v1alpha import reflection
 from lol_tracker.summoner_service import SummonerTrackingService
 from lol_tracker.proto.services import summoner_service_pb2_grpc, summoner_service_pb2
 from lol_tracker.database.connection import DatabaseManager
+from lol_tracker.riot_api import RiotAPIClient
+from lol_tracker.config import Config
+from lol_tracker.riot_api import create_riot_api_client
 
 
 @pytest_asyncio.fixture
-async def summoner_service(db_manager: DatabaseManager) -> SummonerTrackingService:
+async def riot_api_client(test_config: Config) -> RiotAPIClient:
+    """Create a Riot API client for testing (uses mock if MOCK_RIOT_API_URL is set)."""
+    client = create_riot_api_client(test_config)
+    yield client
+    await client.close()
+
+
+@pytest_asyncio.fixture
+async def summoner_service(db_manager: DatabaseManager, riot_api_client: RiotAPIClient) -> SummonerTrackingService:
     """Create a SummonerTrackingService instance for testing."""
-    service = SummonerTrackingService(db_manager, riot_api_key="test_api_key")
-
+    service = SummonerTrackingService(db_manager, riot_api_client)
     yield service
-
-    # Cleanup
-    await service.close()
+    # No need to close service anymore as it doesn't own the riot_api_client
 
 
 @pytest_asyncio.fixture

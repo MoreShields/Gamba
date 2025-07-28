@@ -10,7 +10,7 @@ from google.protobuf.timestamp_pb2 import Timestamp
 from lol_tracker.proto.services import summoner_service_pb2
 from lol_tracker.proto.services import summoner_service_pb2_grpc
 
-from .riot_api_client import (
+from .riot_api import (
     RiotAPIClient,
     SummonerNotFoundError,
     InvalidRegionError,
@@ -28,19 +28,20 @@ class SummonerTrackingService(
 ):
     """gRPC service for summoner tracking with immediate validation."""
 
-    def __init__(self, db_manager: DatabaseManager, riot_api_key: str):
+    def __init__(self, db_manager: DatabaseManager, riot_api_client: RiotAPIClient):
         """Initialize the summoner tracking service.
 
         Args:
             db_manager: Database manager for repository access
-            riot_api_key: Riot API key for summoner validation
+            riot_api_client: Riot API client instance (real or mock)
         """
         self.db_manager = db_manager
-        self.riot_api_client = RiotAPIClient(riot_api_key)
+        self.riot_api_client = riot_api_client
 
     async def close(self):
         """Close the service and clean up resources."""
-        await self.riot_api_client.close()
+        # Note: We don't close riot_api_client here as it's injected and managed externally
+        pass
 
     async def StartTrackingSummoner(self, request, context):
         """Start tracking a summoner with immediate validation.

@@ -7,7 +7,7 @@ from google.protobuf.timestamp_pb2 import Timestamp
 
 from lol_tracker.service import LoLTrackerService
 from lol_tracker.database.repository import TrackedPlayerRepository, GameStateRepository
-from lol_tracker.riot_api_client import CurrentGameInfo, PlayerNotInGameError
+from lol_tracker.riot_api import CurrentGameInfo, PlayerNotInGameError
 from lol_tracker.proto.events import lol_events_pb2
 
 
@@ -121,6 +121,30 @@ class TestLoLTrackerServiceIntegration:
         # Mock Riot API response for NOT_IN_GAME state (player left game)
         mock_riot_client.get_current_game_info.side_effect = PlayerNotInGameError()
         
+        # Mock match result fetching - this will be called when transitioning to NOT_IN_GAME
+        from lol_tracker.riot_api.riot_api_client import MatchInfo
+        mock_match_info = MatchInfo(
+            match_id="NA1_existing_game_123",
+            game_creation=1640995200000,
+            game_duration=1800,
+            game_end_timestamp=1640997000000,
+            game_mode="CLASSIC",
+            game_type="MATCHED_GAME",
+            map_id=11,
+            platform_id="NA1",
+            queue_id=420,
+            participants=[{
+                "puuid": "test-puuid-456",
+                "win": True,
+                "championName": "Jinx",
+                "championId": 222,
+                "kills": 10,
+                "deaths": 2,
+                "assists": 8
+            }]
+        )
+        mock_riot_client.get_match_info = AsyncMock(return_value=mock_match_info)
+        
         # Execute the polling method
         await service._poll_player_game_state(player)
         
@@ -130,8 +154,14 @@ class TestLoLTrackerServiceIntegration:
         assert latest_state is not None
         assert latest_state.id != existing_state.id  # New record created
         assert latest_state.status == "NOT_IN_GAME"
-        assert latest_state.game_id is None
-        assert latest_state.queue_type is None
+        # Game ID should be preserved when transitioning from IN_GAME to NOT_IN_GAME
+        assert latest_state.game_id == "existing_game_123"
+        assert latest_state.queue_type == "RANKED_SOLO_5x5"
+        
+        # Verify match result was fetched and stored
+        assert latest_state.won is True
+        assert latest_state.champion_played == "Jinx"
+        assert latest_state.duration_seconds == 1800
         
         # Verify event publishing
         mock_message_bus.publish.assert_called_once()
@@ -145,9 +175,21 @@ class TestLoLTrackerServiceIntegration:
         assert event.tag_line == "TEST"
         assert event.previous_status == lol_events_pb2.GameStatus.GAME_STATUS_IN_GAME
         assert event.current_status == lol_events_pb2.GameStatus.GAME_STATUS_NOT_IN_GAME
-        # When transitioning to NOT_IN_GAME, game_id and queue_type should not be set
-        assert not event.HasField("game_id")
-        assert not event.HasField("queue_type")
+        # When transitioning from IN_GAME to NOT_IN_GAME, game_id should be preserved in event
+        assert event.HasField("game_id")
+        assert event.game_id == "existing_game_123"
+        assert event.HasField("queue_type")
+        assert event.queue_type == "RANKED_SOLO_5x5"
+        
+        # Verify game result is populated in the event when transitioning from IN_GAME to NOT_IN_GAME
+        assert event.HasField("game_result")
+        assert event.game_result.won is True
+        assert event.game_result.champion_played == "Jinx"
+        assert event.game_result.duration_seconds == 1800
+        assert event.game_result.queue_type == "RANKED_SOLO_5x5"
+        
+        # Verify match result API was called
+        mock_riot_client.get_match_info.assert_called_once_with("NA1_existing_game_123", "na1")
 
     @pytest.mark.asyncio
     async def test_poll_player_no_state_change_updates_existing(

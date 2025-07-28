@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import patch
 
 from lol_tracker.proto.services import summoner_service_pb2, summoner_service_pb2_grpc
-from lol_tracker.riot_api_client import (
+from lol_tracker.riot_api import (
     SummonerInfo,
     SummonerNotFoundError,
     InvalidRegionError,
