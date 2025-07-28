@@ -133,8 +133,7 @@ func TestLoLHandler_EndToEndFlow(t *testing.T) {
 			SummonerName:    summonerName,
 			TagLine:         tagLine,
 			GameID:          gameID,
-			Win:             true,
-			Loss:            false,
+			Won:             true,
 			DurationSeconds: 1800, // 30 minutes
 		}
 
@@ -224,8 +223,7 @@ func TestLoLHandler_EndToEndFlow_Loss(t *testing.T) {
 		SummonerName:    summonerName,
 		TagLine:         tagLine,
 		GameID:          gameID,
-		Win:             false,
-		Loss:            true,
+		Won:             false,
 		DurationSeconds: 1200, // 20 minutes
 	}
 
@@ -344,8 +342,7 @@ func TestLoLHandler_MultipleGuilds(t *testing.T) {
 		SummonerName:    summonerName,
 		TagLine:         tagLine,
 		GameID:          gameID,
-		Win:             true,
-		Loss:            false,
+		Won:             true,
 		DurationSeconds: 1500,
 	}
 
@@ -399,8 +396,7 @@ func TestLoLHandler_NoWatchingGuilds(t *testing.T) {
 		SummonerName:    "UnwatchedPlayer",
 		TagLine:         "NA1",
 		GameID:          "test-game-nowatcher",
-		Win:             true,
-		Loss:            false,
+		Won:             true,
 		DurationSeconds: 1000,
 	}
 
@@ -498,8 +494,7 @@ func TestLoLHandler_ForfeitRemake(t *testing.T) {
 		SummonerName:    summonerName,
 		TagLine:         tagLine,
 		GameID:          gameID,
-		Win:             false,
-		Loss:            false, // Neither win nor loss indicates forfeit/remake
+		Won:             false, // Neither win nor loss indicates forfeit/remake
 		DurationSeconds: 300,   // 5 minutes - typical forfeit time
 	}
 
