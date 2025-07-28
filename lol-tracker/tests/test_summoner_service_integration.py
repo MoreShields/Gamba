@@ -6,7 +6,7 @@ from google.protobuf.timestamp_pb2 import Timestamp
 
 from lol_tracker.summoner_service import SummonerTrackingService
 from lol_tracker.proto.services import summoner_service_pb2
-from lol_tracker.riot_api_client import (
+from lol_tracker.riot_api import (
     SummonerInfo,
     SummonerNotFoundError,
     InvalidRegionError,

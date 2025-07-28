@@ -13,6 +13,9 @@ from lol_tracker.config import Config, Environment
 from lol_tracker.database.connection import DatabaseManager
 from lol_tracker.database.models import Base
 
+# Import grpc fixtures to make them available to all tests
+from tests.grpc_fixtures import riot_api_client, summoner_service, grpc_server, grpc_channel, grpc_client
+
 
 @pytest.fixture(scope="session")
 def event_loop():

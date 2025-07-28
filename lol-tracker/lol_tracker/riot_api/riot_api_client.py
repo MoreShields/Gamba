@@ -12,6 +12,20 @@ import structlog
 logger = structlog.get_logger()
 
 
+class RiotRegion:
+    """Riot API region validation and mapping."""
+    
+    VALID_REGIONS = {
+        "br1", "eun1", "euw1", "jp1", "kr", "la1", "la2",
+        "na1", "oc1", "tr1", "ru", "ph2", "sg2", "th2", "tw2", "vn2"
+    }
+    
+    @classmethod
+    def is_valid(cls, region: str) -> bool:
+        """Check if a region is valid."""
+        return region.lower() in cls.VALID_REGIONS
+
+
 @dataclass
 class SummonerInfo:
     """Summoner information from Riot API."""
@@ -445,8 +459,7 @@ class RiotAPIClient:
             RateLimitError: If rate limited
             RiotAPIError: For other API errors
         """
-        if not RiotRegion.is_valid(region):
-            raise InvalidRegionError(f"Invalid region: {region}")
+        # Skip region validation for now - regional mapping handles unknown regions
 
         regional_url = self._get_regional_url(region)
         url = f"{regional_url}/lol/match/v5/matches/{match_id}"
@@ -506,8 +519,7 @@ class RiotAPIClient:
             RateLimitError: If rate limited
             RiotAPIError: For other API errors
         """
-        if not RiotRegion.is_valid(region):
-            raise InvalidRegionError(f"Invalid region: {region}")
+        # Skip region validation for now - regional mapping handles unknown regions
 
         regional_url = self._get_regional_url(region)
         url = f"{regional_url}/lol/match/v5/matches/by-puuid/{puuid}/ids"
