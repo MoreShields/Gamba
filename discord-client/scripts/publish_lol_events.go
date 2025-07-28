@@ -34,8 +34,7 @@ type Config struct {
 	QueueType    string
 	GameID       string
 	Champion     string
-	Win          bool
-	Loss         bool
+	Won          bool
 	Duration     int32
 	Delay        time.Duration
 	Summoners    string
@@ -94,8 +93,7 @@ func parseFlags() *Config {
 	flag.StringVar(&config.QueueType, "queue", "RANKED_SOLO_5x5", "Queue type")
 	flag.StringVar(&config.GameID, "game-id", "", "Game ID (auto-generated if empty)")
 	flag.StringVar(&config.Champion, "champion", "Azir", "Champion played")
-	flag.BoolVar(&config.Win, "win", true, "Did the player win")
-	flag.BoolVar(&config.Loss, "loss", false, "Did the player lose")
+	flag.BoolVar(&config.Won, "won", true, "Did the player win")
 	var duration int
 	flag.IntVar(&duration, "duration", 1800, "Game duration in seconds")
 	flag.DurationVar(&config.Delay, "delay", 30*time.Second, "Delay between start and end for cycle events")
@@ -111,7 +109,7 @@ func parseFlags() *Config {
 		fmt.Fprintf(os.Stderr, "  # Start a ranked game for Faker\n")
 		fmt.Fprintf(os.Stderr, "  %s --event=start --summoner=Faker --tag=KR1 --queue=RANKED_SOLO_5x5\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  # End a game with a win\n")
-		fmt.Fprintf(os.Stderr, "  %s --event=end --summoner=Faker --tag=KR1 --win=true --loss=false --champion=Azir\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s --event=end --summoner=Faker --tag=KR1 --won=true --champion=Azir\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  # Full game cycle\n")
 		fmt.Fprintf(os.Stderr, "  %s --event=cycle --summoner=Doublelift --tag=NA1 --delay=30s\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  # Batch test multiple summoners\n")
@@ -218,8 +216,7 @@ func (p *EventPublisher) PublishGameStart(ctx context.Context, config *Config) e
 // PublishGameEnd publishes a game end event
 func (p *EventPublisher) PublishGameEnd(ctx context.Context, config *Config) error {
 	gameResult := &events.GameResult{
-		Win:             config.Win,
-		Loss:            config.Loss,
+		Won:             config.Won,
 		DurationSeconds: config.Duration,
 		QueueType:       config.QueueType,
 		ChampionPlayed:  config.Champion,
@@ -277,8 +274,7 @@ func (p *EventPublisher) PublishBatch(ctx context.Context, config *Config) error
 		summonerConfig.GameID = fmt.Sprintf("batch-game-%d-%d", time.Now().Unix(), i)
 
 		// Vary some parameters for interesting test data
-		summonerConfig.Win = i%2 == 0 // Alternate win/loss
-		summonerConfig.Loss = i%2 != 0
+		summonerConfig.Won = i%2 == 0 // Alternate win/loss
 		champions := []string{"Azir", "Faker", "Yasuo", "Zed", "LeBlanc", "Syndra"}
 		summonerConfig.Champion = champions[i%len(champions)]
 		summonerConfig.Duration = 1500 + int32(i*300) // Vary game duration
@@ -320,13 +316,9 @@ func (p *EventPublisher) publishEvent(ctx context.Context, event *events.LoLGame
 			log.Printf("Queue: %s", *event.QueueType)
 		}
 		if event.GameResult != nil {
-			result := "Unknown"
-			if event.GameResult.Win {
+			result := "Loss"
+			if event.GameResult.Won {
 				result = "Win"
-			} else if event.GameResult.Loss {
-				result = "Loss"
-			} else {
-				result = "Forfeit/Remake"
 			}
 			log.Printf("Result: %s (%s, %ds)", result, event.GameResult.ChampionPlayed, event.GameResult.DurationSeconds)
 		}
