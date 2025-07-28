@@ -218,7 +218,7 @@ func (h *LoLHandlerImpl) createHouseWagerForGuild(
 
 	// Create the house wager with formatted title as condition
 	options := []string{"Win", "Loss"}
-	oddsMultipliers := []float64{1.0, 1.0} // Even odds for now
+	oddsMultipliers := []float64{2.0, 2.0} // 2:1 odds for now
 	votingPeriodMinutes := 5               // 5 minutes for betting
 
 	// Use nil for system-created house wagers (no specific creator)
@@ -369,7 +369,7 @@ func (h *LoLHandlerImpl) resolveHouseWager(ctx context.Context, guildID, wagerID
 		uow.EventBus(),
 	)
 
-	// Check for edge case: forfeit/remake 
+	// Check for edge case: forfeit/remake
 	// Games that are very short (< 10 minutes) and lost are likely forfeit/remake scenarios
 	const forfeitThresholdSeconds = 600 // 10 minutes
 	if !won && durationSeconds < forfeitThresholdSeconds {
@@ -378,7 +378,7 @@ func (h *LoLHandlerImpl) resolveHouseWager(ctx context.Context, guildID, wagerID
 			"wagerID":         wagerID,
 			"durationSeconds": durationSeconds,
 		}).Info("Game ended without win and short duration (forfeit/remake), cancelling wager and refunding participants")
-		
+
 		// Cancel the wager (nil indicates system cancellation)
 		if err := groupWagerService.CancelGroupWager(ctx, wagerID, nil); err != nil {
 			log.WithFields(log.Fields{
@@ -389,20 +389,20 @@ func (h *LoLHandlerImpl) resolveHouseWager(ctx context.Context, guildID, wagerID
 			uow.Rollback()
 			return fmt.Errorf("failed to cancel group wager: %w", err)
 		}
-		
+
 		// Commit the transaction
 		if err := uow.Commit(); err != nil {
 			return fmt.Errorf("failed to commit transaction: %w", err)
 		}
-		
+
 		log.WithFields(log.Fields{
 			"guild":   guildID,
 			"wagerID": wagerID,
 		}).Info("Successfully cancelled house wager and refunded participants")
-		
+
 		return nil
 	}
-	
+
 	// Determine winning option based on game result
 	var winningOptionID int64
 	for _, opt := range wagerDetail.Options {
