@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 	"gambler/discord-client/config"
+	"gambler/discord-client/database"
 	"gambler/discord-client/events"
+	"gambler/discord-client/infrastructure"
 	"gambler/discord-client/models"
-	"gambler/discord-client/repository"
 	"log"
 	"os"
 	"os/signal"
@@ -14,7 +15,6 @@ import (
 	"syscall"
 
 	"gambler/discord-client/cmd"
-	"gambler/discord-client/database"
 )
 
 func main() {
@@ -89,7 +89,9 @@ func handleBalanceAdjustment() error {
 	cfg := config.Get()
 	// load infra
 	db, _ := database.NewConnection(context.Background(), cfg.GetDatabaseURL())
-	uowFactory := repository.NewUnitOfWorkFactory(db, events.NewBus())
+	// Create a dummy event publisher for admin commands (events won't be processed)
+	dummyEventPublisher := &dummyEventPublisher{}
+	uowFactory := infrastructure.NewUnitOfWorkFactoryWrapper(db, dummyEventPublisher)
 	uow := uowFactory.CreateForGuild(int64(guildId))
 	uow.Begin(ctx)
 	defer uow.Commit()
@@ -115,5 +117,13 @@ func handleBalanceAdjustment() error {
 	}
 	uow.BalanceHistoryRepository().Record(ctx, history)
 	uow.Commit()
+	return nil
+}
+
+// dummyEventPublisher is a no-op event publisher for admin commands
+type dummyEventPublisher struct{}
+
+func (d *dummyEventPublisher) Publish(event events.Event) error {
+	// No-op for admin commands
 	return nil
 }
