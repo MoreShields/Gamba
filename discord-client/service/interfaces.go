@@ -156,7 +156,15 @@ type WagerService interface {
 
 // EventPublisher defines the interface for publishing events
 type EventPublisher interface {
-	Publish(event events.Event)
+	Publish(event events.Event) error
+}
+
+// TransactionalEventPublisher extends EventPublisher with transactional capabilities
+// This allows events to be held until a transaction commits, ensuring consistency
+type TransactionalEventPublisher interface {
+	EventPublisher
+	Flush(ctx context.Context) error
+	Discard()
 }
 
 // StatsService defines the interface for statistics operations

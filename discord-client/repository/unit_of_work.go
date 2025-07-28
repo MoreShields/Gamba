@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"gambler/discord-client/database"
-	"gambler/discord-client/events"
 	"gambler/discord-client/service"
 	"github.com/jackc/pgx/v5"
 )
@@ -16,7 +15,7 @@ type unitOfWork struct {
 	tx                          pgx.Tx
 	ctx                         context.Context
 	guildID                     int64
-	transactionalBus            *events.TransactionalBus
+	transactionalPublisher      service.TransactionalEventPublisher
 	userRepo                    service.UserRepository
 	balanceHistoryRepo          service.BalanceHistoryRepository
 	betRepo                     service.BetRepository
@@ -28,23 +27,22 @@ type unitOfWork struct {
 }
 
 // NewUnitOfWorkFactory creates a new UnitOfWork factory
-func NewUnitOfWorkFactory(db *database.DB, eventBus *events.Bus) service.UnitOfWorkFactory {
+func NewUnitOfWorkFactory(db *database.DB) *unitOfWorkFactory {
 	return &unitOfWorkFactory{
-		db:       db,
-		eventBus: eventBus,
+		db: db,
 	}
 }
 
 type unitOfWorkFactory struct {
-	db       *database.DB
-	eventBus *events.Bus
+	db *database.DB
 }
 
-func (f *unitOfWorkFactory) CreateForGuild(guildID int64) service.UnitOfWork {
+// CreateForGuildWithPublisher creates a new UnitOfWork with a specific transactional publisher
+func (f *unitOfWorkFactory) CreateForGuildWithPublisher(guildID int64, transactionalPublisher service.TransactionalEventPublisher) service.UnitOfWork {
 	return &unitOfWork{
-		db:               f.db,
-		guildID:          guildID,
-		transactionalBus: events.NewTransactionalBus(f.eventBus),
+		db:                     f.db,
+		guildID:                guildID,
+		transactionalPublisher: transactionalPublisher,
 	}
 }
 
@@ -89,8 +87,8 @@ func (u *unitOfWork) Commit() error {
 	u.tx = nil
 
 	// Flush pending events after successful commit
-	if u.transactionalBus != nil {
-		u.transactionalBus.Flush(u.ctx)
+	if u.transactionalPublisher != nil {
+		u.transactionalPublisher.Flush(u.ctx)
 	}
 
 	return nil
@@ -110,8 +108,8 @@ func (u *unitOfWork) Rollback() error {
 	u.tx = nil
 
 	// Discard pending events on rollback
-	if u.transactionalBus != nil {
-		u.transactionalBus.Discard()
+	if u.transactionalPublisher != nil {
+		u.transactionalPublisher.Discard()
 	}
 
 	return nil
@@ -157,12 +155,12 @@ func (u *unitOfWork) WagerVoteRepository() service.WagerVoteRepository {
 	return u.wagerVoteRepo
 }
 
-// EventBus returns the transactional event bus for this unit of work
+// EventBus returns the transactional event publisher for this unit of work
 func (u *unitOfWork) EventBus() service.EventPublisher {
-	if u.transactionalBus == nil {
+	if u.transactionalPublisher == nil {
 		panic("unit of work not started - call Begin() first")
 	}
-	return u.transactionalBus
+	return u.transactionalPublisher
 }
 
 // GroupWagerRepository returns the group wager repository for this unit of work
