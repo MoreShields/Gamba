@@ -71,8 +71,8 @@ func TestUserService_GetOrCreateUser_NewUser(t *testing.T) {
 	})).Return(nil)
 
 	// Expect event publishing from RecordBalanceChange (both BalanceChangeEvent and UserCreatedEvent)
-	mockEventPublisher.On("Publish", mock.AnythingOfType("events.BalanceChangeEvent")).Return()
-	mockEventPublisher.On("Publish", mock.AnythingOfType("events.UserCreatedEvent")).Return()
+	mockEventPublisher.On("Publish", mock.AnythingOfType("events.BalanceChangeEvent")).Return(nil)
+	mockEventPublisher.On("Publish", mock.AnythingOfType("events.UserCreatedEvent")).Return(nil)
 
 	user, err := service.GetOrCreateUser(ctx, 123456, "newuser")
 

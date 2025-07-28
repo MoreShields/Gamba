@@ -8,6 +8,8 @@ import (
 	"gambler/discord-client/models"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type groupWagerService struct {
@@ -514,14 +516,16 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 	}
 
 	// Publish state change event
-	s.eventPublisher.Publish(events.GroupWagerStateChangeEvent{
+	if err := s.eventPublisher.Publish(events.GroupWagerStateChangeEvent{
 		GroupWagerID: groupWager.ID,
 		GuildID:      groupWager.GuildID,
 		OldState:     string(oldState),
 		NewState:     string(groupWager.State),
 		MessageID:    groupWager.MessageID,
 		ChannelID:    groupWager.ChannelID,
-	})
+	}); err != nil {
+		log.WithError(err).Error("Failed to publish group wager state change event")
+	}
 
 	return &models.GroupWagerResult{
 		GroupWager:    groupWager,
@@ -620,14 +624,16 @@ func (s *groupWagerService) TransitionExpiredWagers(ctx context.Context) error {
 		}
 
 		// Publish state change event
-		s.eventPublisher.Publish(events.GroupWagerStateChangeEvent{
+		if err := s.eventPublisher.Publish(events.GroupWagerStateChangeEvent{
 			GroupWagerID: wager.ID,
 			GuildID:      wager.GuildID,
 			OldState:     string(oldState),
 			NewState:     string(wager.State),
 			MessageID:    wager.MessageID,
 			ChannelID:    wager.ChannelID,
-		})
+		}); err != nil {
+			log.WithError(err).Error("Failed to publish group wager state change event")
+		}
 	}
 
 	return nil
@@ -671,14 +677,16 @@ func (s *groupWagerService) CancelGroupWager(ctx context.Context, groupWagerID i
 	}
 
 	// Publish state change event
-	s.eventPublisher.Publish(events.GroupWagerStateChangeEvent{
+	if err := s.eventPublisher.Publish(events.GroupWagerStateChangeEvent{
 		GroupWagerID: groupWager.ID,
 		GuildID:      groupWager.GuildID,
 		OldState:     string(oldState),
 		NewState:     string(groupWager.State),
 		MessageID:    groupWager.MessageID,
 		ChannelID:    groupWager.ChannelID,
-	})
+	}); err != nil {
+		log.WithError(err).Error("Failed to publish group wager state change event")
+	}
 
 	return nil
 }

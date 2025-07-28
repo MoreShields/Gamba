@@ -31,7 +31,7 @@ func TestHouseWager_Integration(t *testing.T) {
 	groupWagerRepo := repository.NewGroupWagerRepository(testDB.DB)
 	balanceHistoryRepo := repository.NewBalanceHistoryRepository(testDB.DB)
 	eventPublisher := &service.MockEventPublisher{}
-	eventPublisher.On("Publish", mock.Anything).Return()
+	eventPublisher.On("Publish", mock.Anything).Return(nil)
 
 	// Set up config with resolver IDs
 	cfg := config.Get()

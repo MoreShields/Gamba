@@ -6,52 +6,12 @@ import (
 
 	"gambler/discord-client/application/dto"
 	"gambler/discord-client/config"
-	"gambler/discord-client/events"
 	"gambler/discord-client/models"
-	"gambler/discord-client/repository"
 	"gambler/discord-client/repository/testutil"
 	"gambler/discord-client/service"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// MockDiscordPoster implements DiscordPoster for testing
-type MockDiscordPoster struct {
-	Posts []dto.HouseWagerPostDTO
-	Error error
-}
-
-func (m *MockDiscordPoster) PostHouseWager(ctx context.Context, dto dto.HouseWagerPostDTO) (*PostResult, error) {
-	if m.Error != nil {
-		return nil, m.Error
-	}
-	
-	m.Posts = append(m.Posts, dto)
-	
-	return &PostResult{
-		MessageID: 123456789, // Mock Discord message ID
-		ChannelID: dto.ChannelID,
-	}, nil
-}
-
-// UpdateHouseWager mock implementation
-func (m *MockDiscordPoster) UpdateHouseWager(ctx context.Context, messageID, channelID int64, dto dto.HouseWagerPostDTO) error {
-	if m.Error != nil {
-		return m.Error
-	}
-	// For tests, we don't need to track updates, just return success
-	return nil
-}
-
-// UpdateGroupWager mock implementation  
-func (m *MockDiscordPoster) UpdateGroupWager(ctx context.Context, messageID, channelID int64, detail interface{}) error {
-	if m.Error != nil {
-		return m.Error
-	}
-	// For tests, we don't need to track updates, just return success
-	return nil
-}
 
 func TestLoLHandler_EndToEndFlow(t *testing.T) {
 	if testing.Short() {
@@ -74,7 +34,11 @@ func TestLoLHandler_EndToEndFlow(t *testing.T) {
 	gameID := "test-game-123"
 
 	// Create UoW factory
-	uowFactory := repository.NewUnitOfWorkFactory(testDB.DB, events.NewBus())
+	mockTransactionalPublisher := service.NewMockTransactionalEventPublisher()
+	uowFactory := &TestUnitOfWorkFactory{
+		db:                     testDB.DB,
+		transactionalPublisher: mockTransactionalPublisher,
+	}
 
 	// Setup guild and summoner watch
 	setupTestData(t, ctx, uowFactory, guildID, summonerName, tagLine)
@@ -196,7 +160,11 @@ func TestLoLHandler_EndToEndFlow_Loss(t *testing.T) {
 	gameID := "test-game-456"
 
 	// Create UoW factory
-	uowFactory := repository.NewUnitOfWorkFactory(testDB.DB, events.NewBus())
+	mockTransactionalPublisher := service.NewMockTransactionalEventPublisher()
+	uowFactory := &TestUnitOfWorkFactory{
+		db:                     testDB.DB,
+		transactionalPublisher: mockTransactionalPublisher,
+	}
 
 	// Setup guild and summoner watch
 	setupTestData(t, ctx, uowFactory, guildID, summonerName, tagLine)
@@ -285,7 +253,11 @@ func TestLoLHandler_MultipleGuilds(t *testing.T) {
 	gameID := "test-game-shared"
 
 	// Create UoW factory
-	uowFactory := repository.NewUnitOfWorkFactory(testDB.DB, events.NewBus())
+	mockTransactionalPublisher := service.NewMockTransactionalEventPublisher()
+	uowFactory := &TestUnitOfWorkFactory{
+		db:                     testDB.DB,
+		transactionalPublisher: mockTransactionalPublisher,
+	}
 
 	// Setup multiple guilds watching the same summoner
 	setupTestData(t, ctx, uowFactory, guild1ID, summonerName, tagLine)
@@ -373,7 +345,14 @@ func TestLoLHandler_NoWatchingGuilds(t *testing.T) {
 	defer testDB.Cleanup(t)
 
 	ctx := context.Background()
-	uowFactory := repository.NewUnitOfWorkFactory(testDB.DB, events.NewBus())
+	
+	// Create a mock transactional publisher for tests
+	mockTransactionalPublisher := service.NewMockTransactionalEventPublisher()
+	uowFactory := &TestUnitOfWorkFactory{
+		db:                     testDB.DB,
+		transactionalPublisher: mockTransactionalPublisher,
+	}
+	
 	mockPoster := &MockDiscordPoster{}
 	handler := NewLoLHandler(uowFactory, mockPoster)
 
@@ -452,7 +431,11 @@ func TestLoLHandler_ForfeitRemake(t *testing.T) {
 	gameID := "test-game-forfeit"
 
 	// Create UoW factory
-	uowFactory := repository.NewUnitOfWorkFactory(testDB.DB, events.NewBus())
+	mockTransactionalPublisher := service.NewMockTransactionalEventPublisher()
+	uowFactory := &TestUnitOfWorkFactory{
+		db:                     testDB.DB,
+		transactionalPublisher: mockTransactionalPublisher,
+	}
 
 	// Setup guild and summoner watch
 	setupTestData(t, ctx, uowFactory, guildID, summonerName, tagLine)
