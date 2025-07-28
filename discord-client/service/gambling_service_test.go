@@ -62,7 +62,7 @@ func TestGamblingService_PlaceBet_Win(t *testing.T) {
 	})).Return(nil)
 
 	// Expect event publishing from RecordBalanceChange
-	mockEventPublisher.On("Publish", mock.AnythingOfType("events.BalanceChangeEvent")).Return()
+	mockEventPublisher.On("Publish", mock.AnythingOfType("events.BalanceChangeEvent")).Return(nil)
 
 	// Force a win by setting a high probability
 	result, err := service.PlaceBet(ctx, 123456, 0.99, 1000)
@@ -128,7 +128,7 @@ func TestGamblingService_PlaceBet_Loss(t *testing.T) {
 	})).Return(nil)
 
 	// Expect event publishing from RecordBalanceChange
-	mockEventPublisher.On("Publish", mock.AnythingOfType("events.BalanceChangeEvent")).Return()
+	mockEventPublisher.On("Publish", mock.AnythingOfType("events.BalanceChangeEvent")).Return(nil)
 
 	// Force a loss by setting a very low probability
 	result, err := service.PlaceBet(ctx, 123456, 0.01, 1000)
@@ -316,7 +316,7 @@ func TestGamblingService_PlaceBet_TransactionRollback(t *testing.T) {
 	mockBetRepo.On("Create", ctx, mock.Anything).Return(errors.New("database error"))
 
 	// Expect event publishing from RecordBalanceChange (before bet creation fails)
-	mockEventPublisher.On("Publish", mock.AnythingOfType("events.BalanceChangeEvent")).Return()
+	mockEventPublisher.On("Publish", mock.AnythingOfType("events.BalanceChangeEvent")).Return(nil)
 
 	// Force a win
 	result, err := service.PlaceBet(ctx, 123456, 0.99, 1000)

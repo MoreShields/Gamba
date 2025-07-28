@@ -158,7 +158,7 @@ func TestGroupWagerService_PlaceBet_TableDriven(t *testing.T) {
 			fixture.Helper.ExpectWagerDetailLookup(TestWagerID, detail)
 
 			// Setup user mock if user exists in scenario
-			if user, exists := fullScenario.Users[TestUser1ID]; exists {
+			if user, exists := fullScenario.GetUser(TestUser1ID); exists {
 				fixture.Helper.ExpectUserLookup(TestUser1ID, user)
 			}
 
@@ -239,9 +239,10 @@ func TestGroupWagerService_PlaceBet_CompleteFlow(t *testing.T) {
 			Options:      scenario.Options,
 			Participants: scenario.Participants,
 		})
-		fixture.Helper.ExpectUserLookup(TestUser1ID, scenario.Users[TestUser1ID])
+		user1, _ := scenario.GetUser(TestUser1ID)
+		fixture.Helper.ExpectUserLookup(TestUser1ID, user1)
 		fixture.Helper.ExpectParticipantLookup(TestWagerID, TestUser1ID, nil) // No existing participant
-		fixture.Helper.ExpectNewParticipant(TestWagerID, TestUser1ID, TestOption1ID, 1000)
+		fixture.Helper.ExpectNewParticipant(TestWagerID, TestUser1ID, TestOption1ID, int64(1000))
 		fixture.Helper.ExpectOptionTotalUpdate(TestOption1ID, 1000)
 		
 		// Expect wager pot update
@@ -286,9 +287,10 @@ func TestGroupWagerService_PlaceBet_CompleteFlow(t *testing.T) {
 			Options:      scenario.Options,
 			Participants: scenario.Participants,
 		})
-		fixture.Helper.ExpectUserLookup(TestUser1ID, scenario.Users[TestUser1ID])
+		user1, _ := scenario.GetUser(TestUser1ID)
+		fixture.Helper.ExpectUserLookup(TestUser1ID, user1)
 		fixture.Helper.ExpectParticipantLookup(TestWagerID, TestUser1ID, nil) // No existing participant
-		fixture.Helper.ExpectNewParticipant(TestWagerID, TestUser1ID, TestOption1ID, 1000)
+		fixture.Helper.ExpectNewParticipant(TestWagerID, TestUser1ID, TestOption1ID, int64(1000))
 		fixture.Helper.ExpectOptionTotalUpdate(TestOption1ID, 1000)
 		
 		// Expect wager pot update

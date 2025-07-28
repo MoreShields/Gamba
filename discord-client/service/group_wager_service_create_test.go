@@ -329,7 +329,7 @@ func TestGroupWagerService_CreateGroupWager_UserNotFound(t *testing.T) {
 	)
 
 	// Assert
-	fixture.Assertions.AssertValidationError(err, "creator 999999 not found")
+	fixture.Assertions.AssertValidationError(err, "creator 999 not found")
 	if result != nil {
 		fixture.T.Errorf("expected nil result, got %v", result)
 	}

@@ -306,7 +306,7 @@ func setupResolutionMocks(t *testing.T, helper *MockHelper, mocks *TestMocks, sc
 
 	// User lookups for all participants
 	for _, participant := range scenario.Participants {
-		if user, exists := scenario.Users[participant.DiscordID]; exists {
+		if user, exists := scenario.GetUser(participant.DiscordID); exists {
 			helper.ExpectUserLookup(participant.DiscordID, user)
 		}
 	}
@@ -327,7 +327,7 @@ func setupResolutionMocks(t *testing.T, helper *MockHelper, mocks *TestMocks, sc
 
 	// Setup balance update expectations
 	for _, winner := range winners {
-		user := scenario.Users[winner.DiscordID]
+		user, _ := scenario.GetUser(winner.DiscordID)
 		var payout int64
 		var balanceChange int64
 
@@ -343,13 +343,13 @@ func setupResolutionMocks(t *testing.T, helper *MockHelper, mocks *TestMocks, sc
 		if true {
 			newBalance := user.Balance + balanceChange
 			helper.ExpectBalanceUpdate(winner.DiscordID, newBalance)
-			helper.ExpectBalanceHistoryRecord(winner.DiscordID, balanceChange, models.TransactionTypeGroupWagerWin)
-			helper.ExpectEventPublish("events.BalanceChangeEvent")
+			helper.ExpectBalanceHistoryRecordSimple(winner.DiscordID, newBalance, models.TransactionTypeGroupWagerWin)
+			helper.ExpectEventPublish(events.EventTypeBalanceChange)
 		}
 	}
 
 	for _, loser := range losers {
-		user := scenario.Users[loser.DiscordID]
+		user, _ := scenario.GetUser(loser.DiscordID)
 		var balanceChange int64
 
 		// For both pool and house wagers: deduct bet amount from loser
@@ -359,8 +359,8 @@ func setupResolutionMocks(t *testing.T, helper *MockHelper, mocks *TestMocks, sc
 		if true {
 			newBalance := user.Balance + balanceChange
 			helper.ExpectBalanceUpdate(loser.DiscordID, newBalance)
-			helper.ExpectBalanceHistoryRecord(loser.DiscordID, balanceChange, models.TransactionTypeGroupWagerLoss)
-			helper.ExpectEventPublish("events.BalanceChangeEvent")
+			helper.ExpectBalanceHistoryRecordSimple(loser.DiscordID, newBalance, models.TransactionTypeGroupWagerLoss)
+			helper.ExpectEventPublish(events.EventTypeBalanceChange)
 		}
 	}
 
@@ -392,7 +392,7 @@ func setupResolutionMocks(t *testing.T, helper *MockHelper, mocks *TestMocks, sc
 		return e.GroupWagerID == TestWagerID &&
 			e.OldState == string(models.GroupWagerStateActive) &&
 			e.NewState == string(models.GroupWagerStateResolved)
-	})).Return()
+	})).Return(nil)
 }
 
 func TestGroupWagerService_ResolveGroupWager_SystemUser(t *testing.T) {
@@ -495,9 +495,10 @@ func TestGroupWagerService_HouseWager_SpecificScenarios(t *testing.T) {
 			Options:      scenario.Options,
 			Participants: scenario.Participants,
 		})
-		fixture.Helper.ExpectUserLookup(TestUser1ID, scenario.Users[TestUser1ID])
+		user1, _ := scenario.GetUser(TestUser1ID)
+		fixture.Helper.ExpectUserLookup(TestUser1ID, user1)
 		fixture.Helper.ExpectParticipantLookup(TestWagerID, TestUser1ID, nil)
-		fixture.Helper.ExpectNewParticipant(TestWagerID, TestUser1ID, TestOption1ID, 1000)
+		fixture.Helper.ExpectNewParticipant(TestWagerID, TestUser1ID, TestOption1ID, int64(1000))
 		fixture.Helper.ExpectOptionTotalUpdate(TestOption1ID, 1000)
 
 		fixture.Mocks.GroupWagerRepo.On("Update", fixture.Ctx, mock.MatchedBy(func(gw *models.GroupWager) bool {
@@ -550,26 +551,28 @@ func TestGroupWagerService_HouseWager_SpecificScenarios(t *testing.T) {
 
 		// User lookups
 		for _, p := range scenario.Participants {
-			fixture.Helper.ExpectUserLookup(p.DiscordID, scenario.Users[p.DiscordID])
+			if user, exists := scenario.GetUser(p.DiscordID); exists {
+				fixture.Helper.ExpectUserLookup(p.DiscordID, user)
+			}
 		}
 
 		// All participants lose their bets
-		fixture.Helper.ExpectBalanceUpdate(TestUser1ID, TestInitialBalance-1000) // 10000 - 1000 = 9000
-		fixture.Helper.ExpectBalanceHistoryRecord(TestUser1ID, -1000, models.TransactionTypeGroupWagerLoss)
-		fixture.Helper.ExpectEventPublish("events.BalanceChangeEvent")
+		fixture.Helper.ExpectBalanceUpdate(TestUser1ID, TestInitialBalance-1000) // 100000 - 1000 = 99000
+		fixture.Helper.ExpectBalanceHistoryRecordSimple(TestUser1ID, TestInitialBalance-1000, models.TransactionTypeGroupWagerLoss)
+		fixture.Helper.ExpectEventPublish(events.EventTypeBalanceChange)
 
-		fixture.Helper.ExpectBalanceUpdate(TestUser2ID, TestInitialBalance-2000) // 10000 - 2000 = 8000
-		fixture.Helper.ExpectBalanceHistoryRecord(TestUser2ID, -2000, models.TransactionTypeGroupWagerLoss)
-		fixture.Helper.ExpectEventPublish("events.BalanceChangeEvent")
+		fixture.Helper.ExpectBalanceUpdate(TestUser2ID, TestInitialBalance-2000) // 100000 - 2000 = 98000
+		fixture.Helper.ExpectBalanceHistoryRecordSimple(TestUser2ID, TestInitialBalance-2000, models.TransactionTypeGroupWagerLoss)
+		fixture.Helper.ExpectEventPublish(events.EventTypeBalanceChange)
 
-		fixture.Helper.ExpectBalanceUpdate(TestUser3ID, TestInitialBalance-3000) // 10000 - 3000 = 7000
-		fixture.Helper.ExpectBalanceHistoryRecord(TestUser3ID, -3000, models.TransactionTypeGroupWagerLoss)
-		fixture.Helper.ExpectEventPublish("events.BalanceChangeEvent")
+		fixture.Helper.ExpectBalanceUpdate(TestUser3ID, TestInitialBalance-3000) // 100000 - 3000 = 97000
+		fixture.Helper.ExpectBalanceHistoryRecordSimple(TestUser3ID, TestInitialBalance-3000, models.TransactionTypeGroupWagerLoss)
+		fixture.Helper.ExpectEventPublish(events.EventTypeBalanceChange)
 
 		// Other resolution mocks
 		fixture.Mocks.GroupWagerRepo.On("UpdateParticipantPayouts", fixture.Ctx, mock.Anything).Return(nil)
 		fixture.Mocks.GroupWagerRepo.On("Update", fixture.Ctx, mock.Anything).Return(nil)
-		fixture.Mocks.EventPublisher.On("Publish", mock.AnythingOfType("events.GroupWagerStateChangeEvent")).Return()
+		fixture.Mocks.EventPublisher.On("Publish", mock.AnythingOfType("events.GroupWagerStateChangeEvent")).Return(nil)
 
 		// Execute
 		resolverID := int64(TestResolverID)
@@ -624,7 +627,8 @@ func TestGroupWagerService_ResolveGroupWager_BalanceUpdateFailure(t *testing.T) 
 		Options:      scenario.Options,
 		Participants: scenario.Participants,
 	})
-	helper.ExpectUserLookup(TestUser1ID, scenario.Users[TestUser1ID])
+	user1, _ := scenario.GetUser(TestUser1ID)
+	helper.ExpectUserLookup(TestUser1ID, user1)
 
 	// Simulate balance update failure
 	mocks.UserRepo.On("UpdateBalance", ctx, int64(TestUser1ID), mock.AnythingOfType("int64")).Return(fmt.Errorf("database error"))

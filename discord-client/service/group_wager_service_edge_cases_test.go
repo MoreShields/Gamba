@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"gambler/discord-client/events"
 	"gambler/discord-client/models"
 
 	"github.com/stretchr/testify/assert"
@@ -26,7 +27,7 @@ func TestGroupWagerService_EdgeCases(t *testing.T) {
 			{
 				name: "place bet on non-existent wager",
 				operation: func() error {
-					fixture.Helper.ExpectWagerNotFound(TestWagerID)
+					fixture.Helper.ExpectWagerDetailNotFound(TestWagerID)
 					_, err := fixture.Service.PlaceBet(fixture.Ctx, TestWagerID, TestUser1ID, TestOption1ID, 1000)
 					return err
 				},
@@ -34,7 +35,8 @@ func TestGroupWagerService_EdgeCases(t *testing.T) {
 			{
 				name: "resolve non-existent wager",
 				operation: func() error {
-					fixture.Helper.ExpectWagerNotFound(TestWagerID)
+					fixture.SetResolvers(TestResolverID) // Make the user a resolver
+					fixture.Helper.ExpectWagerDetailNotFound(TestWagerID)
 					resolverID := int64(TestResolverID)
 					_, err := fixture.Service.ResolveGroupWager(fixture.Ctx, TestWagerID, &resolverID, TestOption1ID)
 					return err
@@ -43,7 +45,7 @@ func TestGroupWagerService_EdgeCases(t *testing.T) {
 			{
 				name: "cancel non-existent wager",
 				operation: func() error {
-					fixture.Helper.ExpectWagerNotFound(TestWagerID)
+					fixture.Helper.ExpectWagerDetailNotFound(TestWagerID)
 					creatorID := int64(TestUser1ID)
 					return fixture.Service.CancelGroupWager(fixture.Ctx, TestWagerID, &creatorID)
 				},
@@ -91,7 +93,7 @@ func TestGroupWagerService_EdgeCases(t *testing.T) {
 
 		_, err := fixture.Service.PlaceBet(fixture.Ctx, TestWagerID, TestUser1ID, TestOption1ID, 1000)
 
-		fixture.Assertions.AssertValidationError(err, "user 111111 not found")
+		fixture.Assertions.AssertValidationError(err, "user 100 not found")
 		fixture.AssertAllMocks()
 	})
 
@@ -103,8 +105,6 @@ func TestGroupWagerService_EdgeCases(t *testing.T) {
 			WithOptions("Option A", "Option B").
 			WithUser(TestUser1ID, "user1", TestInitialBalance).
 			Build()
-
-		fixture.Helper.ExpectWagerLookup(TestWagerID, scenario.Wager)
 		fixture.Helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
 			Wager:        scenario.Wager,
 			Options:      scenario.Options,
@@ -157,7 +157,8 @@ func TestGroupWagerService_EdgeCases(t *testing.T) {
 			Options:      scenario.Options,
 			Participants: scenario.Participants,
 		})
-		fixture.Helper.ExpectUserLookup(TestUser1ID, scenario.Users[TestUser1ID])
+		user, _ := scenario.GetUser(TestUser1ID)
+		fixture.Helper.ExpectUserLookup(TestUser1ID, user)
 		fixture.Helper.ExpectParticipantLookup(TestWagerID, TestUser1ID, nil)
 
 		// Try to bet more than balance
@@ -184,7 +185,12 @@ func TestGroupWagerService_EdgeCases(t *testing.T) {
 					ID:    TestWagerID,
 					State: tc.state,
 				}
-				fixture.Helper.ExpectWagerLookup(TestWagerID, wager)
+				detail := &models.GroupWagerDetail{
+					Wager:        wager,
+					Options:      []*models.GroupWagerOption{},
+					Participants: []*models.GroupWagerParticipant{},
+				}
+				fixture.Helper.ExpectWagerDetailLookup(TestWagerID, detail)
 
 				_, err := fixture.Service.PlaceBet(fixture.Ctx, TestWagerID, TestUser1ID, TestOption1ID, 1000)
 
@@ -209,7 +215,8 @@ func TestGroupWagerService_EdgeCases(t *testing.T) {
 			Options:      scenario.Options,
 			Participants: scenario.Participants,
 		})
-		fixture.Helper.ExpectUserLookup(TestUser1ID, scenario.Users[TestUser1ID])
+		user, _ := scenario.GetUser(TestUser1ID)
+		fixture.Helper.ExpectUserLookup(TestUser1ID, user)
 		fixture.Helper.ExpectParticipantLookup(TestWagerID, TestUser1ID, nil)
 
 		// Simulate participant creation failure
@@ -237,9 +244,10 @@ func TestGroupWagerService_EdgeCases(t *testing.T) {
 			Options:      scenario.Options,
 			Participants: scenario.Participants,
 		})
-		fixture.Helper.ExpectUserLookup(TestUser1ID, scenario.Users[TestUser1ID])
+		user, _ := scenario.GetUser(TestUser1ID)
+		fixture.Helper.ExpectUserLookup(TestUser1ID, user)
 		fixture.Helper.ExpectParticipantLookup(TestWagerID, TestUser1ID, nil)
-		fixture.Helper.ExpectNewParticipant(TestWagerID, TestUser1ID, TestOption1ID, 1000)
+		fixture.Helper.ExpectNewParticipant(TestWagerID, TestUser1ID, TestOption1ID, int64(1000))
 		fixture.Helper.ExpectOptionTotalUpdate(TestOption1ID, 1000)
 
 		// Simulate optimistic locking failure on wager update
@@ -297,13 +305,17 @@ func TestGroupWagerService_AuthorizationEdgeCases(t *testing.T) {
 					MessageID:        TestMessageID,
 					ChannelID:        TestChannelID,
 				}
-				fixture.Helper.ExpectWagerLookup(TestWagerID, wager)
+				fixture.Helper.ExpectWagerDetailLookup(TestWagerID, &models.GroupWagerDetail{
+					Wager:        wager,
+					Options:      []*models.GroupWagerOption{},
+					Participants: []*models.GroupWagerParticipant{},
+				})
 
 				if tc.shouldSucceed {
 					fixture.Mocks.GroupWagerRepo.On("Update", fixture.Ctx, mock.MatchedBy(func(w *models.GroupWager) bool {
 						return w.State == models.GroupWagerStateCancelled
 					})).Return(nil)
-					fixture.Helper.ExpectEventPublish("events.GroupWagerStateChangeEvent")
+					fixture.Helper.ExpectEventPublish(events.EventTypeGroupWagerStateChange)
 				}
 
 				err := fixture.Service.CancelGroupWager(fixture.Ctx, TestWagerID, tc.cancellerID)

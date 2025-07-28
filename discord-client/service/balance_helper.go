@@ -34,7 +34,9 @@ func RecordBalanceChange(ctx context.Context, balanceHistoryRepo BalanceHistoryR
 		"transactionType": event.TransactionType,
 		"changeAmount":    event.ChangeAmount,
 	}).Debug("Publishing BalanceChangeEvent to transactional bus")
-	eventPublisher.Publish(event)
+	if err := eventPublisher.Publish(event); err != nil {
+		log.WithError(err).Error("Failed to publish balance change event")
+	}
 	
 	// Also emit user created event if this is initial balance
 	if history.TransactionType == models.TransactionTypeInitial {
@@ -45,7 +47,9 @@ func RecordBalanceChange(ctx context.Context, balanceHistoryRepo BalanceHistoryR
 				Username:       username,
 				InitialBalance: history.BalanceAfter,
 			}
-			eventPublisher.Publish(userCreatedEvent)
+			if err := eventPublisher.Publish(userCreatedEvent); err != nil {
+				log.WithError(err).Error("Failed to publish user created event")
+			}
 		}
 	}
 	

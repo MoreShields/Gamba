@@ -2,11 +2,21 @@ package service
 
 import (
 	"errors"
+	"gambler/discord-client/events"
 	"gambler/discord-client/models"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
 )
+
+// Helper function to create a wager detail from a wager
+func createWagerDetail(wager *models.GroupWager) *models.GroupWagerDetail {
+	return &models.GroupWagerDetail{
+		Wager:        wager,
+		Options:      []*models.GroupWagerOption{},
+		Participants: []*models.GroupWagerParticipant{},
+	}
+}
 
 func TestGroupWagerService_CancelGroupWager(t *testing.T) {
 	fixture := NewGroupWagerTestFixture(t)
@@ -34,11 +44,11 @@ func TestGroupWagerService_CancelGroupWager(t *testing.T) {
 					MessageID:        789,
 					ChannelID:        456,
 				}
-				helper.ExpectWagerLookup(1, wager)
+				helper.ExpectWagerDetailLookup(1, createWagerDetail(wager))
 				mocks.GroupWagerRepo.On("Update", helper.ctx, mock.MatchedBy(func(w *models.GroupWager) bool {
 					return w.ID == 1 && w.State == models.GroupWagerStateCancelled
 				})).Return(nil)
-				helper.ExpectEventPublish("events.GroupWagerStateChangeEvent")
+				helper.ExpectEventPublish(events.EventTypeGroupWagerStateChange)
 			},
 		},
 		{
@@ -53,11 +63,11 @@ func TestGroupWagerService_CancelGroupWager(t *testing.T) {
 					MessageID:        789,
 					ChannelID:        456,
 				}
-				helper.ExpectWagerLookup(1, wager)
+				helper.ExpectWagerDetailLookup(1, createWagerDetail(wager))
 				mocks.GroupWagerRepo.On("Update", helper.ctx, mock.MatchedBy(func(w *models.GroupWager) bool {
 					return w.ID == 1 && w.State == models.GroupWagerStateCancelled
 				})).Return(nil)
-				helper.ExpectEventPublish("events.GroupWagerStateChangeEvent")
+				helper.ExpectEventPublish(events.EventTypeGroupWagerStateChange)
 			},
 		},
 		{
@@ -65,7 +75,7 @@ func TestGroupWagerService_CancelGroupWager(t *testing.T) {
 			groupWagerID: 1,
 			cancellerID:  &creatorID,
 			setupMocks: func(mocks *TestMocks, helper *MockHelper) {
-				helper.ExpectWagerNotFound(1)
+				helper.ExpectWagerDetailNotFound(1)
 			},
 			expectedError: "group wager not found",
 		},
@@ -90,11 +100,11 @@ func TestGroupWagerService_CancelGroupWager(t *testing.T) {
 					MessageID:        789,
 					ChannelID:        456,
 				}
-				helper.ExpectWagerLookup(1, wager)
+				helper.ExpectWagerDetailLookup(1, createWagerDetail(wager))
 				mocks.GroupWagerRepo.On("Update", helper.ctx, mock.MatchedBy(func(w *models.GroupWager) bool {
 					return w.ID == 1 && w.State == models.GroupWagerStateCancelled
 				})).Return(nil)
-				helper.ExpectEventPublish("events.GroupWagerStateChangeEvent")
+				helper.ExpectEventPublish(events.EventTypeGroupWagerStateChange)
 			},
 		},
 		{
@@ -107,7 +117,7 @@ func TestGroupWagerService_CancelGroupWager(t *testing.T) {
 					CreatorDiscordID: &creatorID,
 					State:            models.GroupWagerStateResolved,
 				}
-				helper.ExpectWagerLookup(1, wager)
+				helper.ExpectWagerDetailLookup(1, createWagerDetail(wager))
 			},
 			expectedError: "can only cancel active or pending resolution group wagers",
 		},
@@ -121,7 +131,7 @@ func TestGroupWagerService_CancelGroupWager(t *testing.T) {
 					CreatorDiscordID: &creatorID,
 					State:            models.GroupWagerStateCancelled,
 				}
-				helper.ExpectWagerLookup(1, wager)
+				helper.ExpectWagerDetailLookup(1, createWagerDetail(wager))
 			},
 			expectedError: "can only cancel active or pending resolution group wagers",
 		},
@@ -135,7 +145,7 @@ func TestGroupWagerService_CancelGroupWager(t *testing.T) {
 					CreatorDiscordID: &creatorID, // Different from canceller
 					State:            models.GroupWagerStateActive,
 				}
-				helper.ExpectWagerLookup(1, wager)
+				helper.ExpectWagerDetailLookup(1, createWagerDetail(wager))
 			},
 			expectedError: "only the creator or a resolver can cancel a group wager",
 		},
@@ -149,7 +159,7 @@ func TestGroupWagerService_CancelGroupWager(t *testing.T) {
 					CreatorDiscordID: &creatorID,
 					State:            models.GroupWagerStateActive,
 				}
-				helper.ExpectWagerLookup(1, wager)
+				helper.ExpectWagerDetailLookup(1, createWagerDetail(wager))
 				mocks.GroupWagerRepo.On("Update", helper.ctx, mock.Anything).Return(errors.New("update error"))
 			},
 			expectedError: "failed to update group wager: update error",
@@ -166,11 +176,11 @@ func TestGroupWagerService_CancelGroupWager(t *testing.T) {
 					MessageID:        789,
 					ChannelID:        456,
 				}
-				helper.ExpectWagerLookup(1, wager)
+				helper.ExpectWagerDetailLookup(1, createWagerDetail(wager))
 				mocks.GroupWagerRepo.On("Update", helper.ctx, mock.MatchedBy(func(w *models.GroupWager) bool {
 					return w.ID == 1 && w.State == models.GroupWagerStateCancelled
 				})).Return(nil)
-				helper.ExpectEventPublish("events.GroupWagerStateChangeEvent")
+				helper.ExpectEventPublish(events.EventTypeGroupWagerStateChange)
 			},
 		},
 	}
@@ -222,11 +232,11 @@ func TestGroupWagerService_CancelGroupWager_SystemUser(t *testing.T) {
 			MessageID:        789,
 			ChannelID:        456,
 		}
-		fixture.Helper.ExpectWagerLookup(1, systemWager)
+		fixture.Helper.ExpectWagerDetailLookup(1, createWagerDetail(systemWager))
 		fixture.Mocks.GroupWagerRepo.On("Update", fixture.Ctx, mock.MatchedBy(func(gw *models.GroupWager) bool {
 			return gw.State == models.GroupWagerStateCancelled
 		})).Return(nil)
-		fixture.Helper.ExpectEventPublish("events.GroupWagerStateChangeEvent")
+		fixture.Helper.ExpectEventPublish(events.EventTypeGroupWagerStateChange)
 
 		// Execute
 		err := fixture.Service.CancelGroupWager(fixture.Ctx, 1, nil) // System cancelling
@@ -248,11 +258,11 @@ func TestGroupWagerService_CancelGroupWager_SystemUser(t *testing.T) {
 			MessageID:        789,
 			ChannelID:        456,
 		}
-		fixture.Helper.ExpectWagerLookup(2, systemWager)
+		fixture.Helper.ExpectWagerDetailLookup(2, createWagerDetail(systemWager))
 		fixture.Mocks.GroupWagerRepo.On("Update", fixture.Ctx, mock.MatchedBy(func(gw *models.GroupWager) bool {
 			return gw.State == models.GroupWagerStateCancelled
 		})).Return(nil)
-		fixture.Helper.ExpectEventPublish("events.GroupWagerStateChangeEvent")
+		fixture.Helper.ExpectEventPublish(events.EventTypeGroupWagerStateChange)
 
 		// Execute
 		err := fixture.Service.CancelGroupWager(fixture.Ctx, 2, &resolverID) // Resolver cancelling
@@ -272,7 +282,7 @@ func TestGroupWagerService_CancelGroupWager_SystemUser(t *testing.T) {
 			CreatorDiscordID: nil, // System user
 			State:            models.GroupWagerStateActive,
 		}
-		fixture.Helper.ExpectWagerLookup(3, systemWager)
+		fixture.Helper.ExpectWagerDetailLookup(3, createWagerDetail(systemWager))
 
 		// Execute
 		regularUserID := int64(12345)

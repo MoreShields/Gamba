@@ -33,7 +33,7 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 	balanceHistoryRepo := repository.NewBalanceHistoryRepository(testDB.DB)
 	eventPublisher := &service.MockEventPublisher{}
 	// Allow any publish calls
-	eventPublisher.On("Publish", mock.Anything).Return()
+	eventPublisher.On("Publish", mock.Anything).Return(nil)
 
 	// Set up config with resolver IDs
 	cfg := config.Get()
@@ -359,7 +359,7 @@ func TestGroupWagerResolution_EdgeCases(t *testing.T) {
 	balanceHistoryRepo := repository.NewBalanceHistoryRepository(testDB.DB)
 	eventPublisher := &service.MockEventPublisher{}
 	// Allow any publish calls
-	eventPublisher.On("Publish", mock.Anything).Return()
+	eventPublisher.On("Publish", mock.Anything).Return(nil)
 
 	// Set up config with resolver IDs
 	cfg := config.Get()
