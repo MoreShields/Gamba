@@ -13,7 +13,7 @@ import (
 
 // GroupWagerRepository implements all group wager related data access
 type GroupWagerRepository struct {
-	q       queryable
+	q       Queryable
 	guildID int64
 }
 
@@ -23,7 +23,7 @@ func NewGroupWagerRepository(db *database.DB) *GroupWagerRepository {
 }
 
 // newGroupWagerRepository creates a new group wager repository with a transaction and guild scope
-func newGroupWagerRepository(tx queryable, guildID int64) service.GroupWagerRepository {
+func NewGroupWagerRepositoryScoped(tx Queryable, guildID int64) service.GroupWagerRepository {
 	return &GroupWagerRepository{
 		q:       tx,
 		guildID: guildID,

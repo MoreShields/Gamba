@@ -24,7 +24,7 @@ func TestWagerRepository_UpdateMessageIDs(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create test wager
-	wagerRepo := newWagerRepository(testDB.DB, testGuildID)
+	wagerRepo := NewWagerRepositoryScoped(testDB.DB.Pool, testGuildID)
 	wager := &models.Wager{
 		ProposerDiscordID: proposer.DiscordID,
 		TargetDiscordID:   target.DiscordID,

@@ -11,7 +11,7 @@ import (
 
 // WagerVoteRepository implements wager vote data access
 type WagerVoteRepository struct {
-	q       queryable
+	q       Queryable
 	guildID int64
 }
 
@@ -21,12 +21,12 @@ func NewWagerVoteRepository(db *database.DB) *WagerVoteRepository {
 }
 
 // newWagerVoteRepositoryWithTx creates a new wager vote repository with a transaction
-func newWagerVoteRepositoryWithTx(tx queryable) *WagerVoteRepository {
+func newWagerVoteRepositoryWithTx(tx Queryable) *WagerVoteRepository {
 	return &WagerVoteRepository{q: tx}
 }
 
 // newWagerVoteRepository creates a new wager vote repository with a transaction and guild scope
-func newWagerVoteRepository(tx queryable, guildID int64) *WagerVoteRepository {
+func NewWagerVoteRepositoryScoped(tx Queryable, guildID int64) *WagerVoteRepository {
 	return &WagerVoteRepository{
 		q:       tx,
 		guildID: guildID,

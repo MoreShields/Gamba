@@ -11,7 +11,7 @@ import (
 
 // WagerRepository implements wager data access
 type WagerRepository struct {
-	q       queryable
+	q       Queryable
 	guildID int64
 }
 
@@ -21,12 +21,12 @@ func NewWagerRepository(db *database.DB) *WagerRepository {
 }
 
 // newWagerRepositoryWithTx creates a new wager repository with a transaction
-func newWagerRepositoryWithTx(tx queryable) *WagerRepository {
+func newWagerRepositoryWithTx(tx Queryable) *WagerRepository {
 	return &WagerRepository{q: tx}
 }
 
 // newWagerRepository creates a new wager repository with a transaction and guild scope
-func newWagerRepository(tx queryable, guildID int64) *WagerRepository {
+func NewWagerRepositoryScoped(tx Queryable, guildID int64) *WagerRepository {
 	return &WagerRepository{
 		q:       tx,
 		guildID: guildID,

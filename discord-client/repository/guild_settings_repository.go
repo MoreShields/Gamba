@@ -11,7 +11,7 @@ import (
 
 // GuildSettingsRepository implements the GuildSettingsRepository interface
 type GuildSettingsRepository struct {
-	q queryable
+	q Queryable
 }
 
 // NewGuildSettingsRepository creates a new guild settings repository
@@ -20,7 +20,7 @@ func NewGuildSettingsRepository(db *database.DB) *GuildSettingsRepository {
 }
 
 // newGuildSettingsRepositoryWithTx creates a new guild settings repository with a transaction
-func newGuildSettingsRepositoryWithTx(tx queryable) *GuildSettingsRepository {
+func NewGuildSettingsRepositoryWithTx(tx Queryable) *GuildSettingsRepository {
 	return &GuildSettingsRepository{q: tx}
 }
 

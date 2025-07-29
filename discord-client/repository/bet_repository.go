@@ -12,7 +12,7 @@ import (
 )
 
 type betRepository struct {
-	q       queryable
+	q       Queryable
 	guildID int64
 }
 
@@ -22,12 +22,12 @@ func NewBetRepository(db *database.DB) service.BetRepository {
 }
 
 // newBetRepositoryWithTx creates a new bet repository with a transaction
-func newBetRepositoryWithTx(tx queryable) service.BetRepository {
+func newBetRepositoryWithTx(tx Queryable) service.BetRepository {
 	return &betRepository{q: tx}
 }
 
 // newBetRepository creates a new bet repository with a transaction and guild scope
-func newBetRepository(tx queryable, guildID int64) service.BetRepository {
+func NewBetRepositoryScoped(tx Queryable, guildID int64) service.BetRepository {
 	return &betRepository{
 		q:       tx,
 		guildID: guildID,

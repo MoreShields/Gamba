@@ -12,7 +12,7 @@ import (
 
 // BalanceHistoryRepository implements the BalanceHistoryRepository interface
 type BalanceHistoryRepository struct {
-	q       queryable
+	q       Queryable
 	guildID int64
 }
 
@@ -21,13 +21,8 @@ func NewBalanceHistoryRepository(db *database.DB) *BalanceHistoryRepository {
 	return &BalanceHistoryRepository{q: db.Pool}
 }
 
-// newBalanceHistoryRepositoryWithTx creates a new balance history repository with a transaction
-func newBalanceHistoryRepositoryWithTx(tx queryable) *BalanceHistoryRepository {
-	return &BalanceHistoryRepository{q: tx}
-}
-
-// newBalanceHistoryRepository creates a new balance history repository with a transaction and guild scope
-func newBalanceHistoryRepository(tx queryable, guildID int64) *BalanceHistoryRepository {
+// NewBalanceHistoryRepositoryScoped creates a new balance history repository with a transaction and guild scope
+func NewBalanceHistoryRepositoryScoped(tx Queryable, guildID int64) *BalanceHistoryRepository {
 	return &BalanceHistoryRepository{
 		q:       tx,
 		guildID: guildID,
