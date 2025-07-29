@@ -6,11 +6,12 @@ import "gambler/discord-client/models"
 type EventType string
 
 const (
-	EventTypeBalanceChange       EventType = "balance_change"
-	EventTypeUserCreated         EventType = "user_created"
-	EventTypeBetPlaced           EventType = "bet_placed"
-	EventTypeWagerResolved       EventType = "wager_resolved"
+	EventTypeBalanceChange         EventType = "balance_change"
+	EventTypeUserCreated           EventType = "user_created"
+	EventTypeBetPlaced             EventType = "bet_placed"
+	EventTypeWagerResolved         EventType = "wager_resolved"
 	EventTypeGroupWagerStateChange EventType = "group_wager_state_change"
+	EventTypeDiscordMessage        EventType = "discord_message"
 )
 
 // Event is the base interface for all events
@@ -81,4 +82,19 @@ type GroupWagerStateChangeEvent struct {
 
 func (e GroupWagerStateChangeEvent) Type() EventType {
 	return EventTypeGroupWagerStateChange
+}
+
+// DiscordMessageEvent represents a Discord message received by the bot
+type DiscordMessageEvent struct {
+	MessageID string
+	ChannelID string
+	GuildID   string
+	UserID    string
+	Username  string
+	Content   string
+	Timestamp int64
+}
+
+func (e DiscordMessageEvent) Type() EventType {
+	return EventTypeDiscordMessage
 }

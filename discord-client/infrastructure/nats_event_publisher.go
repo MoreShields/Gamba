@@ -17,6 +17,7 @@ import (
 type NATSEventPublisher struct {
 	natsClient    *NATSClient
 	subjectMapper *EventSubjectMapper
+	localHandlers map[events.EventType][]func(context.Context, events.Event) error
 }
 
 // NewNATSEventPublisher creates a new NATS event publisher
@@ -24,12 +25,31 @@ func NewNATSEventPublisher(natsClient *NATSClient, subjectMapper *EventSubjectMa
 	return &NATSEventPublisher{
 		natsClient:    natsClient,
 		subjectMapper: subjectMapper,
+		localHandlers: make(map[events.EventType][]func(context.Context, events.Event) error),
 	}
 }
 
 // Publish publishes an event to NATS using the appropriate subject
 func (p *NATSEventPublisher) Publish(event events.Event) error {
 	ctx := context.Background()
+	eventType := event.Type()
+
+	// First, invoke any local handlers for this event type
+	if handlers, exists := p.localHandlers[eventType]; exists {
+		for _, handler := range handlers {
+			log.WithFields(log.Fields{
+				"eventType": eventType,
+			}).Debug("Invoking local handler for event")
+
+			if err := handler(ctx, event); err != nil {
+				log.WithFields(log.Fields{
+					"eventType": eventType,
+					"error":     err,
+				}).Error("Local event handler failed")
+				// Continue processing - local handler errors shouldn't stop other handlers or NATS publishing
+			}
+		}
+	}
 
 	// Map event to subject
 	subject := p.subjectMapper.MapEventToSubject(event)
@@ -67,6 +87,16 @@ func (p *NATSEventPublisher) Publish(event events.Event) error {
 	}).Debug("Successfully published event to NATS")
 
 	return nil
+}
+
+// RegisterLocalHandler registers a handler that will be invoked locally for events
+// This allows handling events in the same process that publishes them
+func (p *NATSEventPublisher) RegisterLocalHandler(eventType events.EventType, handler func(context.Context, events.Event) error) {
+	p.localHandlers[eventType] = append(p.localHandlers[eventType], handler)
+	log.WithFields(log.Fields{
+		"eventType":    eventType,
+		"handlerCount": len(p.localHandlers[eventType]),
+	}).Debug("Registered local event handler")
 }
 
 // EnsureDomainEventStream ensures the domain_events stream exists with the correct subjects

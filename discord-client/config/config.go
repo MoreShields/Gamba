@@ -40,6 +40,10 @@ type Config struct {
 	// Message streaming configuration
 	StreamChannelTypes []string // Channel types to stream to NATS (e.g., ["lol_channel", "primary_channel"])
 
+	// Wordle configuration
+	WordleBotID        string // Discord ID of the Wordle bot to monitor
+	WordleRewardAmount int64  // Amount of bits to award for daily Wordle completion
+
 	// Environment
 	Environment string // "development" or "production"
 }
@@ -55,7 +59,7 @@ func Get() *Config {
 	if instance != nil {
 		return instance
 	}
-	
+
 	once.Do(func() {
 		var err error
 		instance, err = load()
@@ -96,6 +100,10 @@ func load() (*Config, error) {
 		// NATS
 		NATSServers: getEnvWithDefault("NATS_SERVERS", "nats://nats:4222"),
 
+		// Wordle
+		WordleBotID:        os.Getenv("WORDLE_BOT_ID"),
+		WordleRewardAmount: 1000, // Default 1000 bits
+
 		// Environment
 		Environment: os.Getenv("ENVIRONMENT"),
 	}
@@ -109,6 +117,11 @@ func load() (*Config, error) {
 	if limit := os.Getenv("DAILY_GAMBLE_LIMIT"); limit != "" {
 		if parsedLimit, err := strconv.ParseInt(limit, 10, 64); err == nil {
 			config.DailyGambleLimit = parsedLimit
+		}
+	}
+	if reward := os.Getenv("WORDLE_REWARD_AMOUNT"); reward != "" {
+		if parsedReward, err := strconv.ParseInt(reward, 10, 64); err == nil {
+			config.WordleRewardAmount = parsedReward
 		}
 	}
 
@@ -175,7 +188,7 @@ func SetTestConfig(testConfig *Config) {
 }
 
 // ResetConfig resets the global config instance and sync.Once for testing
-// This should only be called from test files  
+// This should only be called from test files
 func ResetConfig() {
 	instance = nil
 	once = sync.Once{}
@@ -184,10 +197,10 @@ func ResetConfig() {
 // NewTestConfig creates a minimal config suitable for unit tests
 func NewTestConfig() *Config {
 	return &Config{
-		Environment:        "test",
-		ResolverDiscordIDs: []int64{999999}, // Default test resolver ID
-		StartingBalance:    100000,
-		DailyGambleLimit:   10000,
+		Environment:         "test",
+		ResolverDiscordIDs:  []int64{999999}, // Default test resolver ID
+		StartingBalance:     100000,
+		DailyGambleLimit:    10000,
 		DailyLimitResetHour: 0,
 	}
 }
