@@ -27,39 +27,6 @@ const (
 	TestOption2ID      = int64(2)
 )
 
-// MockTransactionalEventPublisher is a test double for TransactionalEventPublisher
-type MockTransactionalEventPublisher struct {
-	PublishedEvents []events.Event
-	FlushedEvents   []events.Event
-	Discarded       bool
-}
-
-// NewMockTransactionalEventPublisher creates a new mock transactional publisher
-func NewMockTransactionalEventPublisher() *MockTransactionalEventPublisher {
-	return &MockTransactionalEventPublisher{
-		PublishedEvents: []events.Event{},
-		FlushedEvents:   []events.Event{},
-		Discarded:       false,
-	}
-}
-
-// Publish stores an event in the pending queue
-func (m *MockTransactionalEventPublisher) Publish(event events.Event) error {
-	m.PublishedEvents = append(m.PublishedEvents, event)
-	return nil
-}
-
-// Flush moves pending events to flushed events
-func (m *MockTransactionalEventPublisher) Flush(ctx context.Context) error {
-	m.FlushedEvents = append(m.FlushedEvents, m.PublishedEvents...)
-	return nil
-}
-
-// Discard marks events as discarded
-func (m *MockTransactionalEventPublisher) Discard() {
-	m.Discarded = true
-	m.PublishedEvents = []events.Event{}
-}
 
 // TestMocks aggregates all repository mocks for testing
 type TestMocks struct {

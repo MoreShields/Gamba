@@ -16,7 +16,6 @@ type unitOfWork struct {
 	tx                          pgx.Tx
 	ctx                         context.Context
 	guildID                     int64
-	transactionalPublisher      service.TransactionalEventPublisher
 	userRepo                    service.UserRepository
 	balanceHistoryRepo          service.BalanceHistoryRepository
 	betRepo                     service.BetRepository
@@ -38,12 +37,11 @@ type unitOfWorkFactory struct {
 	db *database.DB
 }
 
-// CreateForGuildWithPublisher creates a new UnitOfWork with a specific transactional publisher
-func (f *unitOfWorkFactory) CreateForGuildWithPublisher(guildID int64, transactionalPublisher service.TransactionalEventPublisher) application.UnitOfWork {
+// CreateForGuild creates a new UnitOfWork for a specific guild
+func (f *unitOfWorkFactory) CreateForGuild(guildID int64) application.UnitOfWork {
 	return &unitOfWork{
-		db:                     f.db,
-		guildID:                guildID,
-		transactionalPublisher: transactionalPublisher,
+		db:      f.db,
+		guildID: guildID,
 	}
 }
 
@@ -86,12 +84,6 @@ func (u *unitOfWork) Commit() error {
 	}
 
 	u.tx = nil
-
-	// Flush pending events after successful commit
-	if u.transactionalPublisher != nil {
-		u.transactionalPublisher.Flush(u.ctx)
-	}
-
 	return nil
 }
 
@@ -107,12 +99,6 @@ func (u *unitOfWork) Rollback() error {
 	}
 
 	u.tx = nil
-
-	// Discard pending events on rollback
-	if u.transactionalPublisher != nil {
-		u.transactionalPublisher.Discard()
-	}
-
 	return nil
 }
 
@@ -156,12 +142,10 @@ func (u *unitOfWork) WagerVoteRepository() service.WagerVoteRepository {
 	return u.wagerVoteRepo
 }
 
-// EventBus returns the transactional event publisher for this unit of work
+// EventBus returns the event publisher for this unit of work
+// Note: The actual event publisher is injected at the infrastructure layer
 func (u *unitOfWork) EventBus() service.EventPublisher {
-	if u.transactionalPublisher == nil {
-		panic("unit of work not started - call Begin() first")
-	}
-	return u.transactionalPublisher
+	panic("EventBus should be provided by infrastructure layer wrapper")
 }
 
 // GroupWagerRepository returns the group wager repository for this unit of work
