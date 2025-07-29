@@ -18,7 +18,7 @@ import (
 func TestHouseWager_Integration(t *testing.T) {
 	config.SetTestConfig(config.NewTestConfig())
 	defer config.ResetConfig()
-	
+
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}

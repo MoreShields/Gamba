@@ -33,10 +33,10 @@ func (m *MockMessagePublisher) Publish(ctx context.Context, subject string, data
 
 func TestPublishDiscordMessage(t *testing.T) {
 	tests := []struct {
-		name           string
-		discordMessage *discordgo.MessageCreate
+		name            string
+		discordMessage  *discordgo.MessageCreate
 		expectedSubject string
-		validateEvent  func(t *testing.T, event *events.DiscordMessageEvent)
+		validateEvent   func(t *testing.T, event *events.DiscordMessageEvent)
 	}{
 		{
 			name: "basic message",
@@ -67,11 +67,11 @@ func TestPublishDiscordMessage(t *testing.T) {
 				assert.Equal(t, "Hello, world!", msg.Content)
 				assert.Equal(t, int32(discordgo.MessageTypeDefault), msg.MessageType)
 				assert.Equal(t, int32(64), msg.Flags)
-				
+
 				// Verify timestamp
 				assert.Equal(t, time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC), msg.Timestamp.AsTime())
 				assert.Nil(t, msg.EditedTimestamp)
-				
+
 				// Verify author
 				require.NotNil(t, msg.Author)
 				assert.Equal(t, "user123", msg.Author.Id)
@@ -79,7 +79,7 @@ func TestPublishDiscordMessage(t *testing.T) {
 				assert.Equal(t, "1234", msg.Author.Discriminator)
 				assert.Equal(t, "avatar_hash", *msg.Author.Avatar)
 				assert.False(t, msg.Author.Bot)
-				
+
 				// Verify no attachments/embeds/references
 				assert.Empty(t, msg.Attachments)
 				assert.Empty(t, msg.Embeds)
@@ -90,11 +90,11 @@ func TestPublishDiscordMessage(t *testing.T) {
 			name: "message with attachments and embeds",
 			discordMessage: &discordgo.MessageCreate{
 				Message: &discordgo.Message{
-					ID:        "msg456",
-					ChannelID: "channel789",
-					GuildID:   "guild123",
-					Content:   "Check this out!",
-					Timestamp: time.Date(2023, 1, 2, 15, 30, 0, 0, time.UTC),
+					ID:              "msg456",
+					ChannelID:       "channel789",
+					GuildID:         "guild123",
+					Content:         "Check this out!",
+					Timestamp:       time.Date(2023, 1, 2, 15, 30, 0, 0, time.UTC),
 					EditedTimestamp: func() *time.Time { t := time.Date(2023, 1, 2, 15, 35, 0, 0, time.UTC); return &t }(),
 					Author: &discordgo.User{
 						ID:       "user456",
@@ -129,10 +129,10 @@ func TestPublishDiscordMessage(t *testing.T) {
 				msg := event.Message
 				assert.Equal(t, "msg456", msg.Id)
 				assert.Equal(t, "Check this out!", msg.Content)
-				
+
 				// Verify edited timestamp
 				assert.Equal(t, time.Date(2023, 1, 2, 15, 35, 0, 0, time.UTC), msg.EditedTimestamp.AsTime())
-				
+
 				// Verify attachment
 				require.Len(t, msg.Attachments, 1)
 				attachment := msg.Attachments[0]
@@ -144,7 +144,7 @@ func TestPublishDiscordMessage(t *testing.T) {
 				assert.Equal(t, "image/png", *attachment.ContentType)
 				assert.Equal(t, int32(800), *attachment.Width)
 				assert.Equal(t, int32(600), *attachment.Height)
-				
+
 				// Verify embed
 				require.Len(t, msg.Embeds, 1)
 				embed := msg.Embeds[0]
@@ -181,7 +181,7 @@ func TestPublishDiscordMessage(t *testing.T) {
 				msg := event.Message
 				assert.Equal(t, "reply123", msg.Id)
 				assert.Equal(t, "Great point!", msg.Content)
-				
+
 				// Verify message reference
 				require.NotNil(t, msg.ReferencedMessage)
 				assert.Equal(t, "original123", *msg.ReferencedMessage.MessageId)
@@ -211,14 +211,14 @@ func TestPublishDiscordMessage(t *testing.T) {
 				msg := event.Message
 				assert.Equal(t, "bot123", msg.Id)
 				assert.Equal(t, "", msg.Content)
-				
+
 				// Verify bot author with minimal fields
 				require.NotNil(t, msg.Author)
 				assert.Equal(t, "bot456", msg.Author.Id)
 				assert.Equal(t, "coolbot", msg.Author.Username)
 				assert.True(t, msg.Author.Bot)
 				assert.Nil(t, msg.Author.Avatar) // Empty string becomes nil
-				
+
 				// Verify no optional content
 				assert.Nil(t, msg.EditedTimestamp)
 				assert.Empty(t, msg.Attachments)
@@ -255,7 +255,7 @@ func TestPublishDiscordMessage(t *testing.T) {
 			expectedSubject: "discord.messages.guild444.channel333",
 			validateEvent: func(t *testing.T, event *events.DiscordMessageEvent) {
 				msg := event.Message
-				
+
 				// Verify attachment with missing optional fields
 				require.Len(t, msg.Attachments, 1)
 				attachment := msg.Attachments[0]

@@ -74,13 +74,13 @@ func UpdateMessage(s *discordgo.Session, i *discordgo.InteractionCreate, embed *
 // DisableComponents disables all components in a message
 func DisableComponents(components []discordgo.MessageComponent) []discordgo.MessageComponent {
 	disabled := make([]discordgo.MessageComponent, len(components))
-	
+
 	for i, component := range components {
 		if actionRow, ok := component.(*discordgo.ActionsRow); ok {
 			newRow := &discordgo.ActionsRow{
 				Components: make([]discordgo.MessageComponent, len(actionRow.Components)),
 			}
-			
+
 			for j, comp := range actionRow.Components {
 				switch c := comp.(type) {
 				case *discordgo.Button:
@@ -95,13 +95,13 @@ func DisableComponents(components []discordgo.MessageComponent) []discordgo.Mess
 					newRow.Components[j] = comp
 				}
 			}
-			
+
 			disabled[i] = newRow
 		} else {
 			disabled[i] = component
 		}
 	}
-	
+
 	return disabled
 }
 

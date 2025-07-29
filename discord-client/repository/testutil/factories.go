@@ -28,11 +28,11 @@ func CreateTestUserWithBalance(discordID int64, username string, balance int64) 
 // CreateTestBalanceHistory creates a test balance history entry
 func CreateTestBalanceHistory(discordID int64, transactionType models.TransactionType) *models.BalanceHistory {
 	return &models.BalanceHistory{
-		DiscordID:           discordID,
-		BalanceBefore:       100000,
-		BalanceAfter:        90000,
-		ChangeAmount:        -10000,
-		TransactionType:     transactionType,
+		DiscordID:       discordID,
+		BalanceBefore:   100000,
+		BalanceAfter:    90000,
+		ChangeAmount:    -10000,
+		TransactionType: transactionType,
 		TransactionMetadata: map[string]interface{}{
 			"test": true,
 		},
@@ -161,4 +161,3 @@ func CreateTestSummonerWatchDetail(guildID int64, summonerName, tagLine string) 
 		UpdatedAt:    now,
 	}
 }
-

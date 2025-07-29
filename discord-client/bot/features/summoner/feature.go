@@ -1,9 +1,9 @@
 package summoner
 
 import (
-	"github.com/bwmarrin/discordgo"
 	"gambler/discord-client/application"
 	summoner_pb "gambler/discord-client/proto/services"
+	"github.com/bwmarrin/discordgo"
 )
 
 // Feature handles summoner watch commands and interactions
@@ -27,7 +27,7 @@ func NewFeature(session *discordgo.Session, uowFactory application.UnitOfWorkFac
 // HandleCommand handles summoner-related slash commands
 func (f *Feature) HandleCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	data := i.ApplicationCommandData()
-	
+
 	// Handle subcommands
 	if len(data.Options) > 0 {
 		switch data.Options[0].Name {

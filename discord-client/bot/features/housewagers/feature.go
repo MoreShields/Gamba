@@ -152,7 +152,7 @@ func (f *Feature) handleComponentInteraction(s *discordgo.Session, i *discordgo.
 // handleModalSubmit handles the house wager bet modals
 func (f *Feature) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	customID := i.ModalSubmitData().CustomID
-	
+
 	if strings.HasPrefix(customID, "house_wager_bet_modal_") {
 		f.handleHouseWagerBetModal(s, i)
 		return

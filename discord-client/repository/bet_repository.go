@@ -40,12 +40,12 @@ func (r *betRepository) Create(ctx context.Context, bet *models.Bet) error {
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id, created_at`
 
-	err := r.q.QueryRow(ctx, query, 
+	err := r.q.QueryRow(ctx, query,
 		bet.DiscordID,
 		r.guildID, // Use repository's guild scope
-		bet.Amount, 
-		bet.WinProbability, 
-		bet.Won, 
+		bet.Amount,
+		bet.WinProbability,
+		bet.Won,
 		bet.WinAmount,
 		bet.BalanceHistoryID,
 	).Scan(&bet.ID, &bet.CreatedAt)

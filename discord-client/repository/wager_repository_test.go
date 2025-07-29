@@ -43,7 +43,7 @@ func TestWagerRepository_UpdateMessageIDs(t *testing.T) {
 	// Update with message IDs
 	testMessageID := int64(1394399185394077766)
 	testChannelID := int64(1018733499869577296)
-	
+
 	wager.MessageID = &testMessageID
 	wager.ChannelID = &testChannelID
 
@@ -54,11 +54,11 @@ func TestWagerRepository_UpdateMessageIDs(t *testing.T) {
 	savedWager, err := wagerRepo.GetByID(ctx, wager.ID)
 	require.NoError(t, err)
 	require.NotNil(t, savedWager)
-	
+
 	// This test should pass once we fix the Update method
 	assert.NotNil(t, savedWager.MessageID, "MessageID should not be nil after update")
 	assert.NotNil(t, savedWager.ChannelID, "ChannelID should not be nil after update")
-	
+
 	if savedWager.MessageID != nil {
 		assert.Equal(t, testMessageID, *savedWager.MessageID, "MessageID should match")
 	}

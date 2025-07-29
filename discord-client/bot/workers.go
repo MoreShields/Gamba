@@ -24,11 +24,11 @@ func (b *Bot) StartGroupWagerExpirationWorker(ctx context.Context) func() {
 			log.Errorf("Error beginning transaction to get guild list: %v", err)
 			return
 		}
-		
+
 		// Get all guild IDs with active group wagers
 		guildIDs, err := tempUow.GroupWagerRepository().GetGuildsWithActiveWagers(context.Background())
 		tempUow.Rollback()
-		
+
 		if err != nil {
 			log.Errorf("Error getting guilds with active wagers: %v", err)
 			return
@@ -65,7 +65,7 @@ func (b *Bot) StartGroupWagerExpirationWorker(ctx context.Context) func() {
 	// Start the worker goroutine
 	go func() {
 		log.Info("Group wager expiration worker started")
-		
+
 		// Run immediately on startup
 		processExpiredWagers()
 

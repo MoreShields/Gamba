@@ -10,7 +10,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-
 // RegisterBotSubscriptions registers all bot-level event subscriptions
 // This includes handlers for events that affect Discord-specific features like roles
 func RegisterBotSubscriptions(
@@ -18,13 +17,13 @@ func RegisterBotSubscriptions(
 	bot *Bot,
 ) error {
 	// Subscribe to balance change events for high roller role updates
-	if err := subscriber.Subscribe(events.EventTypeBalanceChange, 
+	if err := subscriber.Subscribe(events.EventTypeBalanceChange,
 		func(ctx context.Context, event events.Event) error {
 			return handleBalanceChangeForHighRoller(ctx, event, bot)
 		}); err != nil {
 		return fmt.Errorf("failed to subscribe to balance change events: %w", err)
 	}
-	
+
 	log.Info("Bot event subscriptions registered successfully")
 	return nil
 }
@@ -35,7 +34,7 @@ func handleBalanceChangeForHighRoller(ctx context.Context, event events.Event, b
 	if !ok {
 		return fmt.Errorf("received non-BalanceChangeEvent in balance change handler")
 	}
-	
+
 	log.WithFields(log.Fields{
 		"userID":          balanceEvent.UserID,
 		"guildID":         balanceEvent.GuildID,
@@ -52,7 +51,7 @@ func handleBalanceChangeForHighRoller(ctx context.Context, event events.Event, b
 		}).Error("Failed to update high roller role")
 		return err
 	}
-	
+
 	log.Debug("High roller role update completed successfully")
 	return nil
 }

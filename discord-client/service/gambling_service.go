@@ -11,19 +11,19 @@ import (
 )
 
 type gamblingService struct {
-	userRepo          UserRepository
-	betRepo           BetRepository
+	userRepo           UserRepository
+	betRepo            BetRepository
 	balanceHistoryRepo BalanceHistoryRepository
-	eventPublisher    EventPublisher
+	eventPublisher     EventPublisher
 }
 
 // NewGamblingService creates a new gambling service
 func NewGamblingService(userRepo UserRepository, betRepo BetRepository, balanceHistoryRepo BalanceHistoryRepository, eventPublisher EventPublisher) GamblingService {
 	return &gamblingService{
-		userRepo:          userRepo,
-		betRepo:           betRepo,
+		userRepo:           userRepo,
+		betRepo:            betRepo,
 		balanceHistoryRepo: balanceHistoryRepo,
-		eventPublisher:    eventPublisher,
+		eventPublisher:     eventPublisher,
 	}
 }
 
@@ -134,7 +134,6 @@ func (s *gamblingService) PlaceBet(ctx context.Context, discordID int64, winProb
 	if err := s.betRepo.Create(ctx, bet); err != nil {
 		return nil, fmt.Errorf("failed to create bet record: %w", err)
 	}
-
 
 	return &models.BetResult{
 		Won:        won,

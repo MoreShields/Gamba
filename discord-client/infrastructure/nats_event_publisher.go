@@ -30,16 +30,16 @@ func NewNATSEventPublisher(natsClient *NATSClient, subjectMapper *EventSubjectMa
 // Publish publishes an event to NATS using the appropriate subject
 func (p *NATSEventPublisher) Publish(event events.Event) error {
 	ctx := context.Background()
-	
+
 	// Map event to subject
 	subject := p.subjectMapper.MapEventToSubject(event)
-	
+
 	// Serialize event payload
 	payload, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("failed to marshal event payload: %w", err)
 	}
-	
+
 	// Create event envelope
 	envelope := &models.EventEnvelope{
 		EventId:       uuid.New().String(),
@@ -48,24 +48,24 @@ func (p *NATSEventPublisher) Publish(event events.Event) error {
 		SourceService: "discord-client",
 		Payload:       payload,
 	}
-	
+
 	// Serialize envelope
 	envelopeData, err := json.Marshal(envelope)
 	if err != nil {
 		return fmt.Errorf("failed to marshal event envelope: %w", err)
 	}
-	
+
 	// Publish to NATS
 	if err := p.natsClient.Publish(ctx, subject, envelopeData); err != nil {
 		return fmt.Errorf("failed to publish event to NATS: %w", err)
 	}
-	
+
 	log.WithFields(log.Fields{
 		"eventType": event.Type(),
 		"eventId":   envelope.EventId,
 		"subject":   subject,
 	}).Debug("Successfully published event to NATS")
-	
+
 	return nil
 }
 

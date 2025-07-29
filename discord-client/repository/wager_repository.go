@@ -286,7 +286,6 @@ func (r *WagerRepository) GetAllByUser(ctx context.Context, discordID int64, lim
 	return wagers, nil
 }
 
-
 // GetStats returns wager statistics for a user
 func (r *WagerRepository) GetStats(ctx context.Context, discordID int64) (*models.WagerStats, error) {
 	query := `

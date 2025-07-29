@@ -24,24 +24,24 @@ const (
 
 // GroupWager represents a multi-participant wager with multiple outcome options
 type GroupWager struct {
-	ID                  int64               `db:"id"`
-	CreatorDiscordID    *int64              `db:"creator_discord_id"`
-	GuildID             int64               `db:"guild_id"`
-	Condition           string              `db:"condition"`
-	State               GroupWagerState     `db:"state"`
-	WagerType           GroupWagerType      `db:"wager_type"`
-	ResolverDiscordID   *int64              `db:"resolver_discord_id"`
-	WinningOptionID     *int64              `db:"winning_option_id"`
-	TotalPot            int64               `db:"total_pot"`
-	MinParticipants     int                 `db:"min_participants"`
-	VotingPeriodMinutes int                 `db:"voting_period_minutes"`
-	VotingStartsAt      *time.Time          `db:"voting_starts_at"`
-	VotingEndsAt        *time.Time          `db:"voting_ends_at"`
-	MessageID           int64               `db:"message_id"`
-	ChannelID           int64               `db:"channel_id"`
-	CreatedAt           time.Time           `db:"created_at"`
-	ResolvedAt          *time.Time          `db:"resolved_at"`
-	ExternalRef         *ExternalReference  `db:"-"`
+	ID                  int64              `db:"id"`
+	CreatorDiscordID    *int64             `db:"creator_discord_id"`
+	GuildID             int64              `db:"guild_id"`
+	Condition           string             `db:"condition"`
+	State               GroupWagerState    `db:"state"`
+	WagerType           GroupWagerType     `db:"wager_type"`
+	ResolverDiscordID   *int64             `db:"resolver_discord_id"`
+	WinningOptionID     *int64             `db:"winning_option_id"`
+	TotalPot            int64              `db:"total_pot"`
+	MinParticipants     int                `db:"min_participants"`
+	VotingPeriodMinutes int                `db:"voting_period_minutes"`
+	VotingStartsAt      *time.Time         `db:"voting_starts_at"`
+	VotingEndsAt        *time.Time         `db:"voting_ends_at"`
+	MessageID           int64              `db:"message_id"`
+	ChannelID           int64              `db:"channel_id"`
+	CreatedAt           time.Time          `db:"created_at"`
+	ResolvedAt          *time.Time         `db:"resolved_at"`
+	ExternalRef         *ExternalReference `db:"-"`
 }
 
 // GroupWagerOption represents a possible outcome for a group wager

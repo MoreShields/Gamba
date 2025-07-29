@@ -2,7 +2,7 @@ package application
 
 import (
 	"context"
-	
+
 	"gambler/discord-client/application/dto"
 )
 
@@ -16,9 +16,9 @@ func (m *MockDiscordPoster) PostHouseWager(ctx context.Context, dto dto.HouseWag
 	if m.Error != nil {
 		return nil, m.Error
 	}
-	
+
 	m.Posts = append(m.Posts, dto)
-	
+
 	return &PostResult{
 		MessageID: 123456789, // Mock Discord message ID
 		ChannelID: dto.ChannelID,
@@ -34,7 +34,7 @@ func (m *MockDiscordPoster) UpdateHouseWager(ctx context.Context, messageID, cha
 	return nil
 }
 
-// UpdateGroupWager mock implementation  
+// UpdateGroupWager mock implementation
 func (m *MockDiscordPoster) UpdateGroupWager(ctx context.Context, messageID, channelID int64, detail interface{}) error {
 	if m.Error != nil {
 		return m.Error
@@ -42,5 +42,3 @@ func (m *MockDiscordPoster) UpdateGroupWager(ctx context.Context, messageID, cha
 	// For tests, we don't need to track updates, just return success
 	return nil
 }
-
-

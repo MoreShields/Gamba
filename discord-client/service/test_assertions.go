@@ -33,13 +33,13 @@ func (a *AssertionHelper) AssertWagerResolved(result *models.GroupWagerResult, e
 // AssertPayouts verifies payout calculations
 func (a *AssertionHelper) AssertPayouts(result *models.GroupWagerResult, expectedPayouts map[int64]int64) {
 	require.NotNil(a.t, result.PayoutDetails)
-	
+
 	for userID, expectedPayout := range expectedPayouts {
 		actualPayout, exists := result.PayoutDetails[userID]
 		require.True(a.t, exists, "Expected payout for user %d", userID)
 		assert.Equal(a.t, expectedPayout, actualPayout, "Incorrect payout for user %d", userID)
 	}
-	
+
 	// Verify no unexpected payouts
 	assert.Len(a.t, result.PayoutDetails, len(expectedPayouts))
 }
@@ -49,14 +49,14 @@ func (a *AssertionHelper) AssertPoolWagerPayouts(result *models.GroupWagerResult
 	// For pool wagers, verify proportional distribution
 	var totalWinnerBets int64
 	var totalPayouts int64
-	
+
 	for _, winner := range result.Winners {
 		totalWinnerBets += winner.Amount
 		if winner.PayoutAmount != nil {
 			totalPayouts += *winner.PayoutAmount
 		}
 	}
-	
+
 	// Total payouts should equal total pot (allowing for rounding)
 	assert.InDelta(a.t, float64(result.TotalPot), float64(totalPayouts), 1.0,
 		"Total payouts should approximately equal total pot")
@@ -71,7 +71,7 @@ func (a *AssertionHelper) AssertHouseWagerPayouts(result *models.GroupWagerResul
 		assert.Equal(a.t, expectedPayout, *winner.PayoutAmount,
 			"House wager payout should be bet amount * odds multiplier")
 	}
-	
+
 	// Losers should have 0 payout
 	for _, loser := range result.Losers {
 		require.NotNil(a.t, loser.PayoutAmount)
@@ -88,7 +88,7 @@ func (a *AssertionHelper) AssertBalanceChanges(wagerType models.GroupWagerType, 
 			netProfit := *winner.PayoutAmount - winner.Amount
 			assert.True(a.t, netProfit >= 0, "Winner should have non-negative profit")
 		}
-		
+
 		for _, loser := range losers {
 			require.NotNil(a.t, loser.PayoutAmount)
 			assert.Equal(a.t, int64(0), *loser.PayoutAmount, "Loser should have 0 payout")
@@ -99,7 +99,7 @@ func (a *AssertionHelper) AssertBalanceChanges(wagerType models.GroupWagerType, 
 			require.NotNil(a.t, winner.PayoutAmount)
 			assert.True(a.t, *winner.PayoutAmount > 0, "Winner should have positive payout")
 		}
-		
+
 		for _, loser := range losers {
 			require.NotNil(a.t, loser.PayoutAmount)
 			assert.Equal(a.t, int64(0), *loser.PayoutAmount, "Loser should have 0 payout")
@@ -111,7 +111,7 @@ func (a *AssertionHelper) AssertBalanceChanges(wagerType models.GroupWagerType, 
 func (a *AssertionHelper) AssertParticipantPayout(participant *models.GroupWagerParticipant, expectedPayout int64, hasBalanceHistory bool) {
 	require.NotNil(a.t, participant.PayoutAmount)
 	assert.Equal(a.t, expectedPayout, *participant.PayoutAmount)
-	
+
 	if hasBalanceHistory {
 		assert.NotNil(a.t, participant.BalanceHistoryID)
 	} else {

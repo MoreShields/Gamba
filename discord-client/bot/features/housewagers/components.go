@@ -21,13 +21,13 @@ func CreateHouseWagerComponents(houseWager dto.HouseWagerPostDTO) []discordgo.Me
 	// Only show components for active wagers that haven't expired
 	// Check if wager is active and voting period is still active
 	log.Infof("CreateHouseWagerComponents: wagerID=%d, state='%s'", houseWager.WagerID, houseWager.State)
-	
+
 	if houseWager.State != "active" {
 		// Wager is not active (resolved, cancelled, pending_resolution), no components
 		log.Infof("Hiding components for wager %d because state is '%s' (not 'active')", houseWager.WagerID, houseWager.State)
 		return []discordgo.MessageComponent{}
 	}
-	
+
 	if houseWager.VotingEndsAt != nil && houseWager.VotingEndsAt.Before(time.Now()) {
 		// Voting period has expired, no components
 		return []discordgo.MessageComponent{}
@@ -344,7 +344,7 @@ func (f *Feature) handleHouseWagerBetModal(s *discordgo.Session, i *discordgo.In
 // updateHouseWagerMessage updates a house wager message with current participant state
 func (f *Feature) updateHouseWagerMessage(s *discordgo.Session, msg *discordgo.Message, wagerID int64, guildID int64) {
 	ctx := context.Background()
-	
+
 	// Create unit of work
 	uow := f.uowFactory.CreateForGuild(guildID)
 	if err := uow.Begin(ctx); err != nil {

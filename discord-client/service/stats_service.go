@@ -9,9 +9,9 @@ import (
 
 // statsService implements the StatsService interface
 type statsService struct {
-	userRepo     UserRepository
-	wagerRepo    WagerRepository
-	betRepo      BetRepository
+	userRepo  UserRepository
+	wagerRepo WagerRepository
+	betRepo   BetRepository
 }
 
 // NewStatsService creates a new stats service
@@ -33,11 +33,11 @@ func (s *statsService) GetScoreboard(ctx context.Context, limit int) ([]*models.
 
 	entries := make([]*models.ScoreboardEntry, 0, len(users))
 	var totalBits int64
-	
+
 	for _, user := range users {
 		// Add to total bits count
 		totalBits += user.Balance
-		
+
 		// Skip users with zero balance for scoreboard display
 		if user.Balance == 0 {
 			continue
@@ -131,15 +131,15 @@ func (s *statsService) GetUserStats(ctx context.Context, discordID int64) (*mode
 
 	// Convert to detail structs
 	betDetail := &models.BetStatsDetail{
-		TotalBets:     betStats.TotalBets,
-		TotalWins:     betStats.TotalWins,
-		TotalLosses:   betStats.TotalLosses,
-		TotalWagered:  betStats.TotalWagered,
-		TotalWon:      betStats.TotalWon,
-		TotalLost:     betStats.TotalLost,
-		NetProfit:     betStats.TotalWon - betStats.TotalLost,
-		BiggestWin:    betStats.BiggestWin,
-		BiggestLoss:   betStats.BiggestLoss,
+		TotalBets:    betStats.TotalBets,
+		TotalWins:    betStats.TotalWins,
+		TotalLosses:  betStats.TotalLosses,
+		TotalWagered: betStats.TotalWagered,
+		TotalWon:     betStats.TotalWon,
+		TotalLost:    betStats.TotalLost,
+		NetProfit:    betStats.TotalWon - betStats.TotalLost,
+		BiggestWin:   betStats.BiggestWin,
+		BiggestLoss:  betStats.BiggestLoss,
 	}
 	if betStats.TotalBets > 0 {
 		betDetail.WinPercentage = float64(betStats.TotalWins) / float64(betStats.TotalBets) * 100

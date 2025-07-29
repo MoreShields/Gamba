@@ -12,7 +12,7 @@ import (
 
 func createTestGroupWagerService() (GroupWagerService, *MockUserRepository, *MockGroupWagerRepository, *MockBalanceHistoryRepository, *MockEventPublisher) {
 	config.SetTestConfig(config.NewTestConfig())
-	
+
 	mockUserRepo := new(MockUserRepository)
 	mockGroupWagerRepo := new(MockGroupWagerRepository)
 	mockBalanceHistoryRepo := new(MockBalanceHistoryRepository)
@@ -26,7 +26,7 @@ func createTestGroupWagerService() (GroupWagerService, *MockUserRepository, *Moc
 
 func TestGroupWagerService_IsResolver(t *testing.T) {
 	defer config.ResetConfig()
-	
+
 	t.Run("user is resolver", func(t *testing.T) {
 		// Setup
 		service, _, _, _, _ := createTestGroupWagerService()

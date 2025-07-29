@@ -290,4 +290,3 @@ type SummonerWatchService interface {
 	// ListWatches returns all summoner watches for a specific guild
 	ListWatches(ctx context.Context, guildID int64) ([]*models.SummonerWatchDetail, error)
 }
-

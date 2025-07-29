@@ -15,11 +15,11 @@ func ConstructDatabaseURL(baseURL, databaseName string) string {
 	if databaseName == "" {
 		return baseURL
 	}
-	
+
 	// Remove trailing slash from base URL
 	baseURL = strings.TrimRight(baseURL, "/")
 	var databaseURL string
-	
+
 	// Check if there are existing query parameters
 	if strings.Contains(baseURL, "?") {
 		// Insert database name before the query parameters
@@ -29,7 +29,7 @@ func ConstructDatabaseURL(baseURL, databaseName string) string {
 		// No query parameters - simply append database name
 		databaseURL = fmt.Sprintf("%s/%s", baseURL, databaseName)
 	}
-	
+
 	// Add sslmode=disable if not already present
 	if !strings.Contains(databaseURL, "sslmode=") {
 		separator := "&"
@@ -38,6 +38,6 @@ func ConstructDatabaseURL(baseURL, databaseName string) string {
 		}
 		databaseURL = fmt.Sprintf("%s%ssslmode=disable", databaseURL, separator)
 	}
-	
+
 	return databaseURL
 }

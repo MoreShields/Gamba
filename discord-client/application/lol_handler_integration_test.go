@@ -26,10 +26,10 @@ func TestLoLHandler_EndToEndFlow(t *testing.T) {
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
 	defer testDB.Cleanup(t)
-	
+
 	// Create no-op event publisher for integration tests
 	noopPublisher := infrastructure.NewNoopEventPublisher()
-	
+
 	// Create UoW factory
 	uowFactory := infrastructure.NewUnitOfWorkFactory(testDB.DB, noopPublisher)
 
@@ -151,10 +151,10 @@ func TestLoLHandler_EndToEndFlow_Loss(t *testing.T) {
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
 	defer testDB.Cleanup(t)
-	
+
 	// Create no-op event publisher for integration tests
 	noopPublisher := infrastructure.NewNoopEventPublisher()
-	
+
 	// Create UoW factory
 	uowFactory := infrastructure.NewUnitOfWorkFactory(testDB.DB, noopPublisher)
 
@@ -242,10 +242,10 @@ func TestLoLHandler_MultipleGuilds(t *testing.T) {
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
 	defer testDB.Cleanup(t)
-	
+
 	// Create no-op event publisher for integration tests
 	noopPublisher := infrastructure.NewNoopEventPublisher()
-	
+
 	// Create UoW factory
 	uowFactory := infrastructure.NewUnitOfWorkFactory(testDB.DB, noopPublisher)
 
@@ -256,7 +256,6 @@ func TestLoLHandler_MultipleGuilds(t *testing.T) {
 	summonerName := "SharedPlayer"
 	tagLine := "NA1"
 	gameID := "test-game-shared"
-
 
 	// Setup multiple guilds watching the same summoner
 	setupTestData(t, ctx, uowFactory, guild1ID, summonerName, tagLine)
@@ -342,16 +341,15 @@ func TestLoLHandler_NoWatchingGuilds(t *testing.T) {
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
 	defer testDB.Cleanup(t)
-	
+
 	// Create no-op event publisher for integration tests
 	noopPublisher := infrastructure.NewNoopEventPublisher()
-	
+
 	// Create UoW factory
 	uowFactory := infrastructure.NewUnitOfWorkFactory(testDB.DB, noopPublisher)
 
 	ctx := context.Background()
-	
-	
+
 	mockPoster := &application.MockDiscordPoster{}
 	handler := application.NewLoLHandler(uowFactory, mockPoster)
 
@@ -421,10 +419,10 @@ func TestLoLHandler_ForfeitRemake(t *testing.T) {
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
 	defer testDB.Cleanup(t)
-	
+
 	// Create no-op event publisher for integration tests
 	noopPublisher := infrastructure.NewNoopEventPublisher()
-	
+
 	// Create UoW factory
 	uowFactory := infrastructure.NewUnitOfWorkFactory(testDB.DB, noopPublisher)
 
@@ -434,7 +432,6 @@ func TestLoLHandler_ForfeitRemake(t *testing.T) {
 	summonerName := "ForfeitPlayer"
 	tagLine := "NA1"
 	gameID := "test-game-forfeit"
-
 
 	// Setup guild and summoner watch
 	setupTestData(t, ctx, uowFactory, guildID, summonerName, tagLine)
@@ -459,12 +456,12 @@ func TestLoLHandler_ForfeitRemake(t *testing.T) {
 	// Verify wager was created
 	uow := uowFactory.CreateForGuild(guildID)
 	require.NoError(t, uow.Begin(ctx))
-	
+
 	externalRef := models.ExternalReference{
 		System: models.SystemLeagueOfLegends,
 		ID:     gameID,
 	}
-	
+
 	wager, err := uow.GroupWagerRepository().GetByExternalReference(ctx, externalRef)
 	require.NoError(t, err)
 	require.NotNil(t, wager)

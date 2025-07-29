@@ -12,18 +12,18 @@ import (
 
 // unitOfWork implements the UnitOfWork interface
 type unitOfWork struct {
-	db                          *database.DB
-	tx                          pgx.Tx
-	ctx                         context.Context
-	guildID                     int64
-	userRepo                    service.UserRepository
-	balanceHistoryRepo          service.BalanceHistoryRepository
-	betRepo                     service.BetRepository
-	wagerRepo                   service.WagerRepository
-	wagerVoteRepo               service.WagerVoteRepository
-	groupWagerRepo              service.GroupWagerRepository
-	guildSettingsRepo           service.GuildSettingsRepository
-	summonerWatchRepo           service.SummonerWatchRepository
+	db                 *database.DB
+	tx                 pgx.Tx
+	ctx                context.Context
+	guildID            int64
+	userRepo           service.UserRepository
+	balanceHistoryRepo service.BalanceHistoryRepository
+	betRepo            service.BetRepository
+	wagerRepo          service.WagerRepository
+	wagerVoteRepo      service.WagerVoteRepository
+	groupWagerRepo     service.GroupWagerRepository
+	guildSettingsRepo  service.GuildSettingsRepository
+	summonerWatchRepo  service.SummonerWatchRepository
 }
 
 // NewUnitOfWorkFactory creates a new UnitOfWork factory

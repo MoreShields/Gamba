@@ -22,4 +22,3 @@ type BetResult struct {
 	WinAmount  int64
 	NewBalance int64
 }
-

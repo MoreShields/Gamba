@@ -174,7 +174,7 @@ func (r *GroupWagerRepository) GetByID(ctx context.Context, id int64) (*models.G
 
 	var wager models.GroupWager
 	var externalID, externalSystem *string
-	
+
 	err := r.q.QueryRow(ctx, query, id).Scan(
 		&wager.ID,
 		&wager.CreatorDiscordID,
@@ -229,7 +229,7 @@ func (r *GroupWagerRepository) GetByMessageID(ctx context.Context, messageID int
 
 	var wager models.GroupWager
 	var externalID, externalSystem *string
-	
+
 	err := r.q.QueryRow(ctx, query, messageID).Scan(
 		&wager.ID,
 		&wager.CreatorDiscordID,
@@ -284,7 +284,7 @@ func (r *GroupWagerRepository) GetByExternalReference(ctx context.Context, ref m
 
 	var wager models.GroupWager
 	var externalID, externalSystem *string
-	
+
 	err := r.q.QueryRow(ctx, query, ref.ID, string(ref.System), r.guildID).Scan(
 		&wager.ID,
 		&wager.CreatorDiscordID,
@@ -807,7 +807,7 @@ func (r *GroupWagerRepository) GetExpiredActiveWagers(ctx context.Context) ([]*m
 	for rows.Next() {
 		var wager models.GroupWager
 		var externalID, externalSystem *string
-		
+
 		err := rows.Scan(
 			&wager.ID,
 			&wager.CreatorDiscordID,

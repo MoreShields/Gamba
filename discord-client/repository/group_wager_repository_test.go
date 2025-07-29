@@ -132,9 +132,9 @@ func TestGroupWagerRepository_GetStats(t *testing.T) {
 		stats, err := groupWagerRepo.GetStats(ctx, user1.DiscordID)
 		require.NoError(t, err)
 
-		assert.Equal(t, 2, stats.TotalGroupWagers) // Participates in 2 wagers total (from previous tests)
-		assert.Equal(t, 1, stats.TotalProposed)    // Created 1 wager in "user as creator only" test
-		assert.Equal(t, 1, stats.TotalWon)         // Won 1 resolved wager
+		assert.Equal(t, 2, stats.TotalGroupWagers)         // Participates in 2 wagers total (from previous tests)
+		assert.Equal(t, 1, stats.TotalProposed)            // Created 1 wager in "user as creator only" test
+		assert.Equal(t, 1, stats.TotalWon)                 // Won 1 resolved wager
 		assert.Equal(t, int64(3000), stats.TotalWonAmount) // Won 3000 bits
 	})
 
@@ -180,9 +180,9 @@ func TestGroupWagerRepository_GetStats(t *testing.T) {
 		stats, err := groupWagerRepo.GetStats(ctx, user1.DiscordID)
 		require.NoError(t, err)
 
-		assert.Equal(t, 3, stats.TotalGroupWagers) // Now participates in 3 wagers
-		assert.Equal(t, 1, stats.TotalProposed)    // Still created 1 wager
-		assert.Equal(t, 1, stats.TotalWon)         // Still won only 1 wager
+		assert.Equal(t, 3, stats.TotalGroupWagers)         // Now participates in 3 wagers
+		assert.Equal(t, 1, stats.TotalProposed)            // Still created 1 wager
+		assert.Equal(t, 1, stats.TotalWon)                 // Still won only 1 wager
 		assert.Equal(t, int64(3000), stats.TotalWonAmount) // Still won 3000 total
 	})
 
@@ -224,9 +224,9 @@ func TestGroupWagerRepository_GetStats(t *testing.T) {
 		stats, err := groupWagerRepo.GetStats(ctx, user1.DiscordID)
 		require.NoError(t, err)
 
-		assert.Equal(t, 4, stats.TotalGroupWagers) // Now participates in 4 wagers
-		assert.Equal(t, 1, stats.TotalProposed)    // Still created 1 wager
-		assert.Equal(t, 2, stats.TotalWon)         // Won 2 wagers now
+		assert.Equal(t, 4, stats.TotalGroupWagers)         // Now participates in 4 wagers
+		assert.Equal(t, 1, stats.TotalProposed)            // Still created 1 wager
+		assert.Equal(t, 2, stats.TotalWon)                 // Won 2 wagers now
 		assert.Equal(t, int64(8000), stats.TotalWonAmount) // Won 3000 + 5000 = 8000 total
 	})
 
@@ -235,9 +235,9 @@ func TestGroupWagerRepository_GetStats(t *testing.T) {
 		stats, err := groupWagerRepo.GetStats(ctx, user3.DiscordID)
 		require.NoError(t, err)
 
-		assert.Equal(t, 2, stats.TotalGroupWagers) // Participated in 2 wagers
-		assert.Equal(t, 1, stats.TotalProposed)    // Created 1 wager
-		assert.Equal(t, 1, stats.TotalWon)         // Won 1 wager
+		assert.Equal(t, 2, stats.TotalGroupWagers)         // Participated in 2 wagers
+		assert.Equal(t, 1, stats.TotalProposed)            // Created 1 wager
+		assert.Equal(t, 1, stats.TotalWon)                 // Won 1 wager
 		assert.Equal(t, int64(5000), stats.TotalWonAmount) // Won 5000 bits
 	})
 

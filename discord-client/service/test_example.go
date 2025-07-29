@@ -1,3 +1,4 @@
+//go:build example
 // +build example
 
 // This file contains example test patterns and is not meant to be compiled.
@@ -99,7 +100,7 @@ func TestServiceMethod_Example(t *testing.T) {
 		mocks := NewTestMocks()
 		helper := NewMockHelper(mocks)
 		assertions := NewAssertionHelper(t)
-		
+
 		service := NewGroupWagerService(
 			mocks.GroupWagerRepo,
 			mocks.UserRepo,
@@ -169,13 +170,13 @@ func TestServiceMethod_Example(t *testing.T) {
 
 				// Build scenario based on wager type
 				builder := NewGroupWagerScenario()
-				
+
 				if wt.wagerType == models.GroupWagerTypePool {
 					builder.WithPoolWager(TestResolverID, "Pool test")
 				} else {
 					builder.WithHouseWager(TestResolverID, "House test")
 				}
-				
+
 				scenario := builder.
 					WithOptions("A", "B").
 					WithOdds(wt.odds...).

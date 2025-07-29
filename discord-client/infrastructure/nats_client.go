@@ -13,12 +13,12 @@ import (
 
 // NATSClient implements the MessageBusClient interface using NATS with JetStream
 type NATSClient struct {
-	servers             string
-	nc                  *nats.Conn
-	js                  nats.JetStreamContext
-	subscriptions       map[string]*nats.Subscription
-	mu                  sync.RWMutex
-	reconnectDelay      time.Duration
+	servers              string
+	nc                   *nats.Conn
+	js                   nats.JetStreamContext
+	subscriptions        map[string]*nats.Subscription
+	mu                   sync.RWMutex
+	reconnectDelay       time.Duration
 	maxReconnectAttempts int
 }
 
@@ -102,7 +102,7 @@ func (c *NATSClient) Subscribe(subject string, handler func([]byte) error) error
 					"subject": subject,
 					"error":   err,
 				}).Error("Failed to process message")
-				
+
 				// Negative acknowledgment for retry
 				if nakErr := msg.Nak(); nakErr != nil {
 					log.WithError(nakErr).Error("Failed to NAK message")

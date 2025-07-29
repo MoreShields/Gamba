@@ -32,7 +32,7 @@ func (p *NATSTransactionalPublisher) Publish(event events.Event) error {
 		"eventType":    event.Type(),
 		"pendingCount": len(p.pending),
 	}).Debug("Adding event to NATS transactional publisher pending queue")
-	
+
 	p.pending = append(p.pending, event)
 	return nil
 }
@@ -43,18 +43,18 @@ func (p *NATSTransactionalPublisher) Flush(ctx context.Context) error {
 	log.WithFields(log.Fields{
 		"pendingEventCount": len(p.pending),
 	}).Debug("Flushing pending events from NATS transactional publisher")
-	
+
 	// Process all pending events
 	for _, event := range p.pending {
 		eventType := event.Type()
-		
+
 		// First, invoke any local handlers for this event type
 		if handlers, exists := p.localHandlers[eventType]; exists {
 			for _, handler := range handlers {
 				log.WithFields(log.Fields{
 					"eventType": eventType,
 				}).Debug("Invoking local handler for event")
-				
+
 				if err := handler(ctx, event); err != nil {
 					log.WithFields(log.Fields{
 						"eventType": eventType,
@@ -64,12 +64,12 @@ func (p *NATSTransactionalPublisher) Flush(ctx context.Context) error {
 				}
 			}
 		}
-		
+
 		// Then publish to NATS
 		log.WithFields(log.Fields{
 			"eventType": eventType,
 		}).Debug("Publishing event to NATS")
-		
+
 		if err := p.realPublisher.Publish(event); err != nil {
 			// Log error but continue with other events
 			// This ensures partial failure doesn't block all events
@@ -79,11 +79,11 @@ func (p *NATSTransactionalPublisher) Flush(ctx context.Context) error {
 			}).Error("Failed to publish event to NATS during flush")
 		}
 	}
-	
+
 	// Clear the pending queue
 	p.pending = p.pending[:0]
 	log.Debug("All pending events flushed (local handlers + NATS), transactional publisher cleared")
-	
+
 	return nil
 }
 
@@ -103,7 +103,6 @@ func (p *NATSTransactionalPublisher) Discard() {
 	log.WithFields(log.Fields{
 		"discardedEventCount": len(p.pending),
 	}).Debug("Discarding pending events from NATS transactional publisher")
-	
+
 	p.pending = p.pending[:0]
 }
-
