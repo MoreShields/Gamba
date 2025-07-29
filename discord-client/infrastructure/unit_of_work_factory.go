@@ -6,24 +6,20 @@ import (
 	"gambler/discord-client/application"
 	"gambler/discord-client/database"
 	"gambler/discord-client/events"
-	"gambler/discord-client/repository"
 	"gambler/discord-client/service"
 )
 
 // UnitOfWorkFactory implements the application.UnitOfWorkFactory interface
 // It creates UnitOfWork instances that handle both database transactions and event publishing
 type UnitOfWorkFactory struct {
-	repoFactory interface {
-		CreateForGuild(guildID int64) application.UnitOfWork
-	}
+	db             *database.DB
 	eventPublisher service.EventPublisher
 }
 
 // NewUnitOfWorkFactory creates a new UnitOfWorkFactory
 func NewUnitOfWorkFactory(db *database.DB, eventPublisher service.EventPublisher) *UnitOfWorkFactory {
-	repoFactory := repository.NewUnitOfWorkFactory(db)
 	return &UnitOfWorkFactory{
-		repoFactory:    repoFactory,
+		db:             db,
 		eventPublisher: eventPublisher,
 	}
 }
@@ -37,17 +33,11 @@ func (f *UnitOfWorkFactory) RegisterLocalHandler(eventType events.EventType, han
 	}
 }
 
-// CreateForGuild creates a new UnitOfWork with a transactional event publisher
+// CreateForGuild creates a new UnitOfWork with integrated event publishing
 func (f *UnitOfWorkFactory) CreateForGuild(guildID int64) application.UnitOfWork {
-	// Create a transactional publisher for this unit of work
-	transactionalPublisher := NewNATSTransactionalPublisher(f.eventPublisher).(*NATSTransactionalPublisher)
-
-	// Create the repository unit of work
-	repoUow := f.repoFactory.CreateForGuild(guildID)
-
-	// Wrap it with our infrastructure unit of work that handles event flushing
 	return &unitOfWork{
-		inner:                  repoUow,
-		transactionalPublisher: transactionalPublisher,
+		db:             f.db,
+		guildID:        guildID,
+		eventPublisher: f.eventPublisher,
 	}
 }

@@ -10,7 +10,7 @@ import (
 
 // SummonerWatchRepository implements the SummonerWatchRepository interface
 type SummonerWatchRepository struct {
-	q       queryable
+	q       Queryable
 	guildID int64
 }
 
@@ -20,7 +20,7 @@ func NewSummonerWatchRepository(db *database.DB) *SummonerWatchRepository {
 }
 
 // newSummonerWatchRepository creates a new summoner watch repository with a transaction and guild scope
-func newSummonerWatchRepository(tx queryable, guildID int64) *SummonerWatchRepository {
+func NewSummonerWatchRepositoryScoped(tx Queryable, guildID int64) *SummonerWatchRepository {
 	return &SummonerWatchRepository{
 		q:       tx,
 		guildID: guildID,

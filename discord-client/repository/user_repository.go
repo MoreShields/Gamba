@@ -13,7 +13,7 @@ import (
 
 // UserRepository implements the UserRepository interface
 type UserRepository struct {
-	q       queryable
+	q       Queryable
 	guildID int64
 }
 
@@ -22,8 +22,8 @@ func NewUserRepository(db *database.DB) *UserRepository {
 	return &UserRepository{q: db.Pool}
 }
 
-// newUserRepository creates a new user repository with a transaction and guild scope
-func newUserRepository(tx queryable, guildID int64) *UserRepository {
+// NewUserRepositoryScoped creates a new user repository with a transaction and guild scope
+func NewUserRepositoryScoped(tx Queryable, guildID int64) *UserRepository {
 	return &UserRepository{
 		q:       tx,
 		guildID: guildID,
