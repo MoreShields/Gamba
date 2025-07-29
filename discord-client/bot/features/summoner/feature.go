@@ -2,20 +2,20 @@ package summoner
 
 import (
 	"github.com/bwmarrin/discordgo"
-	"gambler/discord-client/service"
+	"gambler/discord-client/application"
 	summoner_pb "gambler/discord-client/proto/services"
 )
 
 // Feature handles summoner watch commands and interactions
 type Feature struct {
 	session        *discordgo.Session
-	uowFactory     service.UnitOfWorkFactory
+	uowFactory     application.UnitOfWorkFactory
 	summonerClient summoner_pb.SummonerTrackingServiceClient
 	guildID        string
 }
 
 // NewFeature creates a new summoner feature instance
-func NewFeature(session *discordgo.Session, uowFactory service.UnitOfWorkFactory, summonerClient summoner_pb.SummonerTrackingServiceClient, guildID string) *Feature {
+func NewFeature(session *discordgo.Session, uowFactory application.UnitOfWorkFactory, summonerClient summoner_pb.SummonerTrackingServiceClient, guildID string) *Feature {
 	return &Feature{
 		session:        session,
 		uowFactory:     uowFactory,

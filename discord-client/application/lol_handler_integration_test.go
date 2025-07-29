@@ -1,11 +1,13 @@
-package application
+package application_test
 
 import (
 	"context"
 	"testing"
 
+	"gambler/discord-client/application"
 	"gambler/discord-client/application/dto"
 	"gambler/discord-client/config"
+	"gambler/discord-client/infrastructure"
 	"gambler/discord-client/models"
 	"gambler/discord-client/repository/testutil"
 	"gambler/discord-client/service"
@@ -35,19 +37,16 @@ func TestLoLHandler_EndToEndFlow(t *testing.T) {
 
 	// Create UoW factory
 	mockTransactionalPublisher := service.NewMockTransactionalEventPublisher()
-	uowFactory := &TestUnitOfWorkFactory{
-		db:                     testDB.DB,
-		transactionalPublisher: mockTransactionalPublisher,
-	}
+	uowFactory := infrastructure.NewTestUnitOfWorkFactory(testDB.DB, mockTransactionalPublisher)
 
 	// Setup guild and summoner watch
 	setupTestData(t, ctx, uowFactory, guildID, summonerName, tagLine)
 
 	// Create mock Discord poster
-	mockPoster := &MockDiscordPoster{}
+	mockPoster := &application.MockDiscordPoster{}
 
 	// Create LoL handler
-	handler := NewLoLHandler(uowFactory, mockPoster)
+	handler := application.NewLoLHandler(uowFactory, mockPoster)
 
 	t.Run("Game Start Creates House Wager", func(t *testing.T) {
 		// Game start event
@@ -161,19 +160,16 @@ func TestLoLHandler_EndToEndFlow_Loss(t *testing.T) {
 
 	// Create UoW factory
 	mockTransactionalPublisher := service.NewMockTransactionalEventPublisher()
-	uowFactory := &TestUnitOfWorkFactory{
-		db:                     testDB.DB,
-		transactionalPublisher: mockTransactionalPublisher,
-	}
+	uowFactory := infrastructure.NewTestUnitOfWorkFactory(testDB.DB, mockTransactionalPublisher)
 
 	// Setup guild and summoner watch
 	setupTestData(t, ctx, uowFactory, guildID, summonerName, tagLine)
 
 	// Create mock Discord poster
-	mockPoster := &MockDiscordPoster{}
+	mockPoster := &application.MockDiscordPoster{}
 
 	// Create LoL handler
-	handler := NewLoLHandler(uowFactory, mockPoster)
+	handler := application.NewLoLHandler(uowFactory, mockPoster)
 
 	// Game start
 	gameStarted := dto.GameStartedDTO{
@@ -254,20 +250,17 @@ func TestLoLHandler_MultipleGuilds(t *testing.T) {
 
 	// Create UoW factory
 	mockTransactionalPublisher := service.NewMockTransactionalEventPublisher()
-	uowFactory := &TestUnitOfWorkFactory{
-		db:                     testDB.DB,
-		transactionalPublisher: mockTransactionalPublisher,
-	}
+	uowFactory := infrastructure.NewTestUnitOfWorkFactory(testDB.DB, mockTransactionalPublisher)
 
 	// Setup multiple guilds watching the same summoner
 	setupTestData(t, ctx, uowFactory, guild1ID, summonerName, tagLine)
 	setupTestData(t, ctx, uowFactory, guild2ID, summonerName, tagLine)
 
 	// Create mock Discord poster
-	mockPoster := &MockDiscordPoster{}
+	mockPoster := &application.MockDiscordPoster{}
 
 	// Create LoL handler
-	handler := NewLoLHandler(uowFactory, mockPoster)
+	handler := application.NewLoLHandler(uowFactory, mockPoster)
 
 	// Game start - should create wagers for both guilds
 	gameStarted := dto.GameStartedDTO{
@@ -348,13 +341,10 @@ func TestLoLHandler_NoWatchingGuilds(t *testing.T) {
 	
 	// Create a mock transactional publisher for tests
 	mockTransactionalPublisher := service.NewMockTransactionalEventPublisher()
-	uowFactory := &TestUnitOfWorkFactory{
-		db:                     testDB.DB,
-		transactionalPublisher: mockTransactionalPublisher,
-	}
+	uowFactory := infrastructure.NewTestUnitOfWorkFactory(testDB.DB, mockTransactionalPublisher)
 	
-	mockPoster := &MockDiscordPoster{}
-	handler := NewLoLHandler(uowFactory, mockPoster)
+	mockPoster := &application.MockDiscordPoster{}
+	handler := application.NewLoLHandler(uowFactory, mockPoster)
 
 	// Game start for unwatched summoner
 	gameStarted := dto.GameStartedDTO{
@@ -384,7 +374,7 @@ func TestLoLHandler_NoWatchingGuilds(t *testing.T) {
 }
 
 // setupTestData creates the necessary guild settings and summoner watch for testing
-func setupTestData(t *testing.T, ctx context.Context, uowFactory service.UnitOfWorkFactory, guildID int64, summonerName, tagLine string) {
+func setupTestData(t *testing.T, ctx context.Context, uowFactory application.UnitOfWorkFactory, guildID int64, summonerName, tagLine string) {
 	uow := uowFactory.CreateForGuild(guildID)
 	require.NoError(t, uow.Begin(ctx))
 	defer func() {
@@ -432,19 +422,16 @@ func TestLoLHandler_ForfeitRemake(t *testing.T) {
 
 	// Create UoW factory
 	mockTransactionalPublisher := service.NewMockTransactionalEventPublisher()
-	uowFactory := &TestUnitOfWorkFactory{
-		db:                     testDB.DB,
-		transactionalPublisher: mockTransactionalPublisher,
-	}
+	uowFactory := infrastructure.NewTestUnitOfWorkFactory(testDB.DB, mockTransactionalPublisher)
 
 	// Setup guild and summoner watch
 	setupTestData(t, ctx, uowFactory, guildID, summonerName, tagLine)
 
 	// Create mock Discord poster
-	mockPoster := &MockDiscordPoster{}
+	mockPoster := &application.MockDiscordPoster{}
 
 	// Create LoL handler
-	handler := NewLoLHandler(uowFactory, mockPoster)
+	handler := application.NewLoLHandler(uowFactory, mockPoster)
 
 	// Game start
 	gameStarted := dto.GameStartedDTO{

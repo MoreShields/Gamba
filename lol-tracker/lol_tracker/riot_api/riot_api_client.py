@@ -347,7 +347,6 @@ class RiotAPIClient:
             return current_game
 
         except PlayerNotInGameError:
-            logger.debug("Player not in game", summoner_name=summoner_name, region=region)
             raise
         except Exception as e:
             logger.error(

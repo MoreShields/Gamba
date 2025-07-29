@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"gambler/discord-client/application"
 	"gambler/discord-client/bot/common"
 	"gambler/discord-client/models"
-	"gambler/discord-client/service"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -16,11 +16,11 @@ import (
 // Feature represents the group wagers feature
 type Feature struct {
 	session    *discordgo.Session
-	uowFactory service.UnitOfWorkFactory
+	uowFactory application.UnitOfWorkFactory
 }
 
 // NewFeature creates a new group wagers feature instance
-func NewFeature(session *discordgo.Session, uowFactory service.UnitOfWorkFactory) *Feature {
+func NewFeature(session *discordgo.Session, uowFactory application.UnitOfWorkFactory) *Feature {
 	return &Feature{
 		session:    session,
 		uowFactory: uowFactory,

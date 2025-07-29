@@ -5,7 +5,6 @@ import (
 
 	"gambler/discord-client/domain"
 	"gambler/discord-client/events"
-	"gambler/discord-client/service"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -20,7 +19,7 @@ type LocalHandlerRegistry interface {
 // This includes handlers for internal domain events that update Discord UI
 func RegisterApplicationSubscriptions(
 	subscriber domain.EventSubscriber,
-	uowFactory service.UnitOfWorkFactory,
+	uowFactory UnitOfWorkFactory,
 	discordPoster DiscordPoster,
 ) error {
 	// Create the wager state event handler

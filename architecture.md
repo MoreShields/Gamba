@@ -13,6 +13,13 @@ package "Application Layer" {
   package "config" {
     [config.go] as Config
   }
+  
+  package "application" {
+    interface "UnitOfWorkFactory" as IUnitOfWorkFactory
+    interface "UnitOfWork" as IUnitOfWork
+    [LoLHandler] as LoLHandler
+    [WagerStateEventHandler] as WagerStateEventHandler
+  }
 }
 
 ' Bot Layer
@@ -42,9 +49,6 @@ package "Service Layer" {
   [WagerService] as WagerServiceImpl 
   [GroupWagerService] as GroupWagerServiceImpl
   [StatsService] as StatsServiceImpl
-  
-  interface "UnitOfWorkFactory" as IUnitOfWorkFactory
-  interface "UnitOfWork" as IUnitOfWork
 }
 
 ' Repository Layer
@@ -104,7 +108,11 @@ Run --> Config
 Run --> Bot
 Run --> CronScheduler
 
+LoLHandler --> IUnitOfWorkFactory
+WagerStateEventHandler --> IUnitOfWorkFactory
+
 ' Relationships - Bot Layer
+Bot --> IUnitOfWorkFactory
 Bot --> IUserService
 Bot --> IGamblingService
 Bot --> ITransferService

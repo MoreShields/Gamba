@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"gambler/discord-client/application"
 	"gambler/discord-client/database"
 	"gambler/discord-client/service"
 	"github.com/jackc/pgx/v5"
@@ -38,7 +39,7 @@ type unitOfWorkFactory struct {
 }
 
 // CreateForGuildWithPublisher creates a new UnitOfWork with a specific transactional publisher
-func (f *unitOfWorkFactory) CreateForGuildWithPublisher(guildID int64, transactionalPublisher service.TransactionalEventPublisher) service.UnitOfWork {
+func (f *unitOfWorkFactory) CreateForGuildWithPublisher(guildID int64, transactionalPublisher service.TransactionalEventPublisher) application.UnitOfWork {
 	return &unitOfWork{
 		db:                     f.db,
 		guildID:                guildID,

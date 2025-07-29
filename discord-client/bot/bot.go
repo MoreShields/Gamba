@@ -42,7 +42,7 @@ type Bot struct {
 	// Core components
 	config         Config
 	session        *discordgo.Session
-	uowFactory     service.UnitOfWorkFactory
+	uowFactory     application.UnitOfWorkFactory
 	summonerClient summoner_pb.SummonerTrackingServiceClient
 
 	// Message streaming
@@ -67,7 +67,7 @@ type Bot struct {
 }
 
 // New creates a new bot instance with all features
-func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory service.UnitOfWorkFactory, summonerClient summoner_pb.SummonerTrackingServiceClient, messagePublisher infrastructure.MessagePublisher) (*Bot, error) {
+func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory application.UnitOfWorkFactory, summonerClient summoner_pb.SummonerTrackingServiceClient, messagePublisher infrastructure.MessagePublisher) (*Bot, error) {
 	// Create Discord session
 	dg, err := discordgo.New("Bot " + config.Token)
 	if err != nil {

@@ -12,7 +12,6 @@ import (
 	"gambler/discord-client/config"
 	"gambler/discord-client/database"
 	"gambler/discord-client/infrastructure"
-	"gambler/discord-client/service"
 
 	summoner_pb "gambler/discord-client/proto/services"
 
@@ -136,7 +135,7 @@ func initializeRepositories(db *database.DB, eventPublisher *infrastructure.NATS
 }
 
 // creates and configures the Discord bot
-func initializeDiscordBot(cfg *config.Config, uowFactory service.UnitOfWorkFactory, summonerClient summoner_pb.SummonerTrackingServiceClient, natsClient *infrastructure.NATSClient) (*bot.Bot, error) {
+func initializeDiscordBot(cfg *config.Config, uowFactory application.UnitOfWorkFactory, summonerClient summoner_pb.SummonerTrackingServiceClient, natsClient *infrastructure.NATSClient) (*bot.Bot, error) {
 	log.Println("Initializing Discord bot...")
 	botConfig := bot.Config{
 		Token:              cfg.DiscordToken,
@@ -157,7 +156,7 @@ func initializeDiscordBot(cfg *config.Config, uowFactory service.UnitOfWorkFacto
 }
 
 // creates application-level handlers
-func initializeApplicationHandlers(uowFactory service.UnitOfWorkFactory, discordBot *bot.Bot) *application.LoLHandlerImpl {
+func initializeApplicationHandlers(uowFactory application.UnitOfWorkFactory, discordBot *bot.Bot) *application.LoLHandlerImpl {
 	log.Println("Initializing LoL handler...")
 	lolHandler := application.NewLoLHandler(uowFactory, discordBot.GetDiscordPoster())
 	log.Println("LoL handler initialized successfully")
@@ -165,7 +164,7 @@ func initializeApplicationHandlers(uowFactory service.UnitOfWorkFactory, discord
 }
 
 // registers all event subscriptions
-func setupEventSubscriptions(natsClient *infrastructure.NATSClient, subjectMapper *infrastructure.EventSubjectMapper, uowFactory service.UnitOfWorkFactory, discordBot *bot.Bot) error {
+func setupEventSubscriptions(natsClient *infrastructure.NATSClient, subjectMapper *infrastructure.EventSubjectMapper, uowFactory application.UnitOfWorkFactory, discordBot *bot.Bot) error {
 	log.Println("Initializing NATS event subscriber...")
 	natsEventSubscriber := infrastructure.NewNATSEventSubscriber(natsClient, subjectMapper)
 

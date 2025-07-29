@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"gambler/discord-client/application"
 	"gambler/discord-client/database"
 	"gambler/discord-client/service"
 )
@@ -12,7 +13,7 @@ func NewTestUnitOfWorkFactory(db *database.DB) *unitOfWorkFactory {
 }
 
 // CreateTestUnitOfWork creates a unit of work for testing with the provided transactional publisher
-func CreateTestUnitOfWork(db *database.DB, guildID int64, transactionalPublisher service.TransactionalEventPublisher) service.UnitOfWork {
+func CreateTestUnitOfWork(db *database.DB, guildID int64, transactionalPublisher service.TransactionalEventPublisher) application.UnitOfWork {
 	factory := NewTestUnitOfWorkFactory(db)
 	return factory.CreateForGuildWithPublisher(guildID, transactionalPublisher)
 }

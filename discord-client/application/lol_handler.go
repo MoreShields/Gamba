@@ -14,13 +14,13 @@ import (
 
 // LoLHandlerImpl implements the LoLEventHandler interface
 type LoLHandlerImpl struct {
-	uowFactory    service.UnitOfWorkFactory
+	uowFactory    UnitOfWorkFactory
 	discordPoster DiscordPoster
 }
 
 // NewLoLHandler creates a new LoL event handler
 func NewLoLHandler(
-	uowFactory service.UnitOfWorkFactory,
+	uowFactory UnitOfWorkFactory,
 	discordPoster DiscordPoster,
 ) *LoLHandlerImpl {
 	return &LoLHandlerImpl{

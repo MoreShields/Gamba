@@ -1,7 +1,7 @@
 package settings
 
 import (
-	"gambler/discord-client/service"
+	"gambler/discord-client/application"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -9,11 +9,11 @@ import (
 // Feature handles guild settings management
 type Feature struct {
 	session    *discordgo.Session
-	uowFactory service.UnitOfWorkFactory
+	uowFactory application.UnitOfWorkFactory
 }
 
 // NewFeature creates a new settings feature instance
-func NewFeature(session *discordgo.Session, uowFactory service.UnitOfWorkFactory) *Feature {
+func NewFeature(session *discordgo.Session, uowFactory application.UnitOfWorkFactory) *Feature {
 	return &Feature{
 		session:    session,
 		uowFactory: uowFactory,

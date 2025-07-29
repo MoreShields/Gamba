@@ -13,12 +13,12 @@ import (
 
 // wagerStateEventHandler implements the WagerStateEventHandler interface
 type wagerStateEventHandler struct {
-	uowFactory    service.UnitOfWorkFactory
+	uowFactory    UnitOfWorkFactory
 	discordPoster DiscordPoster
 }
 
 // NewWagerStateEventHandler creates a new WagerStateEventHandler
-func NewWagerStateEventHandler(uowFactory service.UnitOfWorkFactory, discordPoster DiscordPoster) WagerStateEventHandler {
+func NewWagerStateEventHandler(uowFactory UnitOfWorkFactory, discordPoster DiscordPoster) WagerStateEventHandler {
 	return &wagerStateEventHandler{
 		uowFactory:    uowFactory,
 		discordPoster: discordPoster,
