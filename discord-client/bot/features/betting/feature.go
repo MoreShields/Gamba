@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"gambler/discord-client/service"
+	"gambler/discord-client/application"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -20,11 +20,11 @@ type GamblingConfig struct {
 // Feature represents the betting feature
 type Feature struct {
 	config     *GamblingConfig
-	uowFactory service.UnitOfWorkFactory
+	uowFactory application.UnitOfWorkFactory
 }
 
 // New creates a new betting feature instance
-func New(config *GamblingConfig, uowFactory service.UnitOfWorkFactory) *Feature {
+func New(config *GamblingConfig, uowFactory application.UnitOfWorkFactory) *Feature {
 	f := &Feature{
 		config:     config,
 		uowFactory: uowFactory,
@@ -62,7 +62,7 @@ func (f *Feature) startSessionCleanup() {
 }
 
 // createUnitOfWork creates and begins a guild-scoped unit of work from a Discord interaction
-func (f *Feature) createUnitOfWork(ctx context.Context, i *discordgo.InteractionCreate) (service.UnitOfWork, error) {
+func (f *Feature) createUnitOfWork(ctx context.Context, i *discordgo.InteractionCreate) (application.UnitOfWork, error) {
 	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing guild ID %s: %w", i.GuildID, err)

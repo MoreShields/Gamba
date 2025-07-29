@@ -2,14 +2,14 @@ package transfer
 
 import (
 	"github.com/bwmarrin/discordgo"
-	"gambler/discord-client/service"
+	"gambler/discord-client/application"
 )
 
 type Feature struct {
-	uowFactory service.UnitOfWorkFactory
+	uowFactory application.UnitOfWorkFactory
 }
 
-func New(uowFactory service.UnitOfWorkFactory) *Feature {
+func New(uowFactory application.UnitOfWorkFactory) *Feature {
 	return &Feature{
 		uowFactory: uowFactory,
 	}

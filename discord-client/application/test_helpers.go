@@ -4,9 +4,6 @@ import (
 	"context"
 	
 	"gambler/discord-client/application/dto"
-	"gambler/discord-client/database"
-	"gambler/discord-client/repository"
-	"gambler/discord-client/service"
 )
 
 // MockDiscordPoster implements DiscordPoster for testing
@@ -46,13 +43,3 @@ func (m *MockDiscordPoster) UpdateGroupWager(ctx context.Context, messageID, cha
 	return nil
 }
 
-// TestUnitOfWorkFactory is a test factory that creates new unit of work instances
-type TestUnitOfWorkFactory struct {
-	db                     *database.DB
-	transactionalPublisher service.TransactionalEventPublisher
-}
-
-func (m *TestUnitOfWorkFactory) CreateForGuild(guildID int64) service.UnitOfWork {
-	// Create a fresh UoW for each call to avoid transaction state issues
-	return repository.CreateTestUnitOfWork(m.db, guildID, m.transactionalPublisher)
-}

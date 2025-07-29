@@ -3,8 +3,8 @@ package wagers
 import (
 	"strings"
 
+	"gambler/discord-client/application"
 	"gambler/discord-client/bot/common"
-	"gambler/discord-client/service"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -12,12 +12,12 @@ import (
 // Feature represents the wagers feature
 type Feature struct {
 	session    *discordgo.Session
-	uowFactory service.UnitOfWorkFactory
+	uowFactory application.UnitOfWorkFactory
 	guildID    string
 }
 
 // NewFeature creates a new wagers feature instance
-func NewFeature(session *discordgo.Session, uowFactory service.UnitOfWorkFactory, guildID string) *Feature {
+func NewFeature(session *discordgo.Session, uowFactory application.UnitOfWorkFactory, guildID string) *Feature {
 	return &Feature{
 		session:    session,
 		uowFactory: uowFactory,

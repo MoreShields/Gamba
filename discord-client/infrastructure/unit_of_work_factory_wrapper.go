@@ -3,6 +3,7 @@ package infrastructure
 import (
 	"context"
 	
+	"gambler/discord-client/application"
 	"gambler/discord-client/database"
 	"gambler/discord-client/events"
 	"gambler/discord-client/repository"
@@ -12,7 +13,7 @@ import (
 // UnitOfWorkFactoryWrapper wraps the repository UnitOfWorkFactory to provide transactional publishers
 type UnitOfWorkFactoryWrapper struct {
 	repoFactory    interface {
-		CreateForGuildWithPublisher(guildID int64, transactionalPublisher service.TransactionalEventPublisher) service.UnitOfWork
+		CreateForGuildWithPublisher(guildID int64, transactionalPublisher service.TransactionalEventPublisher) application.UnitOfWork
 	}
 	eventPublisher service.EventPublisher
 	localHandlers  map[events.EventType][]func(context.Context, events.Event) error
@@ -35,7 +36,7 @@ func (w *UnitOfWorkFactoryWrapper) RegisterLocalHandler(eventType events.EventTy
 }
 
 // CreateForGuild creates a new UnitOfWork with a transactional event publisher
-func (w *UnitOfWorkFactoryWrapper) CreateForGuild(guildID int64) service.UnitOfWork {
+func (w *UnitOfWorkFactoryWrapper) CreateForGuild(guildID int64) application.UnitOfWork {
 	// Create a transactional publisher for this unit of work
 	transactionalPublisher := NewNATSTransactionalPublisher(w.eventPublisher).(*NATSTransactionalPublisher)
 	
