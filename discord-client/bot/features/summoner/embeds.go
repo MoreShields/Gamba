@@ -26,24 +26,6 @@ func createSuccessEmbed(watchDetail *models.SummonerWatchDetail, summonerDetails
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
-	// Add summoner details if available from validation
-	if summonerDetails != nil {
-		embed.Description = fmt.Sprintf("Now tracking **%s #%s** for this server.",
-			summonerDetails.GameName, summonerDetails.TagLine)
-
-		// Add summoner level if available
-		if summonerDetails.SummonerLevel > 0 {
-			embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
-				Name:   "Level",
-				Value:  fmt.Sprintf("%d", summonerDetails.SummonerLevel),
-				Inline: true,
-			})
-		}
-	} else {
-		embed.Description = fmt.Sprintf("Now tracking **%s #%s** for this server.",
-			watchDetail.SummonerName, watchDetail.TagLine)
-	}
-
 	embed.Footer = &discordgo.MessageEmbedFooter{
 		Text: "You will receive notifications about this summoner's activity",
 	}
