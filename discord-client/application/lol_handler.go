@@ -212,10 +212,12 @@ func (h *LoLHandlerImpl) createHouseWagerForGuild(
 		uow.EventBus(),
 	)
 
-	// Format the complete description with summoner info and League of Graphs link
-	leagueOfGraphsURL := fmt.Sprintf("https://www.leagueofgraphs.com/match/NA/%s", gameStarted.GameID)
-	condition := fmt.Sprintf("%s - **Ranked Match**\n[View Match Details](%s)",
-		gameStarted.SummonerName, leagueOfGraphsURL)
+	// Format the complete description with summoner info and Porofessor link for active wager
+	// URL-encode the game name and tag with %20 for spaces
+	encodedGameName := strings.ReplaceAll(gameStarted.SummonerName, " ", "%20")
+	porofessorURL := fmt.Sprintf("https://porofessor.gg/live/na/%s-%s", encodedGameName, gameStarted.TagLine)
+	condition := fmt.Sprintf("%s - **Ranked Match**\n[Match Details](%s)",
+		gameStarted.SummonerName, porofessorURL)
 
 	// Create the house wager with formatted condition
 	options := []string{"Win", "Loss"}
@@ -465,19 +467,3 @@ func (h *LoLHandlerImpl) resolveHouseWager(ctx context.Context, guildID, wagerID
 	return nil
 }
 
-// getQueueTypeDisplay returns a user-friendly display name for queue types
-func (h *LoLHandlerImpl) getQueueTypeDisplay(queueType string) string {
-	// Map common queue types to display names
-	queueMap := map[string]string{
-		"RANKED_SOLO_5x5": "Ranked Solo/Duo",
-		"RANKED_FLEX_SR":  "Ranked Flex",
-		"NORMAL":          "Normal",
-		"ARAM":            "ARAM",
-		"":                "Game",
-	}
-
-	if display, exists := queueMap[queueType]; exists {
-		return display
-	}
-	return queueType
-}

@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"fmt"
 	"strings"
 
 	"gambler/discord-client/models"
@@ -16,6 +17,16 @@ func GroupWagerDetailToHouseWagerPostDTO(detail *models.GroupWagerDetail) HouseW
 	description := ""
 	if len(parts) > 1 {
 		description = parts[1]
+	}
+
+	// Update URL for resolved wagers from League of Legends
+	if detail.Wager.State == models.GroupWagerStateResolved && 
+		detail.Wager.ExternalRef != nil && 
+		detail.Wager.ExternalRef.System == models.SystemLeagueOfLegends {
+		// Replace porofessor URL with leagueofgraphs URL for resolved wagers
+		leagueOfGraphsURL := fmt.Sprintf("https://www.leagueofgraphs.com/match/NA/%s", detail.Wager.ExternalRef.ID)
+		// Update the description to use the new URL
+		description = fmt.Sprintf("[View Match Results](%s)", leagueOfGraphsURL)
 	}
 
 	dto := HouseWagerPostDTO{
