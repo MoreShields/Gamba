@@ -24,7 +24,7 @@ func (m *MockEventPublisher) Publish(event events.Event) error {
 	return nil
 }
 
-func TestNATSTransactionalPublisher_LocalHandlers(t *testing.T) {
+func TestNATSTransactionalPublisher_BufferingAndFlush(t *testing.T) {
 	// Create mock publisher
 	mockPublisher := &MockEventPublisher{
 		PublishedEvents: make([]events.Event, 0),
@@ -32,17 +32,6 @@ func TestNATSTransactionalPublisher_LocalHandlers(t *testing.T) {
 
 	// Create transactional publisher
 	transPublisher := NewNATSTransactionalPublisher(mockPublisher).(*NATSTransactionalPublisher)
-
-	// Track local handler invocations
-	handlerCalled := false
-	var receivedEvent events.Event
-
-	// Register local handler for group wager state changes
-	transPublisher.RegisterLocalHandler(events.EventTypeGroupWagerStateChange, func(ctx context.Context, event events.Event) error {
-		handlerCalled = true
-		receivedEvent = event
-		return nil
-	})
 
 	// Create test event
 	testEvent := events.GroupWagerStateChangeEvent{
@@ -58,24 +47,19 @@ func TestNATSTransactionalPublisher_LocalHandlers(t *testing.T) {
 	err := transPublisher.Publish(testEvent)
 	require.NoError(t, err)
 
-	// Handler should not be called yet
-	assert.False(t, handlerCalled)
+	// Event should not be published yet
 	assert.Len(t, mockPublisher.PublishedEvents, 0)
 
-	// Flush to trigger handlers and NATS publishing
+	// Flush to trigger publishing
 	err = transPublisher.Flush(context.Background())
 	require.NoError(t, err)
 
-	// Verify local handler was called
-	assert.True(t, handlerCalled)
-	assert.Equal(t, testEvent, receivedEvent)
-
-	// Verify event was also published to NATS
+	// Verify event was published
 	assert.Len(t, mockPublisher.PublishedEvents, 1)
 	assert.Equal(t, testEvent, mockPublisher.PublishedEvents[0])
 }
 
-func TestNATSTransactionalPublisher_MultipleLocalHandlers(t *testing.T) {
+func TestNATSTransactionalPublisher_MultipleEvents(t *testing.T) {
 	// Create mock publisher
 	mockPublisher := &MockEventPublisher{
 		PublishedEvents: make([]events.Event, 0),
@@ -84,23 +68,8 @@ func TestNATSTransactionalPublisher_MultipleLocalHandlers(t *testing.T) {
 	// Create transactional publisher
 	transPublisher := NewNATSTransactionalPublisher(mockPublisher).(*NATSTransactionalPublisher)
 
-	// Track handler invocations
-	handler1Called := false
-	handler2Called := false
-
-	// Register multiple handlers for the same event type
-	transPublisher.RegisterLocalHandler(events.EventTypeGroupWagerStateChange, func(ctx context.Context, event events.Event) error {
-		handler1Called = true
-		return nil
-	})
-
-	transPublisher.RegisterLocalHandler(events.EventTypeGroupWagerStateChange, func(ctx context.Context, event events.Event) error {
-		handler2Called = true
-		return nil
-	})
-
-	// Create and publish test event
-	testEvent := events.GroupWagerStateChangeEvent{
+	// Create and publish multiple test events
+	testEvent1 := events.GroupWagerStateChangeEvent{
 		GroupWagerID: 123,
 		GuildID:      456,
 		OldState:     "active",
@@ -109,16 +78,31 @@ func TestNATSTransactionalPublisher_MultipleLocalHandlers(t *testing.T) {
 		ChannelID:    101112,
 	}
 
-	err := transPublisher.Publish(testEvent)
+	testEvent2 := events.BalanceChangeEvent{
+		UserID:          111,
+		GuildID:         456,
+		OldBalance:      1000,
+		NewBalance:      2000,
+		TransactionType: "bet_win",
+		ChangeAmount:    1000,
+	}
+
+	err := transPublisher.Publish(testEvent1)
 	require.NoError(t, err)
+	err = transPublisher.Publish(testEvent2)
+	require.NoError(t, err)
+
+	// Events should not be published yet
+	assert.Len(t, mockPublisher.PublishedEvents, 0)
 
 	// Flush
 	err = transPublisher.Flush(context.Background())
 	require.NoError(t, err)
 
-	// Verify both handlers were called
-	assert.True(t, handler1Called)
-	assert.True(t, handler2Called)
+	// Verify both events were published
+	assert.Len(t, mockPublisher.PublishedEvents, 2)
+	assert.Equal(t, testEvent1, mockPublisher.PublishedEvents[0])
+	assert.Equal(t, testEvent2, mockPublisher.PublishedEvents[1])
 }
 
 func TestNATSTransactionalPublisher_Discard(t *testing.T) {
@@ -129,15 +113,6 @@ func TestNATSTransactionalPublisher_Discard(t *testing.T) {
 
 	// Create transactional publisher
 	transPublisher := NewNATSTransactionalPublisher(mockPublisher).(*NATSTransactionalPublisher)
-
-	// Track handler invocations
-	handlerCalled := false
-
-	// Register local handler
-	transPublisher.RegisterLocalHandler(events.EventTypeGroupWagerStateChange, func(ctx context.Context, event events.Event) error {
-		handlerCalled = true
-		return nil
-	})
 
 	// Publish event
 	testEvent := events.GroupWagerStateChangeEvent{
@@ -152,10 +127,17 @@ func TestNATSTransactionalPublisher_Discard(t *testing.T) {
 	err := transPublisher.Publish(testEvent)
 	require.NoError(t, err)
 
+	// Event should be buffered
+	assert.Len(t, mockPublisher.PublishedEvents, 0)
+
 	// Discard instead of flush
 	transPublisher.Discard()
 
-	// Verify handler was NOT called and event was NOT published
-	assert.False(t, handlerCalled)
+	// Verify event was NOT published
+	assert.Len(t, mockPublisher.PublishedEvents, 0)
+
+	// Attempting to flush after discard should publish nothing
+	err = transPublisher.Flush(context.Background())
+	require.NoError(t, err)
 	assert.Len(t, mockPublisher.PublishedEvents, 0)
 }

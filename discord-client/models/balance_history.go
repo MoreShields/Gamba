@@ -17,6 +17,7 @@ const (
 	TransactionTypeWagerLoss      TransactionType = "wager_loss"
 	TransactionTypeGroupWagerWin  TransactionType = "group_wager_win"
 	TransactionTypeGroupWagerLoss TransactionType = "group_wager_loss"
+	TransactionTypeWordleReward   TransactionType = "wordle_reward"
 )
 
 // RelatedType represents what type of entity the related_id refers to

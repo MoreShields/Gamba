@@ -52,7 +52,7 @@ func Run(ctx context.Context) error {
 	uowFactory := initializeRepositories(db, natsEventPublisher)
 
 	// Initialize Discord bot
-	discordBot, err := initializeDiscordBot(cfg, uowFactory, summonerClient, natsClient)
+	discordBot, err := initializeDiscordBot(cfg, uowFactory, summonerClient, natsEventPublisher)
 	if err != nil {
 		return err
 	}
@@ -61,7 +61,7 @@ func Run(ctx context.Context) error {
 	lolHandler := initializeApplicationHandlers(uowFactory, discordBot)
 
 	// Setup event subscriptions
-	if err := setupEventSubscriptions(natsClient, subjectMapper, uowFactory, discordBot); err != nil {
+	if err := setupEventSubscriptions(natsClient, subjectMapper, uowFactory, discordBot, cfg); err != nil {
 		return err
 	}
 
@@ -135,19 +135,18 @@ func initializeRepositories(db *database.DB, eventPublisher *infrastructure.NATS
 }
 
 // creates and configures the Discord bot
-func initializeDiscordBot(cfg *config.Config, uowFactory application.UnitOfWorkFactory, summonerClient summoner_pb.SummonerTrackingServiceClient, natsClient *infrastructure.NATSClient) (*bot.Bot, error) {
+func initializeDiscordBot(cfg *config.Config, uowFactory application.UnitOfWorkFactory, summonerClient summoner_pb.SummonerTrackingServiceClient, eventPublisher *infrastructure.NATSEventPublisher) (*bot.Bot, error) {
 	log.Println("Initializing Discord bot...")
 	botConfig := bot.Config{
-		Token:              cfg.DiscordToken,
-		GuildID:            cfg.GuildID,
-		GambaChannelID:     cfg.GambaChannelID,
-		StreamChannelTypes: cfg.StreamChannelTypes,
+		Token:          cfg.DiscordToken,
+		GuildID:        cfg.GuildID,
+		GambaChannelID: cfg.GambaChannelID,
 	}
 	gamblingConfig := &betting.GamblingConfig{
 		DailyGambleLimit:    cfg.DailyGambleLimit,
 		DailyLimitResetHour: cfg.DailyLimitResetHour,
 	}
-	discordBot, err := bot.New(botConfig, gamblingConfig, uowFactory, summonerClient, natsClient)
+	discordBot, err := bot.New(botConfig, gamblingConfig, uowFactory, summonerClient, eventPublisher)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize Discord bot: %w", err)
 	}
@@ -164,7 +163,7 @@ func initializeApplicationHandlers(uowFactory application.UnitOfWorkFactory, dis
 }
 
 // registers all event subscriptions
-func setupEventSubscriptions(natsClient *infrastructure.NATSClient, subjectMapper *infrastructure.EventSubjectMapper, uowFactory application.UnitOfWorkFactory, discordBot *bot.Bot) error {
+func setupEventSubscriptions(natsClient *infrastructure.NATSClient, subjectMapper *infrastructure.EventSubjectMapper, uowFactory application.UnitOfWorkFactory, discordBot *bot.Bot, cfg *config.Config) error {
 	log.Println("Initializing NATS event subscriber...")
 	natsEventSubscriber := infrastructure.NewNATSEventSubscriber(natsClient, subjectMapper)
 
@@ -174,6 +173,8 @@ func setupEventSubscriptions(natsClient *infrastructure.NATSClient, subjectMappe
 		natsEventSubscriber,
 		uowFactory,
 		discordBot.GetDiscordPoster(),
+		cfg.WordleBotID,
+		cfg.WordleRewardAmount,
 	); err != nil {
 		return fmt.Errorf("failed to register application subscriptions: %w", err)
 	}

@@ -19,7 +19,6 @@ import (
 	"gambler/discord-client/bot/features/summoner"
 	"gambler/discord-client/bot/features/transfer"
 	"gambler/discord-client/bot/features/wagers"
-	"gambler/discord-client/infrastructure"
 	"gambler/discord-client/models"
 	"gambler/discord-client/service"
 
@@ -31,10 +30,9 @@ import (
 
 // Config holds bot configuration
 type Config struct {
-	Token              string
-	GuildID            string
-	GambaChannelID     string
-	StreamChannelTypes []string
+	Token          string
+	GuildID        string
+	GambaChannelID string
 }
 
 // Bot manages the Discord bot and all feature modules
@@ -44,9 +42,9 @@ type Bot struct {
 	session        *discordgo.Session
 	uowFactory     application.UnitOfWorkFactory
 	summonerClient summoner_pb.SummonerTrackingServiceClient
-
-	// Message streaming
-	messagePublisher infrastructure.MessagePublisher
+	
+	// Event publishing
+	eventPublisher service.EventPublisher
 
 	// High roller tracking
 	lastHighRollerID int64
@@ -67,7 +65,7 @@ type Bot struct {
 }
 
 // New creates a new bot instance with all features
-func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory application.UnitOfWorkFactory, summonerClient summoner_pb.SummonerTrackingServiceClient, messagePublisher infrastructure.MessagePublisher) (*Bot, error) {
+func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory application.UnitOfWorkFactory, summonerClient summoner_pb.SummonerTrackingServiceClient, eventPublisher service.EventPublisher) (*Bot, error) {
 	// Create Discord session
 	dg, err := discordgo.New("Bot " + config.Token)
 	if err != nil {
@@ -77,11 +75,11 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory appli
 
 	// Create bot instance
 	bot := &Bot{
-		config:           config,
-		session:          dg,
-		uowFactory:       uowFactory,
-		summonerClient:   summonerClient,
-		messagePublisher: messagePublisher,
+		config:         config,
+		session:        dg,
+		uowFactory:     uowFactory,
+		summonerClient: summonerClient,
+		eventPublisher: eventPublisher,
 	}
 
 	// Create feature modules
@@ -94,7 +92,6 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory appli
 	bot.transfer = transfer.New(uowFactory)
 	bot.settings = settings.NewFeature(dg, uowFactory)
 	bot.summoner = summoner.NewFeature(dg, uowFactory, summonerClient, config.GuildID)
-
 
 	// Register handlers
 	dg.AddHandler(bot.handleCommands)
@@ -112,8 +109,6 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory appli
 		dg.Close()
 		return nil, fmt.Errorf("error registering commands: %w", err)
 	}
-
-
 
 	// Perform initial sync of high roller role for all guilds
 	go func() {
@@ -418,7 +413,6 @@ func (b *Bot) routeModalInteraction(s *discordgo.Session, i *discordgo.Interacti
 	}
 }
 
-
 // handleGuildCreate handles when the bot joins a new guild
 func (b *Bot) handleGuildCreate(s *discordgo.Session, g *discordgo.GuildCreate) {
 	ctx := context.Background()
@@ -488,11 +482,6 @@ func (b *Bot) handleMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 		return
 	}
 
-	// Skip if no channel types are configured for streaming
-	if len(b.config.StreamChannelTypes) == 0 {
-		return
-	}
-
 	// Skip if message is not from a guild
 	if m.GuildID == "" {
 		return
@@ -500,74 +489,13 @@ func (b *Bot) handleMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 
 	ctx := context.Background()
 
-	// Parse guild ID
-	guildID, err := strconv.ParseInt(m.GuildID, 10, 64)
-	if err != nil {
-		log.WithError(err).Error("Failed to parse guild ID for message streaming")
-		return
-	}
-
-	// Get guild settings to check if this channel should be streamed
-	shouldStream, err := b.shouldStreamChannel(ctx, guildID, m.ChannelID)
-	if err != nil {
-		log.WithError(err).Error("Failed to check if channel should be streamed")
-		return
-	}
-
-	if !shouldStream {
-		return
-	}
-
-	// Publish the message to the message bus
+	// Publish Discord message as a domain event
+	// The infrastructure layer will handle local handlers and NATS publishing
 	if err := b.publishDiscordMessage(ctx, m); err != nil {
 		log.WithError(err).WithFields(log.Fields{
 			"guild_id":   m.GuildID,
 			"channel_id": m.ChannelID,
 			"message_id": m.ID,
-		}).Error("Failed to publish Discord message to message bus")
+		}).Error("Failed to publish Discord message event")
 	}
 }
-
-// shouldStreamChannel checks if a channel should be streamed based on the configuration
-func (b *Bot) shouldStreamChannel(ctx context.Context, guildID int64, channelID string) (bool, error) {
-	// Create guild-scoped unit of work
-	uow := b.uowFactory.CreateForGuild(guildID)
-	if err := uow.Begin(ctx); err != nil {
-		return false, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback()
-
-	// Get guild settings
-	guildSettingsService := service.NewGuildSettingsService(uow.GuildSettingsRepository())
-	settings, err := guildSettingsService.GetOrCreateSettings(ctx, guildID)
-	if err != nil {
-		return false, fmt.Errorf("failed to get guild settings: %w", err)
-	}
-
-	// Commit the transaction
-	if err := uow.Commit(); err != nil {
-		return false, fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	// Check if this channel matches any of the configured stream channel types
-	channelIDInt, err := strconv.ParseInt(channelID, 10, 64)
-	if err != nil {
-		return false, nil // Invalid channel ID, don't stream
-	}
-
-	for _, channelType := range b.config.StreamChannelTypes {
-		switch channelType {
-		case "lol_channel":
-			if settings.LolChannelID != nil && *settings.LolChannelID == channelIDInt {
-				return true, nil
-			}
-		case "primary_channel":
-			if settings.PrimaryChannelID != nil && *settings.PrimaryChannelID == channelIDInt {
-				return true, nil
-			}
-		}
-	}
-
-	return false, nil
-}
-
