@@ -16,7 +16,7 @@ func RecordBalanceChange(ctx context.Context, balanceHistoryRepo BalanceHistoryR
 	if err := balanceHistoryRepo.Record(ctx, history); err != nil {
 		return fmt.Errorf("failed to record balance history: %w", err)
 	}
-	
+
 	// Emit balance change event
 	event := events.BalanceChangeEvent{
 		UserID:          history.DiscordID,
@@ -37,7 +37,7 @@ func RecordBalanceChange(ctx context.Context, balanceHistoryRepo BalanceHistoryR
 	if err := eventPublisher.Publish(event); err != nil {
 		log.WithError(err).Error("Failed to publish balance change event")
 	}
-	
+
 	// Also emit user created event if this is initial balance
 	if history.TransactionType == models.TransactionTypeInitial {
 		if username, ok := history.TransactionMetadata["username"].(string); ok {
@@ -52,6 +52,6 @@ func RecordBalanceChange(ctx context.Context, balanceHistoryRepo BalanceHistoryR
 			}
 		}
 	}
-	
+
 	return nil
 }

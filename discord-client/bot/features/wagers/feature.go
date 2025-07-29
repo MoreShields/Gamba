@@ -60,7 +60,7 @@ func (f *Feature) HandleInteraction(s *discordgo.Session, i *discordgo.Interacti
 func (f *Feature) handleComponentInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	customID := i.MessageComponentData().CustomID
 	parts := strings.Split(customID, "_")
-	
+
 	if len(parts) < 3 {
 		common.RespondWithError(s, i, "Invalid interaction data")
 		return

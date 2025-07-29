@@ -27,32 +27,31 @@ const (
 	TestOption2ID      = int64(2)
 )
 
-
 // TestMocks aggregates all repository mocks for testing
 type TestMocks struct {
 	GroupWagerRepo     *MockGroupWagerRepository
-	UserRepo          *MockUserRepository
+	UserRepo           *MockUserRepository
 	BalanceHistoryRepo *MockBalanceHistoryRepository
-	EventPublisher    *MockEventPublisher
-	BetRepo           *MockBetRepository
-	WagerRepo         *MockWagerRepository
-	WagerVoteRepo     *MockWagerVoteRepository
-	GuildSettingsRepo *MockGuildSettingsRepository
-	SummonerWatchRepo *MockSummonerWatchRepository
+	EventPublisher     *MockEventPublisher
+	BetRepo            *MockBetRepository
+	WagerRepo          *MockWagerRepository
+	WagerVoteRepo      *MockWagerVoteRepository
+	GuildSettingsRepo  *MockGuildSettingsRepository
+	SummonerWatchRepo  *MockSummonerWatchRepository
 }
 
 // NewTestMocks creates a new set of mocks
 func NewTestMocks() *TestMocks {
 	return &TestMocks{
 		GroupWagerRepo:     &MockGroupWagerRepository{},
-		UserRepo:          &MockUserRepository{},
+		UserRepo:           &MockUserRepository{},
 		BalanceHistoryRepo: &MockBalanceHistoryRepository{},
-		EventPublisher:    &MockEventPublisher{},
-		BetRepo:           &MockBetRepository{},
-		WagerRepo:         &MockWagerRepository{},
-		WagerVoteRepo:     &MockWagerVoteRepository{},
-		GuildSettingsRepo: &MockGuildSettingsRepository{},
-		SummonerWatchRepo: &MockSummonerWatchRepository{},
+		EventPublisher:     &MockEventPublisher{},
+		BetRepo:            &MockBetRepository{},
+		WagerRepo:          &MockWagerRepository{},
+		WagerVoteRepo:      &MockWagerVoteRepository{},
+		GuildSettingsRepo:  &MockGuildSettingsRepository{},
+		SummonerWatchRepo:  &MockSummonerWatchRepository{},
 	}
 }
 
@@ -300,14 +299,14 @@ func (s *GroupWagerScenario) WithParticipant(userID int64, optionIndex int, amou
 	if optionIndex >= len(s.Options) {
 		return s
 	}
-	
+
 	// Check if participant already exists
 	for i, p := range s.Participants {
 		if p.DiscordID == userID {
 			// Update existing participant - adjust option totals
 			oldOptionID := s.Participants[i].OptionID
 			oldAmount := s.Participants[i].Amount
-			
+
 			// Find and update old option total
 			for _, opt := range s.Options {
 				if opt.ID == oldOptionID {
@@ -315,17 +314,17 @@ func (s *GroupWagerScenario) WithParticipant(userID int64, optionIndex int, amou
 					break
 				}
 			}
-			
+
 			// Update participant
 			s.Participants[i].OptionID = s.Options[optionIndex].ID
 			s.Participants[i].Amount = amount
-			
+
 			// Update new option total
 			s.Options[optionIndex].TotalAmount += amount
 			return s
 		}
 	}
-	
+
 	// Add new participant
 	s.Participants = append(s.Participants, &models.GroupWagerParticipant{
 		GroupWagerID: s.Wager.ID,
@@ -333,13 +332,13 @@ func (s *GroupWagerScenario) WithParticipant(userID int64, optionIndex int, amou
 		OptionID:     s.Options[optionIndex].ID,
 		Amount:       amount,
 	})
-	
+
 	// Update option total for new participant
 	s.Options[optionIndex].TotalAmount += amount
-	
+
 	// Update wager total pot
 	s.Wager.TotalPot += amount
-	
+
 	return s
 }
 

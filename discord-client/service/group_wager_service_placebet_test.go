@@ -168,7 +168,7 @@ func TestGroupWagerService_PlaceBet_TableDriven(t *testing.T) {
 
 			// For successful cases, setup additional mocks
 			if tc.name != "insufficient balance" {
-				
+
 				if existingParticipant != nil {
 					// For existing participants, expect participant update
 					fixture.Mocks.GroupWagerRepo.On("SaveParticipant", fixture.Ctx, mock.MatchedBy(func(p *models.GroupWagerParticipant) bool {
@@ -177,7 +177,7 @@ func TestGroupWagerService_PlaceBet_TableDriven(t *testing.T) {
 							p.OptionID == fullScenario.Options[tc.betOption].ID &&
 							p.Amount == tc.betAmount
 					})).Return(nil)
-					
+
 					// Expect option total updates for both old and new options
 					if existingParticipant.OptionID != fullScenario.Options[tc.betOption].ID {
 						// Different option - update old option to 0, new option to bet amount
@@ -192,12 +192,12 @@ func TestGroupWagerService_PlaceBet_TableDriven(t *testing.T) {
 					fixture.Helper.ExpectNewParticipant(TestWagerID, TestUser1ID, fullScenario.Options[tc.betOption].ID, tc.betAmount)
 					fixture.Helper.ExpectOptionTotalUpdate(fullScenario.Options[tc.betOption].ID, tc.betAmount)
 				}
-				
+
 				// Expect wager update
 				fixture.Mocks.GroupWagerRepo.On("Update", fixture.Ctx, mock.MatchedBy(func(gw *models.GroupWager) bool {
 					return gw.ID == TestWagerID
 				})).Return(nil)
-				
+
 				// For pool wagers, expect odds recalculation
 				if tc.wagerType == models.GroupWagerTypePool {
 					fixture.Mocks.GroupWagerRepo.On("UpdateAllOptionOdds", fixture.Ctx, int64(TestWagerID), mock.AnythingOfType("map[int64]float64")).Return(nil)
@@ -209,7 +209,7 @@ func TestGroupWagerService_PlaceBet_TableDriven(t *testing.T) {
 
 			// Validate
 			tc.validate(t, participant, err)
-			
+
 			// Only assert expectations if we don't expect errors
 			// (error cases may not call all mocked methods)
 			if err == nil {
@@ -244,12 +244,12 @@ func TestGroupWagerService_PlaceBet_CompleteFlow(t *testing.T) {
 		fixture.Helper.ExpectParticipantLookup(TestWagerID, TestUser1ID, nil) // No existing participant
 		fixture.Helper.ExpectNewParticipant(TestWagerID, TestUser1ID, TestOption1ID, int64(1000))
 		fixture.Helper.ExpectOptionTotalUpdate(TestOption1ID, 1000)
-		
+
 		// Expect wager pot update
 		fixture.Mocks.GroupWagerRepo.On("Update", fixture.Ctx, mock.MatchedBy(func(gw *models.GroupWager) bool {
 			return gw.ID == TestWagerID && gw.TotalPot == 1000
 		})).Return(nil)
-		
+
 		// Expect odds recalculation for pool wager
 		fixture.Mocks.GroupWagerRepo.On("UpdateAllOptionOdds", fixture.Ctx, int64(TestWagerID), mock.MatchedBy(func(odds map[int64]float64) bool {
 			// Option 1 should have odds of 1.0 (1000/1000)
@@ -292,12 +292,12 @@ func TestGroupWagerService_PlaceBet_CompleteFlow(t *testing.T) {
 		fixture.Helper.ExpectParticipantLookup(TestWagerID, TestUser1ID, nil) // No existing participant
 		fixture.Helper.ExpectNewParticipant(TestWagerID, TestUser1ID, TestOption1ID, int64(1000))
 		fixture.Helper.ExpectOptionTotalUpdate(TestOption1ID, 1000)
-		
+
 		// Expect wager pot update
 		fixture.Mocks.GroupWagerRepo.On("Update", fixture.Ctx, mock.MatchedBy(func(gw *models.GroupWager) bool {
 			return gw.ID == TestWagerID && gw.TotalPot == 1000
 		})).Return(nil)
-		
+
 		// House wagers should NOT trigger odds recalculation
 		// No expectation for UpdateAllOptionOdds
 

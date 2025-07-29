@@ -2,7 +2,7 @@ package application
 
 import (
 	"context"
-	
+
 	"gambler/discord-client/service"
 )
 

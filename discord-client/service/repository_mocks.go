@@ -52,7 +52,6 @@ func (m *MockUserRepository) GetAll(ctx context.Context) ([]*models.User, error)
 	return args.Get(0).([]*models.User), args.Error(1)
 }
 
-
 // MockBalanceHistoryRepository is a mock implementation of BalanceHistoryRepository
 type MockBalanceHistoryRepository struct {
 	mock.Mock
@@ -120,7 +119,6 @@ func (m *MockBetRepository) GetByUserSince(ctx context.Context, discordID int64,
 	}
 	return args.Get(0).([]*models.Bet), args.Error(1)
 }
-
 
 // MockGroupWagerRepository is a mock implementation of GroupWagerRepository
 type MockGroupWagerRepository struct {
@@ -384,4 +382,3 @@ func (m *MockSummonerWatchRepository) GetWatch(ctx context.Context, guildID int6
 	}
 	return args.Get(0).(*models.SummonerWatchDetail), args.Error(1)
 }
-

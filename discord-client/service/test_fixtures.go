@@ -22,10 +22,10 @@ type GroupWagerTestFixture struct {
 func NewGroupWagerTestFixture(t *testing.T) *GroupWagerTestFixture {
 	// Setup test config
 	SetupTestConfig(t)
-	
+
 	// Create mocks
 	mocks := NewTestMocks()
-	
+
 	// Create service
 	service := NewGroupWagerService(
 		mocks.GroupWagerRepo,
@@ -33,7 +33,7 @@ func NewGroupWagerTestFixture(t *testing.T) *GroupWagerTestFixture {
 		mocks.BalanceHistoryRepo,
 		mocks.EventPublisher,
 	)
-	
+
 	return &GroupWagerTestFixture{
 		T:          t,
 		Ctx:        context.Background(),
@@ -64,7 +64,7 @@ func (f *GroupWagerTestFixture) Reset() {
 	// Create fresh mocks
 	f.Mocks = NewTestMocks()
 	f.Helper = NewMockHelper(f.Mocks)
-	
+
 	// Recreate service with new mocks
 	f.Service = NewGroupWagerService(
 		f.Mocks.GroupWagerRepo,
@@ -80,7 +80,7 @@ func (f *GroupWagerTestFixture) WithScenario(scenario *GroupWagerScenario) *Grou
 	for _, user := range scenario.Users {
 		f.Helper.ExpectUserLookup(user.DiscordID, user)
 	}
-	
+
 	// Setup wager mocks
 	if scenario.Wager != nil {
 		f.Helper.ExpectWagerLookup(scenario.Wager.ID, scenario.Wager)
@@ -90,7 +90,7 @@ func (f *GroupWagerTestFixture) WithScenario(scenario *GroupWagerScenario) *Grou
 			Participants: scenario.Participants,
 		})
 	}
-	
+
 	return f
 }
 
@@ -114,7 +114,7 @@ func (f *GroupWagerTestFixture) Nil(value interface{}) {
 	if value == nil {
 		return
 	}
-	
+
 	// Check for typed nil (e.g., (*Type)(nil))
 	switch v := value.(type) {
 	case *models.GroupWagerDetail:

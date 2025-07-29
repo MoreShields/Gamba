@@ -261,7 +261,7 @@ func CreateHouseWagerResolvedEmbed(houseWager dto.HouseWagerPostDTO, winningOpti
 
 	// Update for resolved state
 	embed.Color = common.ColorPrimary // Blue for resolved
-	
+
 	// Only append RESOLVED to title if there is a title
 	if embed.Title != "" {
 		embed.Title = embed.Title + " - RESOLVED"

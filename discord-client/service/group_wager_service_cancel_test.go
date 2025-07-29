@@ -20,11 +20,11 @@ func createWagerDetail(wager *models.GroupWager) *models.GroupWagerDetail {
 
 func TestGroupWagerService_CancelGroupWager(t *testing.T) {
 	fixture := NewGroupWagerTestFixture(t)
-	
+
 	creatorID := int64(123)
 	resolverID := int64(999)
 	unauthorizedID := int64(456)
-	
+
 	tests := []struct {
 		name          string
 		groupWagerID  int64
@@ -189,14 +189,14 @@ func TestGroupWagerService_CancelGroupWager(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset fixture for each test
 			fixture.Reset()
-			
+
 			// Set resolvers if testing resolver cancellation
 			if tt.cancellerID != nil && *tt.cancellerID == resolverID {
 				fixture.SetResolvers(resolverID)
 			} else if tt.name == "unauthorized canceller" {
 				fixture.SetResolvers() // Clear resolvers
 			}
-			
+
 			// Setup mocks
 			tt.setupMocks(fixture.Mocks, fixture.Helper)
 

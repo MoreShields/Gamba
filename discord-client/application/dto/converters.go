@@ -20,8 +20,8 @@ func GroupWagerDetailToHouseWagerPostDTO(detail *models.GroupWagerDetail) HouseW
 	}
 
 	// Update URL for resolved wagers from League of Legends
-	if detail.Wager.State == models.GroupWagerStateResolved && 
-		detail.Wager.ExternalRef != nil && 
+	if detail.Wager.State == models.GroupWagerStateResolved &&
+		detail.Wager.ExternalRef != nil &&
 		detail.Wager.ExternalRef.System == models.SystemLeagueOfLegends {
 		// Replace porofessor URL with leagueofgraphs URL for resolved wagers
 		leagueOfGraphsURL := fmt.Sprintf("https://www.leagueofgraphs.com/match/NA/%s", detail.Wager.ExternalRef.ID)

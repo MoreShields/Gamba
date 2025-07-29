@@ -247,7 +247,7 @@ func TestGroupWagerService_CreateGroupWager_Success(t *testing.T) {
 			if tt.wagerType == models.GroupWagerTypeHouse {
 				expectedMinParticipants = 0 // House wagers don't require minimum participants
 			}
-			
+
 			fixture.Mocks.GroupWagerRepo.On("CreateWithOptions", fixture.Ctx,
 				mock.MatchedBy(func(gw *models.GroupWager) bool {
 					return gw.CreatorDiscordID != nil && *gw.CreatorDiscordID == TestResolverID &&

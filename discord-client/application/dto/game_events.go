@@ -13,12 +13,12 @@ type GameStartedDTO struct {
 
 // GameEndedDTO represents a game that has ended
 type GameEndedDTO struct {
-	GameID            string
-	SummonerName      string
-	TagLine           string
-	Won               bool
-	DurationSeconds   int32
-	QueueType         string
-	ChampionPlayed    string
-	EventTime         time.Time
+	GameID          string
+	SummonerName    string
+	TagLine         string
+	Won             bool
+	DurationSeconds int32
+	QueueType       string
+	ChampionPlayed  string
+	EventTime       time.Time
 }

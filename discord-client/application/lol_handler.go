@@ -466,4 +466,3 @@ func (h *LoLHandlerImpl) resolveHouseWager(ctx context.Context, guildID, wagerID
 
 	return nil
 }
-

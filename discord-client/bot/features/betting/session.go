@@ -86,7 +86,6 @@ func updateSessionBalance(userID int64, newBalance int64, betPlaced bool) {
 	}
 }
 
-
 // deleteBetSession removes a betting session
 func deleteBetSession(userID int64) {
 	betSessionsMu.Lock()

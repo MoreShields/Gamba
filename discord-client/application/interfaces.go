@@ -18,10 +18,10 @@ type DiscordPoster interface {
 	// PostHouseWager posts a house wager to the appropriate Discord channel
 	// Returns the messageID and channelID of the posted message, or an error if posting fails
 	PostHouseWager(ctx context.Context, dto dto.HouseWagerPostDTO) (*PostResult, error)
-	
+
 	// UpdateHouseWager updates an existing house wager message in Discord
 	UpdateHouseWager(ctx context.Context, messageID, channelID int64, dto dto.HouseWagerPostDTO) error
-	
+
 	// UpdateGroupWager updates an existing group wager message in Discord
 	UpdateGroupWager(ctx context.Context, messageID, channelID int64, detail interface{}) error
 }
@@ -39,8 +39,7 @@ type WagerStateEventHandler interface {
 type LoLEventHandler interface {
 	// HandleGameStarted processes a game started event
 	HandleGameStarted(ctx context.Context, gameStarted dto.GameStartedDTO) error
-	
+
 	// HandleGameEnded processes a game ended event
 	HandleGameEnded(ctx context.Context, gameEnded dto.GameEndedDTO) error
 }
-

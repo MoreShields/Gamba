@@ -32,7 +32,7 @@ func (r *GuildSettingsRepository) GetOrCreateGuildSettings(ctx context.Context, 
 		FROM guild_settings
 		WHERE guild_id = $1
 	`
-	
+
 	var settings models.GuildSettings
 	err := r.q.QueryRow(ctx, query, guildID).Scan(
 		&settings.GuildID,
@@ -40,33 +40,33 @@ func (r *GuildSettingsRepository) GetOrCreateGuildSettings(ctx context.Context, 
 		&settings.LolChannelID,
 		&settings.HighRollerRoleID,
 	)
-	
+
 	if err == nil {
 		return &settings, nil
 	}
-	
+
 	if err != pgx.ErrNoRows {
 		return nil, fmt.Errorf("failed to get guild settings for guild %d: %w", guildID, err)
 	}
-	
+
 	// If not found, create default settings
 	insertQuery := `
 		INSERT INTO guild_settings (guild_id, primary_channel_id, lol_channel_id, high_roller_role_id)
 		VALUES ($1, NULL, NULL, NULL)
 		RETURNING guild_id, primary_channel_id, lol_channel_id, high_roller_role_id
 	`
-	
+
 	err = r.q.QueryRow(ctx, insertQuery, guildID).Scan(
 		&settings.GuildID,
 		&settings.PrimaryChannelID,
 		&settings.LolChannelID,
 		&settings.HighRollerRoleID,
 	)
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to create guild settings for guild %d: %w", guildID, err)
 	}
-	
+
 	return &settings, nil
 }
 
@@ -79,21 +79,21 @@ func (r *GuildSettingsRepository) UpdateGuildSettings(ctx context.Context, setti
 		    high_roller_role_id = $4
 		WHERE guild_id = $1
 	`
-	
-	result, err := r.q.Exec(ctx, query, 
+
+	result, err := r.q.Exec(ctx, query,
 		settings.GuildID,
 		settings.PrimaryChannelID,
 		settings.LolChannelID,
 		settings.HighRollerRoleID,
 	)
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to update guild settings for guild %d: %w", settings.GuildID, err)
 	}
-	
+
 	if result.RowsAffected() == 0 {
 		return fmt.Errorf("guild settings for guild %d not found", settings.GuildID)
 	}
-	
+
 	return nil
 }

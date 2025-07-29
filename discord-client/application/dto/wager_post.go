@@ -12,7 +12,7 @@ type HouseWagerPostDTO struct {
 	WagerID         int64
 	Title           string
 	Description     string
-	State           string    // Wager state (active, pending_resolution, resolved, cancelled)
+	State           string // Wager state (active, pending_resolution, resolved, cancelled)
 	Options         []WagerOptionDTO
 	VotingEndsAt    *time.Time // When the voting period ends
 	WinningOptionID *int64     // ID of the winning option (only set when resolved)

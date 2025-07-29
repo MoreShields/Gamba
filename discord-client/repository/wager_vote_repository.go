@@ -44,18 +44,18 @@ func (r *WagerVoteRepository) CreateOrUpdate(ctx context.Context, vote *models.W
 			updated_at = CURRENT_TIMESTAMP
 		RETURNING id, created_at, updated_at
 	`
-	
+
 	err := r.q.QueryRow(ctx, query,
 		vote.WagerID,
 		r.guildID, // Use repository's guild scope
 		vote.VoterDiscordID,
 		vote.VoteForDiscordID,
 	).Scan(&vote.ID, &vote.CreatedAt, &vote.UpdatedAt)
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to create or update vote: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -67,13 +67,13 @@ func (r *WagerVoteRepository) GetByWager(ctx context.Context, wagerID int64) ([]
 		WHERE wager_id = $1
 		ORDER BY created_at ASC
 	`
-	
+
 	rows, err := r.q.Query(ctx, query, wagerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get votes for wager %d: %w", wagerID, err)
 	}
 	defer rows.Close()
-	
+
 	var votes []*models.WagerVote
 	for rows.Next() {
 		var vote models.WagerVote
@@ -91,11 +91,11 @@ func (r *WagerVoteRepository) GetByWager(ctx context.Context, wagerID int64) ([]
 		}
 		votes = append(votes, &vote)
 	}
-	
+
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("failed to iterate votes: %w", err)
 	}
-	
+
 	return votes, nil
 }
 
@@ -107,7 +107,7 @@ func (r *WagerVoteRepository) GetVoteCounts(ctx context.Context, wagerID int64) 
 		FROM wagers
 		WHERE id = $1
 	`
-	
+
 	var proposerID, targetID int64
 	err := r.q.QueryRow(ctx, wagerQuery, wagerID).Scan(&proposerID, &targetID)
 	if err == pgx.ErrNoRows {
@@ -116,7 +116,7 @@ func (r *WagerVoteRepository) GetVoteCounts(ctx context.Context, wagerID int64) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get wager: %w", err)
 	}
-	
+
 	// Now count the participant votes and check their voting status
 	countQuery := `
 		SELECT 
@@ -128,7 +128,7 @@ func (r *WagerVoteRepository) GetVoteCounts(ctx context.Context, wagerID int64) 
 		FROM wager_votes
 		WHERE wager_id = $1
 	`
-	
+
 	var voteCounts models.VoteCount
 	err = r.q.QueryRow(ctx, countQuery, wagerID, proposerID, targetID).Scan(
 		&voteCounts.ProposerVotes,
@@ -137,11 +137,11 @@ func (r *WagerVoteRepository) GetVoteCounts(ctx context.Context, wagerID int64) 
 		&voteCounts.ProposerVoted,
 		&voteCounts.TargetVoted,
 	)
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to get vote counts for wager %d: %w", wagerID, err)
 	}
-	
+
 	return &voteCounts, nil
 }
 
@@ -152,7 +152,7 @@ func (r *WagerVoteRepository) GetByVoter(ctx context.Context, wagerID int64, vot
 		FROM wager_votes
 		WHERE wager_id = $1 AND voter_discord_id = $2
 	`
-	
+
 	var vote models.WagerVote
 	err := r.q.QueryRow(ctx, query, wagerID, voterDiscordID).Scan(
 		&vote.ID,
@@ -163,25 +163,25 @@ func (r *WagerVoteRepository) GetByVoter(ctx context.Context, wagerID int64, vot
 		&vote.CreatedAt,
 		&vote.UpdatedAt,
 	)
-	
+
 	if err == pgx.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get vote: %w", err)
 	}
-	
+
 	return &vote, nil
 }
 
 // DeleteByWager deletes all votes for a wager (used when cancelling)
 func (r *WagerVoteRepository) DeleteByWager(ctx context.Context, wagerID int64) error {
 	query := `DELETE FROM wager_votes WHERE wager_id = $1`
-	
+
 	_, err := r.q.Exec(ctx, query, wagerID)
 	if err != nil {
 		return fmt.Errorf("failed to delete votes for wager %d: %w", wagerID, err)
 	}
-	
+
 	return nil
 }

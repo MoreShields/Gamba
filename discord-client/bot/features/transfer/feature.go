@@ -1,8 +1,8 @@
 package transfer
 
 import (
-	"github.com/bwmarrin/discordgo"
 	"gambler/discord-client/application"
+	"github.com/bwmarrin/discordgo"
 )
 
 type Feature struct {

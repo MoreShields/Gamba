@@ -24,7 +24,7 @@ func (a *ProtobufToLoLAdapter) ConvertGameStateChanged(event *events.LoLGameStat
 	case a.isGameEnd(event):
 		return a.convertToGameEnded(event)
 	default:
-		return nil, fmt.Errorf("unhandled state transition: %s -> %s", 
+		return nil, fmt.Errorf("unhandled state transition: %s -> %s",
 			event.PreviousStatus, event.CurrentStatus)
 	}
 }
@@ -55,7 +55,7 @@ func (a *ProtobufToLoLAdapter) convertToGameStarted(event *events.LoLGameStateCh
 // convertToGameEnded converts protobuf event to GameEndedDTO
 func (a *ProtobufToLoLAdapter) convertToGameEnded(event *events.LoLGameStateChanged) (dto.GameEndedDTO, error) {
 	if event.GameResult == nil {
-		return dto.GameEndedDTO{}, fmt.Errorf("game ended without result data for summoner %s#%s", 
+		return dto.GameEndedDTO{}, fmt.Errorf("game ended without result data for summoner %s#%s",
 			event.GameName, event.TagLine)
 	}
 

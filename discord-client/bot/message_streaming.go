@@ -12,7 +12,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-
 // publishDiscordMessage converts a Discord message and publishes it via the message publisher
 func (b *Bot) publishDiscordMessage(ctx context.Context, message *discordgo.MessageCreate) error {
 	// Convert Discord message to protobuf format
