@@ -43,3 +43,4 @@ func (m *MockDiscordPoster) UpdateGroupWager(ctx context.Context, messageID, cha
 	return nil
 }
 
+

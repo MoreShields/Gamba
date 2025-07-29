@@ -91,7 +91,7 @@ func handleBalanceAdjustment() error {
 	db, _ := database.NewConnection(context.Background(), cfg.GetDatabaseURL())
 	// Create a dummy event publisher for admin commands (events won't be processed)
 	dummyEventPublisher := &dummyEventPublisher{}
-	uowFactory := infrastructure.NewUnitOfWorkFactoryWrapper(db, dummyEventPublisher)
+	uowFactory := infrastructure.NewUnitOfWorkFactory(db, dummyEventPublisher)
 	uow := uowFactory.CreateForGuild(int64(guildId))
 	uow.Begin(ctx)
 	defer uow.Commit()

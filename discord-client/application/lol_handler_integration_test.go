@@ -10,7 +10,6 @@ import (
 	"gambler/discord-client/infrastructure"
 	"gambler/discord-client/models"
 	"gambler/discord-client/repository/testutil"
-	"gambler/discord-client/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,6 +26,12 @@ func TestLoLHandler_EndToEndFlow(t *testing.T) {
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
 	defer testDB.Cleanup(t)
+	
+	// Create no-op event publisher for integration tests
+	noopPublisher := infrastructure.NewNoopEventPublisher()
+	
+	// Create UoW factory
+	uowFactory := infrastructure.NewUnitOfWorkFactory(testDB.DB, noopPublisher)
 
 	// Setup test data
 	ctx := context.Background()
@@ -34,10 +39,6 @@ func TestLoLHandler_EndToEndFlow(t *testing.T) {
 	summonerName := "TestPlayer"
 	tagLine := "NA1"
 	gameID := "test-game-123"
-
-	// Create UoW factory
-	mockTransactionalPublisher := service.NewMockTransactionalEventPublisher()
-	uowFactory := infrastructure.NewTestUnitOfWorkFactory(testDB.DB, mockTransactionalPublisher)
 
 	// Setup guild and summoner watch
 	setupTestData(t, ctx, uowFactory, guildID, summonerName, tagLine)
@@ -150,6 +151,12 @@ func TestLoLHandler_EndToEndFlow_Loss(t *testing.T) {
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
 	defer testDB.Cleanup(t)
+	
+	// Create no-op event publisher for integration tests
+	noopPublisher := infrastructure.NewNoopEventPublisher()
+	
+	// Create UoW factory
+	uowFactory := infrastructure.NewUnitOfWorkFactory(testDB.DB, noopPublisher)
 
 	// Setup test data
 	ctx := context.Background()
@@ -157,10 +164,6 @@ func TestLoLHandler_EndToEndFlow_Loss(t *testing.T) {
 	summonerName := "TestPlayer2"
 	tagLine := "EUW1"
 	gameID := "test-game-456"
-
-	// Create UoW factory
-	mockTransactionalPublisher := service.NewMockTransactionalEventPublisher()
-	uowFactory := infrastructure.NewTestUnitOfWorkFactory(testDB.DB, mockTransactionalPublisher)
 
 	// Setup guild and summoner watch
 	setupTestData(t, ctx, uowFactory, guildID, summonerName, tagLine)
@@ -239,6 +242,12 @@ func TestLoLHandler_MultipleGuilds(t *testing.T) {
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
 	defer testDB.Cleanup(t)
+	
+	// Create no-op event publisher for integration tests
+	noopPublisher := infrastructure.NewNoopEventPublisher()
+	
+	// Create UoW factory
+	uowFactory := infrastructure.NewUnitOfWorkFactory(testDB.DB, noopPublisher)
 
 	// Setup test data
 	ctx := context.Background()
@@ -248,9 +257,6 @@ func TestLoLHandler_MultipleGuilds(t *testing.T) {
 	tagLine := "NA1"
 	gameID := "test-game-shared"
 
-	// Create UoW factory
-	mockTransactionalPublisher := service.NewMockTransactionalEventPublisher()
-	uowFactory := infrastructure.NewTestUnitOfWorkFactory(testDB.DB, mockTransactionalPublisher)
 
 	// Setup multiple guilds watching the same summoner
 	setupTestData(t, ctx, uowFactory, guild1ID, summonerName, tagLine)
@@ -336,12 +342,15 @@ func TestLoLHandler_NoWatchingGuilds(t *testing.T) {
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
 	defer testDB.Cleanup(t)
+	
+	// Create no-op event publisher for integration tests
+	noopPublisher := infrastructure.NewNoopEventPublisher()
+	
+	// Create UoW factory
+	uowFactory := infrastructure.NewUnitOfWorkFactory(testDB.DB, noopPublisher)
 
 	ctx := context.Background()
 	
-	// Create a mock transactional publisher for tests
-	mockTransactionalPublisher := service.NewMockTransactionalEventPublisher()
-	uowFactory := infrastructure.NewTestUnitOfWorkFactory(testDB.DB, mockTransactionalPublisher)
 	
 	mockPoster := &application.MockDiscordPoster{}
 	handler := application.NewLoLHandler(uowFactory, mockPoster)
@@ -412,6 +421,12 @@ func TestLoLHandler_ForfeitRemake(t *testing.T) {
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
 	defer testDB.Cleanup(t)
+	
+	// Create no-op event publisher for integration tests
+	noopPublisher := infrastructure.NewNoopEventPublisher()
+	
+	// Create UoW factory
+	uowFactory := infrastructure.NewUnitOfWorkFactory(testDB.DB, noopPublisher)
 
 	// Setup test data
 	ctx := context.Background()
@@ -420,9 +435,6 @@ func TestLoLHandler_ForfeitRemake(t *testing.T) {
 	tagLine := "NA1"
 	gameID := "test-game-forfeit"
 
-	// Create UoW factory
-	mockTransactionalPublisher := service.NewMockTransactionalEventPublisher()
-	uowFactory := infrastructure.NewTestUnitOfWorkFactory(testDB.DB, mockTransactionalPublisher)
 
 	// Setup guild and summoner watch
 	setupTestData(t, ctx, uowFactory, guildID, summonerName, tagLine)

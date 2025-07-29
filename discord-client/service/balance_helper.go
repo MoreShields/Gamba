@@ -33,7 +33,7 @@ func RecordBalanceChange(ctx context.Context, balanceHistoryRepo BalanceHistoryR
 		"newBalance":      event.NewBalance,
 		"transactionType": event.TransactionType,
 		"changeAmount":    event.ChangeAmount,
-	}).Debug("Publishing BalanceChangeEvent to transactional bus")
+	}).Debug("Publishing BalanceChangeEvent")
 	if err := eventPublisher.Publish(event); err != nil {
 		log.WithError(err).Error("Failed to publish balance change event")
 	}

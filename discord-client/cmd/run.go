@@ -127,9 +127,9 @@ func initializeEventInfrastructure(natsClient *infrastructure.NATSClient) (*infr
 }
 
 // creates the unit of work factory
-func initializeRepositories(db *database.DB, eventPublisher *infrastructure.NATSEventPublisher) *infrastructure.UnitOfWorkFactoryWrapper {
+func initializeRepositories(db *database.DB, eventPublisher *infrastructure.NATSEventPublisher) *infrastructure.UnitOfWorkFactory {
 	log.Println("Initializing unit of work factory...")
-	uowFactory := infrastructure.NewUnitOfWorkFactoryWrapper(db, eventPublisher)
+	uowFactory := infrastructure.NewUnitOfWorkFactory(db, eventPublisher)
 	log.Println("Unit of work factory initialized successfully")
 	return uowFactory
 }
