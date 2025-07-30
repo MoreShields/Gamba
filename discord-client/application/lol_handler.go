@@ -381,15 +381,14 @@ func (h *LoLHandlerImpl) resolveHouseWager(ctx context.Context, guildID, wagerID
 		uow.EventBus(),
 	)
 
-	// Check for edge case: forfeit/remake
-	// Games that are very short (< 10 minutes) and lost are likely forfeit/remake scenarios
+	// Games that are very short are likely forfeit/remake scenarios
 	const forfeitThresholdSeconds = 600 // 10 minutes
-	if !won && durationSeconds < forfeitThresholdSeconds {
+	if durationSeconds < forfeitThresholdSeconds {
 		log.WithFields(log.Fields{
 			"guild":           guildID,
 			"wagerID":         wagerID,
 			"durationSeconds": durationSeconds,
-		}).Info("Game ended without win and short duration (forfeit/remake), cancelling wager and refunding participants")
+		}).Info("Game ended with short duration (forfeit/remake), cancelling wager and refunding participants")
 
 		// Cancel the wager (nil indicates system cancellation)
 		if err := groupWagerService.CancelGroupWager(ctx, wagerID, nil); err != nil {
