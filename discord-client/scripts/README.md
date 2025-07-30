@@ -1,4 +1,38 @@
-# LoL Event Testing Scripts
+# Scripts
+
+This directory contains utility scripts for the Discord client.
+
+## fetch_message.go
+
+Fetches a Discord message by ID and outputs it in various formats for testing purposes.
+
+### Usage
+
+```bash
+go run fetch_message.go -token "YOUR_BOT_TOKEN" -channel "CHANNEL_ID" -message "MESSAGE_ID" -output "messageCreate"
+```
+
+### Options
+
+- `-token`: Discord bot token (can also use DISCORD_TOKEN env var)
+- `-channel`: Channel ID where the message is located
+- `-message`: Message ID to fetch
+- `-output`: Output format (default: "json")
+  - `json`: Raw JSON of the message
+  - `go`: Go struct literal
+  - `messageCreate`: Reconstructed MessageCreate event for testing
+
+### Example
+
+```bash
+# Set token as environment variable
+export DISCORD_TOKEN="your_bot_token"
+
+# Fetch message and output as MessageCreate
+go run fetch_message.go -channel "123456789" -message "987654321" -output "messageCreate"
+```
+
+## LoL Event Testing Scripts
 
 This directory contains development tools for testing the LoL game state event system.
 
