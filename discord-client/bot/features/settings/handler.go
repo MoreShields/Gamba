@@ -266,3 +266,88 @@ func (f *Feature) handleLolChannel(s *discordgo.Session, i *discordgo.Interactio
 		log.Errorf("Failed to respond to interaction: %v", err)
 	}
 }
+
+// handleWordleChannel handles the /settings wordle-channel command
+func (f *Feature) handleWordleChannel(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	// Check if user has admin permissions
+	if !common.IsUserAdmin(s, i.GuildID, i.Member.User.ID) {
+		common.RespondWithError(s, i, "❌ You need administrator permissions to use this command")
+		return
+	}
+
+	// Parse guild ID
+	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
+	if err != nil {
+		log.Errorf("Failed to parse guild ID: %v", err)
+		common.RespondWithError(s, i, "❌ Failed to process command")
+		return
+	}
+
+	// Get the channel option (if provided)
+	options := i.ApplicationCommandData().Options[0].Options
+	var channelID *int64
+
+	if len(options) > 0 && options[0].Name == "channel" {
+		// User provided a channel
+		channelIDStr := options[0].ChannelValue(s).ID
+		if channelIDStr != "" {
+			channelIDInt, err := strconv.ParseInt(channelIDStr, 10, 64)
+			if err != nil {
+				log.Errorf("Failed to parse channel ID: %v", err)
+				common.RespondWithError(s, i, "❌ Invalid channel selected")
+				return
+			}
+			channelID = &channelIDInt
+		}
+	}
+
+	ctx := context.Background()
+
+	// Create guild-scoped unit of work
+	uow := f.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(ctx); err != nil {
+		log.Errorf("Error beginning transaction: %v", err)
+		common.RespondWithError(s, i, "❌ Failed to update settings")
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate guild settings service with repositories from UnitOfWork
+	guildSettingsService := service.NewGuildSettingsService(
+		uow.GuildSettingsRepository(),
+	)
+
+	// Update the Wordle channel setting
+	if err := guildSettingsService.UpdateWordleChannel(ctx, guildID, channelID); err != nil {
+		log.Errorf("Failed to update Wordle channel: %v", err)
+		common.RespondWithError(s, i, "❌ Failed to update settings")
+		return
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Error committing transaction: %v", err)
+		common.RespondWithError(s, i, "❌ Failed to update settings")
+		return
+	}
+
+	// Respond with success
+	var message string
+	if channelID != nil {
+		message = fmt.Sprintf("✅ Wordle channel updated to <#%d>", *channelID)
+	} else {
+		message = "✅ Wordle channel feature disabled"
+	}
+
+	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: message,
+			Flags:   discordgo.MessageFlagsEphemeral,
+		},
+	})
+
+	if err != nil {
+		log.Errorf("Failed to respond to interaction: %v", err)
+	}
+}

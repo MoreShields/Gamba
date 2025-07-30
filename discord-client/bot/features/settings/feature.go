@@ -34,5 +34,7 @@ func (f *Feature) HandleCommand(s *discordgo.Session, i *discordgo.InteractionCr
 		f.handlePrimaryChannel(s, i)
 	case "lol-channel":
 		f.handleLolChannel(s, i)
+	case "wordle-channel":
+		f.handleWordleChannel(s, i)
 	}
 }
