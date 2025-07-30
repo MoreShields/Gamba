@@ -102,7 +102,7 @@ func load() (*Config, error) {
 
 		// Wordle
 		WordleBotID:        os.Getenv("WORDLE_BOT_ID"),
-		WordleRewardAmount: 1000, // Default 1000 bits
+		WordleRewardAmount: 10000,
 
 		// Environment
 		Environment: os.Getenv("ENVIRONMENT"),

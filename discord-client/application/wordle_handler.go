@@ -59,6 +59,48 @@ func (h *wordleHandler) HandleDiscordMessage(ctx context.Context, event interfac
 		return fmt.Errorf("failed to parse guild ID: %w", err)
 	}
 
+	// Parse channel ID
+	channelID, err := strconv.ParseInt(m.ChannelID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("failed to parse channel ID: %w", err)
+	}
+
+	// Check if this guild has configured wordle channel
+	uow := h.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(ctx); err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer uow.Rollback()
+
+	guildSettingsService := service.NewGuildSettingsService(uow.GuildSettingsRepository())
+	settings, err := guildSettingsService.GetOrCreateSettings(ctx, guildID)
+	if err != nil {
+		return fmt.Errorf("failed to get guild settings: %w", err)
+	}
+
+	// If wordle channel is configured, only process messages from that channel
+	if settings.WordleChannelID != nil && *settings.WordleChannelID != channelID {
+		log.WithFields(log.Fields{
+			"guild_id":           guildID,
+			"channel_id":         channelID,
+			"wordle_channel_id":  *settings.WordleChannelID,
+		}).Debug("Ignoring Wordle message from non-configured channel")
+		return nil
+	}
+
+	// If no wordle channel is configured, we don't process any wordle messages
+	if settings.WordleChannelID == nil {
+		log.WithFields(log.Fields{
+			"guild_id": guildID,
+		}).Debug("No Wordle channel configured for guild")
+		return nil
+	}
+
+	// Commit the read-only transaction
+	if err := uow.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
 	// Parse Wordle results from the message
 	results, err := parseWordleResults(m.Content)
 	if err != nil {

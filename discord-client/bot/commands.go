@@ -188,6 +188,19 @@ func (b *Bot) registerCommands() error {
 						},
 					},
 				},
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "wordle-channel",
+					Description: "Set the channel for Wordle results and rewards",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionChannel,
+							Name:        "channel",
+							Description: "The channel for Wordle activities (leave empty to disable)",
+							Required:    false,
+						},
+					},
+				},
 			},
 		},
 		{

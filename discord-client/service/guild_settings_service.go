@@ -90,3 +90,23 @@ func (s *guildSettingsService) UpdateHighRollerRole(ctx context.Context, guildID
 
 	return nil
 }
+
+// UpdateWordleChannel updates the Wordle channel for a guild
+func (s *guildSettingsService) UpdateWordleChannel(ctx context.Context, guildID int64, channelID *int64) error {
+
+	// Get existing settings
+	settings, err := s.guildSettingsRepo.GetOrCreateGuildSettings(ctx, guildID)
+	if err != nil {
+		return fmt.Errorf("failed to get guild settings: %w", err)
+	}
+
+	// Update Wordle channel (can be nil to disable)
+	settings.WordleChannelID = channelID
+
+	// Save updated settings
+	if err := s.guildSettingsRepo.UpdateGuildSettings(ctx, settings); err != nil {
+		return fmt.Errorf("failed to update guild settings: %w", err)
+	}
+
+	return nil
+}
