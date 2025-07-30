@@ -49,6 +49,8 @@ services:
       HIGH_ROLLER_ROLE_ID: ${HIGH_ROLLER_ROLE_ID}
       HIGH_ROLLER_ENABLED: ${HIGH_ROLLER_ENABLED}
       RESOLVER_DISCORD_IDS: ${RESOLVER_DISCORD_IDS}
+      WORDLE_BOT_ID: ${WORDLE_BOT_ID}
+      
       
       # Message streaming configuration
       STREAM_CHANNEL_TYPES: ${STREAM_CHANNEL_TYPES:-lol_channel}
