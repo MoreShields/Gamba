@@ -8,26 +8,28 @@ import (
 	"gambler/discord-client/events"
 	"gambler/discord-client/repository"
 	"gambler/discord-client/service"
+
 	"github.com/jackc/pgx/v5"
 	log "github.com/sirupsen/logrus"
 )
 
 // unitOfWork implements the UnitOfWork interface with integrated event publishing
 type unitOfWork struct {
-	db                 *database.DB
-	tx                 pgx.Tx
-	ctx                context.Context
-	guildID            int64
-	eventPublisher     service.EventPublisher
-	pendingEvents      []events.Event
-	userRepo           service.UserRepository
-	balanceHistoryRepo service.BalanceHistoryRepository
-	betRepo            service.BetRepository
-	wagerRepo          service.WagerRepository
-	wagerVoteRepo      service.WagerVoteRepository
-	groupWagerRepo     service.GroupWagerRepository
-	guildSettingsRepo  service.GuildSettingsRepository
-	summonerWatchRepo  service.SummonerWatchRepository
+	db                   *database.DB
+	tx                   pgx.Tx
+	ctx                  context.Context
+	guildID              int64
+	eventPublisher       service.EventPublisher
+	pendingEvents        []events.Event
+	userRepo             service.UserRepository
+	balanceHistoryRepo   service.BalanceHistoryRepository
+	betRepo              service.BetRepository
+	wagerRepo            service.WagerRepository
+	wagerVoteRepo        service.WagerVoteRepository
+	groupWagerRepo       service.GroupWagerRepository
+	guildSettingsRepo    service.GuildSettingsRepository
+	summonerWatchRepo    service.SummonerWatchRepository
+	wordleCompletionRepo service.WordleCompletionRepository
 }
 
 // transactionalEventBus wraps the unit of work to buffer events
@@ -70,6 +72,7 @@ func (u *unitOfWork) Begin(ctx context.Context) error {
 	u.groupWagerRepo = repository.NewGroupWagerRepositoryScoped(tx, u.guildID)
 	u.guildSettingsRepo = repository.NewGuildSettingsRepositoryWithTx(tx) // Guild settings don't need scoping
 	u.summonerWatchRepo = repository.NewSummonerWatchRepositoryScoped(tx, u.guildID)
+	u.wordleCompletionRepo = repository.NewWordleCompletionRepositoryScoped(tx, u.guildID)
 
 	return nil
 }
@@ -199,6 +202,13 @@ func (u *unitOfWork) SummonerWatchRepository() service.SummonerWatchRepository {
 		panic("unit of work not started - call Begin() first")
 	}
 	return u.summonerWatchRepo
+}
+
+func (u *unitOfWork) WordleCompletionRepo() service.WordleCompletionRepository {
+	if u.wordleCompletionRepo == nil {
+		panic("unit of work not started - call Begin() first")
+	}
+	return u.wordleCompletionRepo
 }
 
 // EventBus returns the transactional event publisher

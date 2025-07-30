@@ -26,6 +26,7 @@ type UnitOfWork interface {
 	GroupWagerRepository() service.GroupWagerRepository
 	GuildSettingsRepository() service.GuildSettingsRepository
 	SummonerWatchRepository() service.SummonerWatchRepository
+	WordleCompletionRepo() service.WordleCompletionRepository
 	EventBus() service.EventPublisher
 }
 
