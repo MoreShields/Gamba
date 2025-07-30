@@ -1,3 +1,6 @@
+//go:build publish
+// +build publish
+
 package main
 
 import (
