@@ -123,6 +123,18 @@ type WagerVoteRepository interface {
 	DeleteByWager(ctx context.Context, wagerID int64) error
 }
 
+// WordleCompletionRepository defines the interface for wordle completion data access
+type WordleCompletionRepository interface {
+	// Create creates a new wordle completion record
+	Create(ctx context.Context, completion *models.WordleCompletion) error
+
+	// GetByUserToday retrieves today's completion for a specific user
+	GetByUserToday(ctx context.Context, discordID, guildID int64) (*models.WordleCompletion, error)
+
+	// GetRecentCompletions returns recent completions for streak calculation
+	GetRecentCompletions(ctx context.Context, discordID, guildID int64, limit int) ([]*models.WordleCompletion, error)
+}
+
 // WagerService defines the interface for wager operations
 type WagerService interface {
 	// ProposeWager creates a new wager proposal
@@ -256,6 +268,9 @@ type GuildSettingsService interface {
 	// UpdateLolChannel updates the LOL channel for a guild
 	UpdateLolChannel(ctx context.Context, guildID int64, channelID *int64) error
 
+	// UpdateWordleChannel updates the Wordle channel for a guild
+	UpdateWordleChannel(ctx context.Context, guildID int64, channelID *int64) error
+
 	// UpdateHighRollerRole updates the high roller role for a guild
 	UpdateHighRollerRole(ctx context.Context, guildID int64, roleID *int64) error
 }
@@ -290,3 +305,4 @@ type SummonerWatchService interface {
 	// ListWatches returns all summoner watches for a specific guild
 	ListWatches(ctx context.Context, guildID int64) ([]*models.SummonerWatchDetail, error)
 }
+
