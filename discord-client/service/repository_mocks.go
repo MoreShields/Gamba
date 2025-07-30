@@ -382,3 +382,29 @@ func (m *MockSummonerWatchRepository) GetWatch(ctx context.Context, guildID int6
 	}
 	return args.Get(0).(*models.SummonerWatchDetail), args.Error(1)
 }
+
+// MockWordleCompletionRepository is a mock implementation of WordleCompletionRepository
+type MockWordleCompletionRepository struct {
+	mock.Mock
+}
+
+func (m *MockWordleCompletionRepository) Create(ctx context.Context, completion *models.WordleCompletion) error {
+	args := m.Called(ctx, completion)
+	return args.Error(0)
+}
+
+func (m *MockWordleCompletionRepository) GetByUserToday(ctx context.Context, discordID, guildID int64) (*models.WordleCompletion, error) {
+	args := m.Called(ctx, discordID, guildID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.WordleCompletion), args.Error(1)
+}
+
+func (m *MockWordleCompletionRepository) GetRecentCompletions(ctx context.Context, discordID, guildID int64, limit int) ([]*models.WordleCompletion, error) {
+	args := m.Called(ctx, discordID, guildID, limit)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.WordleCompletion), args.Error(1)
+}
