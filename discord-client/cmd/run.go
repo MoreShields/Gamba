@@ -173,8 +173,6 @@ func setupEventSubscriptions(natsClient *infrastructure.NATSClient, subjectMappe
 		natsEventSubscriber,
 		uowFactory,
 		discordBot.GetDiscordPoster(),
-		cfg.WordleBotID,
-		cfg.WordleRewardAmount,
 	); err != nil {
 		return fmt.Errorf("failed to register application subscriptions: %w", err)
 	}
