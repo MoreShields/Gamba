@@ -162,7 +162,7 @@ type EventPublisher interface {
 // StatsService defines the interface for statistics operations
 type StatsService interface {
 	// GetScoreboard returns the top users with their statistics
-	GetScoreboard(ctx context.Context, limit int) ([]*models.ScoreboardEntry, error)
+	GetScoreboard(ctx context.Context, limit int) ([]*models.ScoreboardEntry, int64, error)
 
 	// GetUserStats returns detailed statistics for a specific user
 	GetUserStats(ctx context.Context, discordID int64) (*models.UserStats, error)

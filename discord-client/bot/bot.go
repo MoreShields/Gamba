@@ -308,7 +308,7 @@ func (b *Bot) postHighRollerChangeMessage(ctx context.Context, guildID int64, ne
 	)
 
 	// Get the scoreboard
-	entries, err := statsService.GetScoreboard(ctx, 10)
+	entries, totalBits, err := statsService.GetScoreboard(ctx, 10)
 	if err != nil {
 		log.Errorf("Failed to get scoreboard for high roller notification: %v", err)
 		return
@@ -322,7 +322,7 @@ func (b *Bot) postHighRollerChangeMessage(ctx context.Context, guildID int64, ne
 
 	// Create the scoreboard embed
 	guildIDStr := strconv.FormatInt(guildID, 10)
-	embed := stats.BuildScoreboardEmbed(entries, b.session, guildIDStr)
+	embed := stats.BuildScoreboardEmbed(entries, totalBits, b.session, guildIDStr)
 
 	// Update the title to indicate a new high roller
 	embed.Title = "👑 NEW HIGH ROLLER! 👑"

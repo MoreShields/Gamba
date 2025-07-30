@@ -59,7 +59,7 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 	)
 
 	// Get scoreboard entries
-	entries, err := statsService.GetScoreboard(ctx, 0)
+	entries, totalBits, err := statsService.GetScoreboard(ctx, 0)
 	if err != nil {
 		log.Printf("Error getting scoreboard: %v", err)
 		common.RespondWithError(s, i, "Unable to retrieve scoreboard. Please try again.")
@@ -74,7 +74,7 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 	}
 
 	// Create embed using the shared function
-	embed := BuildScoreboardEmbed(entries, s, i.GuildID)
+	embed := BuildScoreboardEmbed(entries, totalBits, s, i.GuildID)
 
 	// Send response
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{

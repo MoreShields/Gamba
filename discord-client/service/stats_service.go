@@ -24,17 +24,21 @@ func NewStatsService(userRepo UserRepository, wagerRepo WagerRepository, betRepo
 }
 
 // GetScoreboard returns the top users with their statistics
-func (s *statsService) GetScoreboard(ctx context.Context, limit int) ([]*models.ScoreboardEntry, error) {
+func (s *statsService) GetScoreboard(ctx context.Context, limit int) ([]*models.ScoreboardEntry, int64, error) {
 	// Get all users
 	users, err := s.userRepo.GetAll(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get users: %w", err)
+		return nil, 0, fmt.Errorf("failed to get users: %w", err)
 	}
 
 	entries := make([]*models.ScoreboardEntry, 0, len(users))
+	var totalBits int64
 	
 	for _, user := range users {
-		// Skip users with zero balance
+		// Add to total bits count
+		totalBits += user.Balance
+		
+		// Skip users with zero balance for scoreboard display
 		if user.Balance == 0 {
 			continue
 		}
@@ -42,19 +46,19 @@ func (s *statsService) GetScoreboard(ctx context.Context, limit int) ([]*models.
 		// Get active wagers count
 		activeWagers, err := s.wagerRepo.GetActiveByUser(ctx, user.DiscordID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get active wagers for user %d: %w", user.DiscordID, err)
+			return nil, 0, fmt.Errorf("failed to get active wagers for user %d: %w", user.DiscordID, err)
 		}
 
 		// Get wager stats for win rate
 		wagerStats, err := s.wagerRepo.GetStats(ctx, user.DiscordID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get wager stats for user %d: %w", user.DiscordID, err)
+			return nil, 0, fmt.Errorf("failed to get wager stats for user %d: %w", user.DiscordID, err)
 		}
 
 		// Get bet stats for win rate
 		betStats, err := s.betRepo.GetStats(ctx, user.DiscordID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get bet stats for user %d: %w", user.DiscordID, err)
+			return nil, 0, fmt.Errorf("failed to get bet stats for user %d: %w", user.DiscordID, err)
 		}
 
 		// Calculate win rates
@@ -96,7 +100,7 @@ func (s *statsService) GetScoreboard(ctx context.Context, limit int) ([]*models.
 		entries = entries[:limit]
 	}
 
-	return entries, nil
+	return entries, totalBits, nil
 }
 
 // GetUserStats returns detailed statistics for a specific user

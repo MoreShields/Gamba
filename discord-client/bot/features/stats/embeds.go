@@ -12,12 +12,14 @@ import (
 )
 
 // BuildScoreboardEmbed creates the scoreboard embed
-func BuildScoreboardEmbed(entry []*models.ScoreboardEntry, session *discordgo.Session, guildID string) *discordgo.MessageEmbed {
+func BuildScoreboardEmbed(entry []*models.ScoreboardEntry, totalBits int64, session *discordgo.Session, guildID string) *discordgo.MessageEmbed {
 	embed := &discordgo.MessageEmbed{
 		Title:       "🏆 Scoreboard 🏆",
 		Color:       common.ColorPrimary,
 		Description: "",
-		Timestamp:   time.Now().Format(time.RFC3339),
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: fmt.Sprintf("Total Server Bits: %s", common.FormatBalance(totalBits)),
+		},
 	}
 
 	if len(entry) == 0 {
