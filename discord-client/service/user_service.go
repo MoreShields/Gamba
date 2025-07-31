@@ -106,7 +106,7 @@ func (s *userService) TransferBetweenUsers(ctx context.Context, fromDiscordID, t
 
 	// Check if sender has sufficient available balance
 	if fromUser.AvailableBalance < amount {
-		return fmt.Errorf("insufficient balance: have %d available, need %d", fromUser.AvailableBalance, amount)
+		return fmt.Errorf("insufficient balance: have %s available, need %s", FormatShortNotation(fromUser.AvailableBalance), FormatShortNotation(amount))
 	}
 
 	// Get recipient user

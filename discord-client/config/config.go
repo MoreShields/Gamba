@@ -25,6 +25,9 @@ type Config struct {
 	DailyGambleLimit    int64 // Daily gambling limit per user
 	DailyLimitResetHour int   // Hour in UTC when daily limit resets (0-23)
 
+	// LoL Wager Limits
+	MaxLolWagerPerGame int64 // Maximum bet amount per LoL game
+
 	// High Roller Role configuration
 	GambaChannelID string // Channel ID for high roller change notifications
 
@@ -91,6 +94,9 @@ func load() (*Config, error) {
 		DailyGambleLimit:    10000, // 10k daily limit default
 		DailyLimitResetHour: 12,    // 12:00 PM UTC default
 
+		// LoL Wager Limit default
+		MaxLolWagerPerGame: 50000,
+
 		// High Roller Role
 		GambaChannelID: os.Getenv("GAMBA_CHANNEL_ID"),
 
@@ -122,6 +128,11 @@ func load() (*Config, error) {
 	if reward := os.Getenv("WORDLE_REWARD_AMOUNT"); reward != "" {
 		if parsedReward, err := strconv.ParseInt(reward, 10, 64); err == nil {
 			config.WordleRewardAmount = parsedReward
+		}
+	}
+	if maxLolWager := os.Getenv("MAX_LOL_WAGER_PER_GAME"); maxLolWager != "" {
+		if parsedMax, err := strconv.ParseInt(maxLolWager, 10, 64); err == nil {
+			config.MaxLolWagerPerGame = parsedMax
 		}
 	}
 
@@ -202,5 +213,6 @@ func NewTestConfig() *Config {
 		StartingBalance:     100000,
 		DailyGambleLimit:    10000,
 		DailyLimitResetHour: 0,
+		MaxLolWagerPerGame:  10000,
 	}
 }

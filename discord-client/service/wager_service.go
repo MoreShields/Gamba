@@ -50,7 +50,7 @@ func (s *wagerService) ProposeWager(ctx context.Context, proposerID, targetID in
 		return nil, fmt.Errorf("proposer not found")
 	}
 	if proposer.AvailableBalance < amount {
-		return nil, fmt.Errorf("insufficient balance: have %d available, need %d", proposer.AvailableBalance, amount)
+		return nil, fmt.Errorf("insufficient balance: have %s available, need %s", FormatShortNotation(proposer.AvailableBalance), FormatShortNotation(amount))
 	}
 
 	target, err := s.userRepo.GetByDiscordID(ctx, targetID)
@@ -61,7 +61,7 @@ func (s *wagerService) ProposeWager(ctx context.Context, proposerID, targetID in
 		return nil, fmt.Errorf("target user not found")
 	}
 	if target.AvailableBalance < amount {
-		return nil, fmt.Errorf("target user has insufficient balance: they have %d available, need %d", target.AvailableBalance, amount)
+		return nil, fmt.Errorf("target user has insufficient balance: they have %s available, need %s", FormatShortNotation(target.AvailableBalance), FormatShortNotation(amount))
 	}
 
 	// Create the wager

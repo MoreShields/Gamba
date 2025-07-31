@@ -50,9 +50,9 @@ func (s *gamblingService) PlaceBet(ctx context.Context, discordID int64, winProb
 	if dailyRisk+betAmount > cfg.DailyGambleLimit {
 		remainingLimit := cfg.DailyGambleLimit - dailyRisk
 		if remainingLimit <= 0 {
-			return nil, fmt.Errorf("daily gambling limit of %d bits reached", cfg.DailyGambleLimit)
+			return nil, fmt.Errorf("daily gambling limit of %s bits reached", FormatShortNotation(cfg.DailyGambleLimit))
 		}
-		return nil, fmt.Errorf("bet amount would exceed daily limit. You have %d bits remaining today", remainingLimit)
+		return nil, fmt.Errorf("bet amount would exceed daily limit. You have %s bits remaining today", FormatShortNotation(remainingLimit))
 	}
 
 	// Get current user state (for calculating new balance)
@@ -92,7 +92,7 @@ func (s *gamblingService) PlaceBet(ctx context.Context, discordID int64, winProb
 
 		// Check if sufficient balance before updating
 		if user.AvailableBalance < betAmount {
-			return nil, fmt.Errorf("insufficient balance: have %d available, need %d", user.AvailableBalance, betAmount)
+			return nil, fmt.Errorf("insufficient balance: have %s available, need %s", FormatShortNotation(user.AvailableBalance), FormatShortNotation(betAmount))
 		}
 
 		// Update balance with bet deduction
@@ -177,9 +177,9 @@ func (s *gamblingService) CheckDailyLimit(ctx context.Context, discordID int64, 
 	// Check if adding this bet would exceed the limit
 	if dailyRisk+betAmount > cfg.DailyGambleLimit {
 		if remaining <= 0 {
-			return 0, fmt.Errorf("daily gambling limit of %d bits reached", cfg.DailyGambleLimit)
+			return 0, fmt.Errorf("daily gambling limit of %s bits reached", FormatShortNotation(cfg.DailyGambleLimit))
 		}
-		return remaining, fmt.Errorf("bet amount of %d would exceed daily limit", betAmount)
+		return remaining, fmt.Errorf("bet amount of %s would exceed daily limit", FormatShortNotation(betAmount))
 	}
 
 	return remaining, nil
