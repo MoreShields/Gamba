@@ -67,15 +67,15 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 		return
 	}
 
-	// Commit the transaction
+	// Create embed using the shared function (start with first page)
+	embed := BuildScoreboardEmbed(ctx, metricsService, entries, totalBits, s, i.GuildID, PageBits)
+
+	// Commit the transaction after building the embed
 	if err := uow.Commit(); err != nil {
 		log.Errorf("Error committing transaction: %v", err)
 		common.RespondWithError(s, i, "Unable to process request. Please try again.")
 		return
 	}
-
-	// Create embed using the shared function
-	embed := BuildScoreboardEmbed(entries, totalBits, s, i.GuildID)
 
 	// Send response
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -86,7 +86,19 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 	})
 	if err != nil {
 		log.Printf("Error responding to scoreboard command: %v", err)
+		return
 	}
+
+	// Get the created message to add reactions
+	msg, err := s.InteractionResponse(i.Interaction)
+	if err != nil {
+		log.Printf("Error getting interaction response: %v", err)
+		return
+	}
+
+	// Add navigation reactions
+	_ = s.MessageReactionAdd(i.ChannelID, msg.ID, "⬅️")
+	_ = s.MessageReactionAdd(i.ChannelID, msg.ID, "➡️")
 }
 
 // handleStatsBalance displays individual user statistics

@@ -260,3 +260,73 @@ func (s *userMetricsService) GetWagerPredictionStats(ctx context.Context, extern
 
 	return userStats, nil
 }
+
+// GetLOLLeaderboard returns LoL prediction leaderboard entries
+func (s *userMetricsService) GetLOLLeaderboard(ctx context.Context, minWagers int) ([]*models.LOLLeaderboardEntry, int64, error) {
+	// Get all LOL wager predictions with full details
+	lolSystem := models.SystemLeagueOfLegends
+	predictions, err := s.groupWagerRepo.GetGroupWagerPredictions(ctx, &lolSystem)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get LOL wager predictions: %w", err)
+	}
+
+	// Group predictions by user for profit/loss calculation
+	userPredictions := make(map[int64][]*models.GroupWagerPrediction)
+	for _, pred := range predictions {
+		// Only count predictions on Win/Loss options
+		if pred.OptionText != "Win" && pred.OptionText != "Loss" {
+			continue
+		}
+		userPredictions[pred.DiscordID] = append(userPredictions[pred.DiscordID], pred)
+	}
+
+	// Build leaderboard entries
+	entries := make([]*models.LOLLeaderboardEntry, 0)
+	var totalBitsWagered int64
+
+	for discordID, preds := range userPredictions {
+		entry := &models.LOLLeaderboardEntry{
+			DiscordID: discordID,
+		}
+
+		// Calculate stats and profit/loss
+		for _, pred := range preds {
+			entry.TotalPredictions++
+			entry.TotalAmountWagered += pred.Amount
+			totalBitsWagered += pred.Amount
+
+			if pred.WasCorrect {
+				entry.CorrectPredictions++
+				// For LoL wagers, assume 1:1 odds - winner gets double their bet
+				entry.ProfitLoss += pred.Amount
+			} else {
+				// Lost the bet amount
+				entry.ProfitLoss -= pred.Amount
+			}
+		}
+
+		// Calculate accuracy percentage
+		entry.CalculateAccuracy()
+
+		// Only include users who meet minimum wager requirement
+		if entry.QualifiesForLeaderboard(minWagers) {
+			entries = append(entries, entry)
+		}
+	}
+
+	// Sort by accuracy percentage (descending)
+	sort.Slice(entries, func(i, j int) bool {
+		// If accuracy is the same, sort by total predictions (more = higher rank)
+		if entries[i].AccuracyPercentage == entries[j].AccuracyPercentage {
+			return entries[i].TotalPredictions > entries[j].TotalPredictions
+		}
+		return entries[i].AccuracyPercentage > entries[j].AccuracyPercentage
+	})
+
+	// Assign ranks
+	for i := range entries {
+		entries[i].Rank = i + 1
+	}
+
+	return entries, totalBitsWagered, nil
+}

@@ -190,6 +190,10 @@ type UserMetricsService interface {
 	// GetWagerPredictionStats calculates generic prediction stats for all users in a guild
 	// Can optionally filter by external system (pass nil for all wagers)
 	GetWagerPredictionStats(ctx context.Context, externalSystem *models.ExternalSystem) (map[int64]*models.WagerPredictionStats, error)
+	
+	// GetLOLLeaderboard returns LoL prediction leaderboard entries
+	// Filters users with minimum wager count and calculates profit/loss
+	GetLOLLeaderboard(ctx context.Context, minWagers int) ([]*models.LOLLeaderboardEntry, int64, error)
 }
 
 // GroupWagerRepository defines the interface for all group wager related data access

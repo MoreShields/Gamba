@@ -98,6 +98,7 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory appli
 	dg.AddHandler(bot.handleInteractions)
 	dg.AddHandler(bot.handleGuildCreate)
 	dg.AddHandler(bot.handleMessageCreate)
+	dg.AddHandler(bot.handleReactionAdd)
 
 	// Open websocket connection
 	if err := dg.Open(); err != nil {
@@ -310,15 +311,15 @@ func (b *Bot) postHighRollerChangeMessage(ctx context.Context, guildID int64, ne
 		return
 	}
 
-	// Commit the transaction
+	// Create the scoreboard embed
+	guildIDStr := strconv.FormatInt(guildID, 10)
+	embed := stats.BuildScoreboardEmbed(ctx, metricsService, entries, totalBits, b.session, guildIDStr, stats.PageBits)
+
+	// Commit the transaction after building the embed
 	if err := uow.Commit(); err != nil {
 		log.Errorf("Failed to commit transaction: %v", err)
 		return
 	}
-
-	// Create the scoreboard embed
-	guildIDStr := strconv.FormatInt(guildID, 10)
-	embed := stats.BuildScoreboardEmbed(entries, totalBits, b.session, guildIDStr)
 
 	// Update the title to indicate a new high roller
 	embed.Title = "👑 NEW HIGH ROLLER! 👑"
@@ -499,4 +500,16 @@ func (b *Bot) handleMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 			"message_id": m.ID,
 		}).Error("Failed to publish Discord message event")
 	}
+}
+
+// handleReactionAdd handles reaction add events and routes them to appropriate features
+func (b *Bot) handleReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
+	// Ignore reactions from bots
+	if r.Member.User.Bot {
+		return
+	}
+
+	// For now, only route to stats feature
+	// In the future, other features can handle reactions too
+	b.stats.HandleReaction(s, r)
 }
