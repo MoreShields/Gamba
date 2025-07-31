@@ -603,6 +603,7 @@ func (r *GroupWagerRepository) GetActiveParticipationsByUser(ctx context.Context
 	return participants, nil
 }
 
+
 // UpdateParticipantPayouts updates payout amounts and balance history IDs for multiple participants
 func (r *GroupWagerRepository) UpdateParticipantPayouts(ctx context.Context, participants []*models.GroupWagerParticipant) error {
 	if len(participants) == 0 {

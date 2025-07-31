@@ -198,6 +198,13 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 		return nil, fmt.Errorf("invalid option ID")
 	}
 
+	// Check LoL max wager limit if this is a League of Legends wager
+	if groupWager.ExternalRef != nil && groupWager.ExternalRef.System == models.SystemLeagueOfLegends {
+		if amount > s.config.MaxLolWagerPerGame {
+			return nil, fmt.Errorf("bet amount exceeds maximum of %s bits per LoL game", FormatShortNotation(s.config.MaxLolWagerPerGame))
+		}
+	}
+
 	// Check if user has sufficient balance
 	user, err := s.userRepo.GetByDiscordID(ctx, userID)
 	if err != nil {
@@ -223,7 +230,7 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 	// Calculate the net change in balance needed
 	netChange := amount - previousAmount
 	if user.AvailableBalance < netChange {
-		return nil, fmt.Errorf("insufficient balance: have %d available, need %d more", user.AvailableBalance, netChange)
+		return nil, fmt.Errorf("insufficient balance: have %s available, need %s more", FormatShortNotation(user.AvailableBalance), FormatShortNotation(netChange))
 	}
 
 	// Create or update participant
@@ -690,3 +697,4 @@ func (s *groupWagerService) CancelGroupWager(ctx context.Context, groupWagerID i
 
 	return nil
 }
+

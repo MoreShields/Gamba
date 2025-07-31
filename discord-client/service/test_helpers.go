@@ -17,6 +17,7 @@ const (
 	TestResolverID     = int64(999)
 	TestMessageID      = int64(123456789)
 	TestChannelID      = int64(987654321)
+	TestGuildID        = int64(555555555)
 	TestInitialBalance = int64(100000)
 	TestWagerID        = int64(1)
 	TestUser1ID        = int64(100)

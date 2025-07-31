@@ -240,7 +240,7 @@ func TestGamblingService_PlaceBet_InsufficientBalance(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "insufficient balance: have 500 available, need 1000")
+	assert.Contains(t, err.Error(), "insufficient balance: have 500 available, need 1.0k")
 
 	mockUserRepo.AssertExpectations(t)
 	mockBalanceHistoryRepo.AssertNotCalled(t, "Record")
