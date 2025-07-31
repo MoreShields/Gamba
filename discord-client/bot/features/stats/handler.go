@@ -51,15 +51,16 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 	}
 	defer uow.Rollback()
 
-	// Instantiate stats service with repositories from UnitOfWork
-	statsService := service.NewStatsService(
+	// Instantiate user metrics service with repositories from UnitOfWork
+	metricsService := service.NewUserMetricsService(
 		uow.UserRepository(),
 		uow.WagerRepository(),
 		uow.BetRepository(),
+		uow.GroupWagerRepository(),
 	)
 
 	// Get scoreboard entries
-	entries, totalBits, err := statsService.GetScoreboard(ctx, 0)
+	entries, totalBits, err := metricsService.GetScoreboard(ctx, 0)
 	if err != nil {
 		log.Printf("Error getting scoreboard: %v", err)
 		common.RespondWithError(s, i, "Unable to retrieve scoreboard. Please try again.")
@@ -134,15 +135,16 @@ func (f *Feature) handleStatsBalance(s *discordgo.Session, i *discordgo.Interact
 	}
 	defer uow.Rollback()
 
-	// Instantiate stats service with repositories from UnitOfWork
-	statsService := service.NewStatsService(
+	// Instantiate user metrics service with repositories from UnitOfWork
+	metricsService := service.NewUserMetricsService(
 		uow.UserRepository(),
 		uow.WagerRepository(),
 		uow.BetRepository(),
+		uow.GroupWagerRepository(),
 	)
 
 	// Get user stats
-	stats, err := statsService.GetUserStats(ctx, targetID)
+	stats, err := metricsService.GetUserStats(ctx, targetID)
 	if err != nil {
 		log.Printf("Error getting user stats for %d: %v", targetID, err)
 		common.RespondWithError(s, i, "Unable to retrieve user statistics. Please try again.")

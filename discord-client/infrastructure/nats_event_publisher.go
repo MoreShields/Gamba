@@ -39,7 +39,7 @@ func (p *NATSEventPublisher) Publish(event events.Event) error {
 		for _, handler := range handlers {
 			log.WithFields(log.Fields{
 				"eventType": eventType,
-			}).Debug("Invoking local handler for event")
+			}).Info("Invoking local handler for event")
 
 			if err := handler(ctx, event); err != nil {
 				log.WithFields(log.Fields{
@@ -96,7 +96,7 @@ func (p *NATSEventPublisher) RegisterLocalHandler(eventType events.EventType, ha
 	log.WithFields(log.Fields{
 		"eventType":    eventType,
 		"handlerCount": len(p.localHandlers[eventType]),
-	}).Debug("Registered local event handler")
+	}).Info("Registered local event handler")
 }
 
 // EnsureDomainEventStream ensures the domain_events stream exists with the correct subjects

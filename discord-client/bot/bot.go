@@ -296,14 +296,15 @@ func (b *Bot) postHighRollerChangeMessage(ctx context.Context, guildID int64, ne
 	defer uow.Rollback()
 
 	// Instantiate service with repositories from UnitOfWork
-	statsService := service.NewStatsService(
+	metricsService := service.NewUserMetricsService(
 		uow.UserRepository(),
 		uow.WagerRepository(),
 		uow.BetRepository(),
+		uow.GroupWagerRepository(),
 	)
 
 	// Get the scoreboard
-	entries, totalBits, err := statsService.GetScoreboard(ctx, 10)
+	entries, totalBits, err := metricsService.GetScoreboard(ctx, 10)
 	if err != nil {
 		log.Errorf("Failed to get scoreboard for high roller notification: %v", err)
 		return
@@ -477,8 +478,8 @@ func (p *discordPoster) UpdateGroupWager(ctx context.Context, messageID, channel
 
 // handleMessageCreate handles incoming Discord messages and publishes them to NATS if configured
 func (b *Bot) handleMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
-	// Skip bot messages to avoid loops
-	if m.Author.Bot {
+	// Skip messages from our own bot to avoid loops
+	if m.Author.ID == s.State.User.ID {
 		return
 	}
 
