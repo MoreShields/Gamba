@@ -144,3 +144,28 @@ func (s *LOLPredictionStats) CalculateAccuracy() {
 func (s *LOLPredictionStats) HasData() bool {
 	return s.TotalPredictions > 0
 }
+
+// LOLLeaderboardEntry represents a user's position in the LoL leaderboard
+type LOLLeaderboardEntry struct {
+	Rank               int     `json:"rank"`
+	DiscordID          int64   `json:"discord_id"`
+	CorrectPredictions int     `json:"correct_predictions"`
+	TotalPredictions   int     `json:"total_predictions"`
+	AccuracyPercentage float64 `json:"accuracy_percentage"`
+	TotalAmountWagered int64   `json:"total_amount_wagered"`
+	ProfitLoss         int64   `json:"profit_loss"`
+}
+
+// CalculateAccuracy computes the accuracy percentage
+func (e *LOLLeaderboardEntry) CalculateAccuracy() {
+	if e.TotalPredictions > 0 {
+		e.AccuracyPercentage = (float64(e.CorrectPredictions) / float64(e.TotalPredictions)) * 100
+	} else {
+		e.AccuracyPercentage = 0
+	}
+}
+
+// QualifiesForLeaderboard checks if user meets minimum wager requirements
+func (e *LOLLeaderboardEntry) QualifiesForLeaderboard(minWagers int) bool {
+	return e.TotalPredictions >= minWagers
+}
