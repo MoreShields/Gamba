@@ -782,6 +782,78 @@ func (r *GroupWagerRepository) getParticipantsByGroupWager(ctx context.Context, 
 	return participants, nil
 }
 
+// GetGroupWagerPredictions returns all group wager predictions for resolved wagers in the guild
+// Can optionally filter by external system (pass nil for all wagers)
+func (r *GroupWagerRepository) GetGroupWagerPredictions(ctx context.Context, externalSystem *models.ExternalSystem) ([]*models.GroupWagerPrediction, error) {
+	query := `
+		SELECT 
+			gwp.discord_id,
+			gwp.group_wager_id,
+			gwp.option_id,
+			gwo.option_text,
+			gw.winning_option_id,
+			gwp.amount,
+			gwp.option_id = gw.winning_option_id AS was_correct,
+			gw.external_system,
+			gw.external_id
+		FROM group_wager_participants gwp
+		JOIN group_wagers gw ON gw.id = gwp.group_wager_id
+		JOIN group_wager_options gwo ON gwo.id = gwp.option_id
+		WHERE gw.state = 'resolved' 
+		AND gw.winning_option_id IS NOT NULL
+		AND gw.guild_id = $1
+	`
+
+	args := []interface{}{r.guildID}
+
+	// Add external system filter if specified
+	if externalSystem != nil {
+		query += " AND gw.external_system = $2"
+		args = append(args, *externalSystem)
+	}
+
+	query += " ORDER BY gwp.discord_id, gwp.created_at"
+
+	rows, err := r.q.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query group wager predictions: %w", err)
+	}
+	defer rows.Close()
+
+	var predictions []*models.GroupWagerPrediction
+	for rows.Next() {
+		var prediction models.GroupWagerPrediction
+		var externalSystem *string
+		var externalID *string
+
+		err := rows.Scan(
+			&prediction.DiscordID,
+			&prediction.GroupWagerID,
+			&prediction.OptionID,
+			&prediction.OptionText,
+			&prediction.WinningOptionID,
+			&prediction.Amount,
+			&prediction.WasCorrect,
+			&externalSystem,
+			&externalID,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan group wager prediction: %w", err)
+		}
+
+		// Convert external system string to ExternalSystem type
+		if externalSystem != nil {
+			system := models.ExternalSystem(*externalSystem)
+			prediction.ExternalSystem = &system
+		}
+		prediction.ExternalID = externalID
+
+		predictions = append(predictions, &prediction)
+	}
+
+	return predictions, nil
+}
+
 // GetExpiredActiveWagers returns all active group wagers where voting period has expired
 func (r *GroupWagerRepository) GetExpiredActiveWagers(ctx context.Context) ([]*models.GroupWager, error) {
 	query := `

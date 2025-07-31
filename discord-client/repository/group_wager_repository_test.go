@@ -256,3 +256,282 @@ func TestGroupWagerRepository_GetStats(t *testing.T) {
 		assert.Equal(t, int64(0), stats.TotalWonAmount)
 	})
 }
+
+func TestGroupWagerRepository_GetGroupWagerPredictions(t *testing.T) {
+	testDB := testutil.SetupTestDatabase(t)
+
+	groupWagerRepo := NewGroupWagerRepository(testDB.DB)
+	userRepo := NewUserRepository(testDB.DB)
+	ctx := context.Background()
+
+	// Create test users
+	user1 := testutil.CreateTestUser(111111, "user1")
+	user2 := testutil.CreateTestUser(222222, "user2")
+	user3 := testutil.CreateTestUser(333333, "user3")
+
+	_, err := userRepo.Create(ctx, user1.DiscordID, user1.Username, user1.Balance)
+	require.NoError(t, err)
+	_, err = userRepo.Create(ctx, user2.DiscordID, user2.Username, user2.Balance)
+	require.NoError(t, err)
+	_, err = userRepo.Create(ctx, user3.DiscordID, user3.Username, user3.Balance)
+	require.NoError(t, err)
+
+	t.Run("no resolved wagers - returns empty predictions", func(t *testing.T) {
+		predictions, err := groupWagerRepo.GetGroupWagerPredictions(ctx, nil)
+		require.NoError(t, err)
+		assert.Empty(t, predictions)
+	})
+
+	t.Run("active wagers only - returns empty predictions", func(t *testing.T) {
+		// Create an active wager (not resolved)
+		activeWager := testutil.CreateTestGroupWager(user1.DiscordID, "Active wager")
+		option1 := testutil.CreateTestGroupWagerOption(0, "Win", 0)
+		option2 := testutil.CreateTestGroupWagerOption(0, "Loss", 1)
+
+		err := groupWagerRepo.CreateWithOptions(ctx, activeWager, []*models.GroupWagerOption{option1, option2})
+		require.NoError(t, err)
+
+		// Add participant
+		participant := testutil.CreateTestGroupWagerParticipant(activeWager.ID, user2.DiscordID, option1.ID, 1000)
+		err = groupWagerRepo.SaveParticipant(ctx, participant)
+		require.NoError(t, err)
+
+		predictions, err := groupWagerRepo.GetGroupWagerPredictions(ctx, nil)
+		require.NoError(t, err)
+		assert.Empty(t, predictions)
+	})
+
+	t.Run("resolved wager without external system", func(t *testing.T) {
+		// Create and resolve a wager
+		wager := testutil.CreateTestGroupWager(user1.DiscordID, "Test resolved wager")
+		option1 := testutil.CreateTestGroupWagerOption(0, "Win", 0)
+		option2 := testutil.CreateTestGroupWagerOption(0, "Loss", 1)
+
+		err := groupWagerRepo.CreateWithOptions(ctx, wager, []*models.GroupWagerOption{option1, option2})
+		require.NoError(t, err)
+
+		// Resolve the wager
+		wager.State = models.GroupWagerStateResolved
+		wager.ResolverDiscordID = &user1.DiscordID
+		wager.WinningOptionID = &option1.ID
+		resolvedAt := time.Now()
+		wager.ResolvedAt = &resolvedAt
+		err = groupWagerRepo.Update(ctx, wager)
+		require.NoError(t, err)
+
+		// Add participants
+		participant1 := testutil.CreateTestGroupWagerParticipant(wager.ID, user1.DiscordID, option1.ID, 1000)
+		participant2 := testutil.CreateTestGroupWagerParticipant(wager.ID, user2.DiscordID, option2.ID, 1500)
+		err = groupWagerRepo.SaveParticipant(ctx, participant1)
+		require.NoError(t, err)
+		err = groupWagerRepo.SaveParticipant(ctx, participant2)
+		require.NoError(t, err)
+
+		predictions, err := groupWagerRepo.GetGroupWagerPredictions(ctx, nil)
+		require.NoError(t, err)
+		require.Len(t, predictions, 2)
+
+		// Sort predictions by DiscordID for consistent testing
+		if predictions[0].DiscordID > predictions[1].DiscordID {
+			predictions[0], predictions[1] = predictions[1], predictions[0]
+		}
+
+		// Check user1's prediction (correct)
+		assert.Equal(t, user1.DiscordID, predictions[0].DiscordID)
+		assert.Equal(t, wager.ID, predictions[0].GroupWagerID)
+		assert.Equal(t, option1.ID, predictions[0].OptionID)
+		assert.Equal(t, "Win", predictions[0].OptionText)
+		assert.Equal(t, option1.ID, predictions[0].WinningOptionID)
+		assert.Equal(t, int64(1000), predictions[0].Amount)
+		assert.True(t, predictions[0].WasCorrect)
+		assert.Nil(t, predictions[0].ExternalSystem)
+		assert.Nil(t, predictions[0].ExternalID)
+
+		// Check user2's prediction (incorrect)
+		assert.Equal(t, user2.DiscordID, predictions[1].DiscordID)
+		assert.Equal(t, wager.ID, predictions[1].GroupWagerID)
+		assert.Equal(t, option2.ID, predictions[1].OptionID)
+		assert.Equal(t, "Loss", predictions[1].OptionText)
+		assert.Equal(t, option1.ID, predictions[1].WinningOptionID)
+		assert.Equal(t, int64(1500), predictions[1].Amount)
+		assert.False(t, predictions[1].WasCorrect)
+		assert.Nil(t, predictions[1].ExternalSystem)
+		assert.Nil(t, predictions[1].ExternalID)
+	})
+
+	t.Run("resolved wager with external system - League of Legends", func(t *testing.T) {
+		// Create a LoL wager
+		lolWager := testutil.CreateTestGroupWager(user2.DiscordID, "LoL game wager")
+		lolWager.ExternalRef = &models.ExternalReference{
+			System: models.SystemLeagueOfLegends,
+			ID:     "RIOT_12345",
+		}
+		option3 := testutil.CreateTestGroupWagerOption(0, "Win", 0)
+		option4 := testutil.CreateTestGroupWagerOption(0, "Loss", 1)
+
+		err := groupWagerRepo.CreateWithOptions(ctx, lolWager, []*models.GroupWagerOption{option3, option4})
+		require.NoError(t, err)
+
+		// Resolve the wager
+		lolWager.State = models.GroupWagerStateResolved
+		lolWager.ResolverDiscordID = &user2.DiscordID
+		lolWager.WinningOptionID = &option4.ID
+		resolvedAt := time.Now()
+		lolWager.ResolvedAt = &resolvedAt
+		err = groupWagerRepo.Update(ctx, lolWager)
+		require.NoError(t, err)
+
+		// Add participants
+		participant3 := testutil.CreateTestGroupWagerParticipant(lolWager.ID, user2.DiscordID, option3.ID, 2000)
+		participant4 := testutil.CreateTestGroupWagerParticipant(lolWager.ID, user3.DiscordID, option4.ID, 2500)
+		err = groupWagerRepo.SaveParticipant(ctx, participant3)
+		require.NoError(t, err)
+		err = groupWagerRepo.SaveParticipant(ctx, participant4)
+		require.NoError(t, err)
+
+		// Test filtering by external system
+		lolSystem := models.SystemLeagueOfLegends
+		predictions, err := groupWagerRepo.GetGroupWagerPredictions(ctx, &lolSystem)
+		require.NoError(t, err)
+		require.Len(t, predictions, 2)
+
+		// Sort predictions by DiscordID for consistent testing
+		if predictions[0].DiscordID > predictions[1].DiscordID {
+			predictions[0], predictions[1] = predictions[1], predictions[0]
+		}
+
+		// Check user2's prediction (incorrect)
+		assert.Equal(t, user2.DiscordID, predictions[0].DiscordID)
+		assert.Equal(t, lolWager.ID, predictions[0].GroupWagerID)
+		assert.Equal(t, option3.ID, predictions[0].OptionID)
+		assert.Equal(t, "Win", predictions[0].OptionText)
+		assert.Equal(t, option4.ID, predictions[0].WinningOptionID)
+		assert.Equal(t, int64(2000), predictions[0].Amount)
+		assert.False(t, predictions[0].WasCorrect)
+		assert.NotNil(t, predictions[0].ExternalSystem)
+		assert.Equal(t, models.SystemLeagueOfLegends, *predictions[0].ExternalSystem)
+		assert.NotNil(t, predictions[0].ExternalID)
+		assert.Equal(t, "RIOT_12345", *predictions[0].ExternalID)
+
+		// Check user3's prediction (correct)
+		assert.Equal(t, user3.DiscordID, predictions[1].DiscordID)
+		assert.Equal(t, lolWager.ID, predictions[1].GroupWagerID)
+		assert.Equal(t, option4.ID, predictions[1].OptionID)
+		assert.Equal(t, "Loss", predictions[1].OptionText)
+		assert.Equal(t, option4.ID, predictions[1].WinningOptionID)
+		assert.Equal(t, int64(2500), predictions[1].Amount)
+		assert.True(t, predictions[1].WasCorrect)
+		assert.NotNil(t, predictions[1].ExternalSystem)
+		assert.Equal(t, models.SystemLeagueOfLegends, *predictions[1].ExternalSystem)
+		assert.NotNil(t, predictions[1].ExternalID)
+		assert.Equal(t, "RIOT_12345", *predictions[1].ExternalID)
+	})
+
+	t.Run("filtering by external system excludes other systems", func(t *testing.T) {
+		// Create a TFT wager
+		tftWager := testutil.CreateTestGroupWager(user3.DiscordID, "TFT game wager")
+		tftWager.ExternalRef = &models.ExternalReference{
+			System: models.SystemTFT,
+			ID:     "TFT_67890",
+		}
+		option5 := testutil.CreateTestGroupWagerOption(0, "Top 4", 0)
+		option6 := testutil.CreateTestGroupWagerOption(0, "Bottom 4", 1)
+
+		err := groupWagerRepo.CreateWithOptions(ctx, tftWager, []*models.GroupWagerOption{option5, option6})
+		require.NoError(t, err)
+
+		// Resolve the TFT wager
+		tftWager.State = models.GroupWagerStateResolved
+		tftWager.ResolverDiscordID = &user3.DiscordID
+		tftWager.WinningOptionID = &option5.ID
+		resolvedAt := time.Now()
+		tftWager.ResolvedAt = &resolvedAt
+		err = groupWagerRepo.Update(ctx, tftWager)
+		require.NoError(t, err)
+
+		// Add participant
+		participant5 := testutil.CreateTestGroupWagerParticipant(tftWager.ID, user1.DiscordID, option5.ID, 3000)
+		err = groupWagerRepo.SaveParticipant(ctx, participant5)
+		require.NoError(t, err)
+
+		// Test filtering by LoL should not return TFT predictions
+		lolSystem := models.SystemLeagueOfLegends
+		lolPredictions, err := groupWagerRepo.GetGroupWagerPredictions(ctx, &lolSystem)
+		require.NoError(t, err)
+		require.Len(t, lolPredictions, 2) // Only the LoL predictions from previous test
+
+		// Test filtering by TFT should only return TFT predictions
+		tftSystem := models.SystemTFT
+		tftPredictions, err := groupWagerRepo.GetGroupWagerPredictions(ctx, &tftSystem)
+		require.NoError(t, err)
+		require.Len(t, tftPredictions, 1)
+
+		// Verify TFT prediction
+		assert.Equal(t, user1.DiscordID, tftPredictions[0].DiscordID)
+		assert.Equal(t, tftWager.ID, tftPredictions[0].GroupWagerID)
+		assert.Equal(t, option5.ID, tftPredictions[0].OptionID)
+		assert.Equal(t, "Top 4", tftPredictions[0].OptionText)
+		assert.Equal(t, option5.ID, tftPredictions[0].WinningOptionID)
+		assert.True(t, tftPredictions[0].WasCorrect)
+		assert.NotNil(t, tftPredictions[0].ExternalSystem)
+		assert.Equal(t, models.SystemTFT, *tftPredictions[0].ExternalSystem)
+		assert.NotNil(t, tftPredictions[0].ExternalID)
+		assert.Equal(t, "TFT_67890", *tftPredictions[0].ExternalID)
+
+		// Test no filter should return all predictions
+		allPredictions, err := groupWagerRepo.GetGroupWagerPredictions(ctx, nil)
+		require.NoError(t, err)
+		require.Len(t, allPredictions, 5) // All predictions from all tests
+	})
+
+	t.Run("resolved wager without winning option - excluded from results", func(t *testing.T) {
+		// Create a wager that is resolved but has no winning option (edge case)
+		cancelledWager := testutil.CreateTestGroupWager(user1.DiscordID, "Cancelled wager")
+		option7 := testutil.CreateTestGroupWagerOption(0, "Option A", 0)
+		option8 := testutil.CreateTestGroupWagerOption(0, "Option B", 1)
+
+		err := groupWagerRepo.CreateWithOptions(ctx, cancelledWager, []*models.GroupWagerOption{option7, option8})
+		require.NoError(t, err)
+
+		// Resolve without winner (simulates cancellation)
+		cancelledWager.State = models.GroupWagerStateResolved
+		cancelledWager.ResolverDiscordID = &user1.DiscordID
+		// Don't set WinningOptionID - leave it nil
+		resolvedAt := time.Now()
+		cancelledWager.ResolvedAt = &resolvedAt
+		err = groupWagerRepo.Update(ctx, cancelledWager)
+		require.NoError(t, err)
+
+		// Add participant
+		participant6 := testutil.CreateTestGroupWagerParticipant(cancelledWager.ID, user2.DiscordID, option7.ID, 1000)
+		err = groupWagerRepo.SaveParticipant(ctx, participant6)
+		require.NoError(t, err)
+
+		// Should still return the same number of predictions as before (cancelled wager excluded)
+		predictions, err := groupWagerRepo.GetGroupWagerPredictions(ctx, nil)
+		require.NoError(t, err)
+		require.Len(t, predictions, 5) // Same as before, cancelled wager not included
+
+		// Verify none of the predictions belong to the cancelled wager
+		for _, pred := range predictions {
+			assert.NotEqual(t, cancelledWager.ID, pred.GroupWagerID)
+		}
+	})
+
+	t.Run("sorting is consistent", func(t *testing.T) {
+		// Test that results are consistently ordered by discord_id, created_at
+		predictions, err := groupWagerRepo.GetGroupWagerPredictions(ctx, nil)
+		require.NoError(t, err)
+		require.Greater(t, len(predictions), 0)
+
+		// Verify sorting order (should be by discord_id, then created_at)
+		for i := 1; i < len(predictions); i++ {
+			if predictions[i-1].DiscordID == predictions[i].DiscordID {
+				// Same user, can't easily test created_at ordering without more setup
+				// but we know it's ordered by created_at for same user
+				continue
+			}
+			assert.LessOrEqual(t, predictions[i-1].DiscordID, predictions[i].DiscordID)
+		}
+	})
+}

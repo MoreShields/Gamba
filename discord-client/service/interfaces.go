@@ -171,13 +171,25 @@ type EventPublisher interface {
 	Publish(event events.Event) error
 }
 
-// StatsService defines the interface for statistics operations
-type StatsService interface {
+// UserMetricsService consolidates user statistics and analytics operations
+type UserMetricsService interface {
+	// General statistics methods
+
 	// GetScoreboard returns the top users with their statistics
 	GetScoreboard(ctx context.Context, limit int) ([]*models.ScoreboardEntry, int64, error)
 
 	// GetUserStats returns detailed statistics for a specific user
 	GetUserStats(ctx context.Context, discordID int64) (*models.UserStats, error)
+
+	// Prediction analytics methods
+
+	// GetLOLPredictionStats calculates LOL-specific prediction stats for all users in a guild
+	// Returns a map of Discord IDs to their LOL prediction performance
+	GetLOLPredictionStats(ctx context.Context) (map[int64]*models.LOLPredictionStats, error)
+
+	// GetWagerPredictionStats calculates generic prediction stats for all users in a guild
+	// Can optionally filter by external system (pass nil for all wagers)
+	GetWagerPredictionStats(ctx context.Context, externalSystem *models.ExternalSystem) (map[int64]*models.WagerPredictionStats, error)
 }
 
 // GroupWagerRepository defines the interface for all group wager related data access
@@ -208,6 +220,9 @@ type GroupWagerRepository interface {
 
 	// Stats operations
 	GetStats(ctx context.Context, discordID int64) (*models.GroupWagerStats, error)
+
+	// Analytics operations
+	GetGroupWagerPredictions(ctx context.Context, externalSystem *models.ExternalSystem) ([]*models.GroupWagerPrediction, error)
 
 	// Expiration operations
 	GetExpiredActiveWagers(ctx context.Context) ([]*models.GroupWager, error)
@@ -306,3 +321,14 @@ type SummonerWatchService interface {
 	ListWatches(ctx context.Context, guildID int64) ([]*models.SummonerWatchDetail, error)
 }
 
+// AnalyticsService defines the interface for analytics operations
+// Deprecated: Use UserMetricsService instead
+type AnalyticsService interface {
+	// GetLOLPredictionStats calculates LOL-specific prediction stats for all users in a guild
+	// Returns a map of Discord IDs to their LOL prediction performance
+	GetLOLPredictionStats(ctx context.Context) (map[int64]*models.LOLPredictionStats, error)
+
+	// GetWagerPredictionStats calculates generic prediction stats for all users in a guild
+	// Can optionally filter by external system (pass nil for all wagers)
+	GetWagerPredictionStats(ctx context.Context, externalSystem *models.ExternalSystem) (map[int64]*models.WagerPredictionStats, error)
+}

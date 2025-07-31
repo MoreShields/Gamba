@@ -257,6 +257,14 @@ func (m *MockGroupWagerRepository) GetGuildsWithActiveWagers(ctx context.Context
 	return args.Get(0).([]int64), args.Error(1)
 }
 
+func (m *MockGroupWagerRepository) GetGroupWagerPredictions(ctx context.Context, externalSystem *models.ExternalSystem) ([]*models.GroupWagerPrediction, error) {
+	args := m.Called(ctx, externalSystem)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.GroupWagerPrediction), args.Error(1)
+}
+
 // MockWagerRepository is a mock implementation of WagerRepository for testing
 type MockWagerRepository struct {
 	mock.Mock
@@ -283,6 +291,43 @@ func (m *MockWagerRepository) UpdateState(ctx context.Context, wagerID int64, ne
 func (m *MockWagerRepository) UpdateWinner(ctx context.Context, wagerID int64, winnerID int64) error {
 	args := m.Called(ctx, wagerID, winnerID)
 	return args.Error(0)
+}
+
+func (m *MockWagerRepository) GetByMessageID(ctx context.Context, messageID int64) (*models.Wager, error) {
+	args := m.Called(ctx, messageID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Wager), args.Error(1)
+}
+
+func (m *MockWagerRepository) Update(ctx context.Context, wager *models.Wager) error {
+	args := m.Called(ctx, wager)
+	return args.Error(0)
+}
+
+func (m *MockWagerRepository) GetActiveByUser(ctx context.Context, discordID int64) ([]*models.Wager, error) {
+	args := m.Called(ctx, discordID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Wager), args.Error(1)
+}
+
+func (m *MockWagerRepository) GetAllByUser(ctx context.Context, discordID int64, limit int) ([]*models.Wager, error) {
+	args := m.Called(ctx, discordID, limit)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Wager), args.Error(1)
+}
+
+func (m *MockWagerRepository) GetStats(ctx context.Context, discordID int64) (*models.WagerStats, error) {
+	args := m.Called(ctx, discordID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.WagerStats), args.Error(1)
 }
 
 // MockWagerVoteRepository is a mock implementation of WagerVoteRepository for testing
