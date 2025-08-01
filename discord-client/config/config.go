@@ -47,6 +47,9 @@ type Config struct {
 	WordleBotID        string // Discord ID of the Wordle bot to monitor
 	WordleRewardAmount int64  // Amount of bits to award for daily Wordle completion
 
+	// Daily Awards configuration
+	DailyAwardsHour int // Hour in UTC when daily awards summary is posted (0-23)
+
 	// Environment
 	Environment string // "development" or "production"
 }
@@ -109,6 +112,9 @@ func load() (*Config, error) {
 		// Wordle
 		WordleBotID:        os.Getenv("WORDLE_BOT_ID"),
 		WordleRewardAmount: 10000,
+
+		// Daily Awards
+		DailyAwardsHour: 14, // 2pm UTC / 9am CST
 
 		// Environment
 		Environment: os.Getenv("ENVIRONMENT"),

@@ -453,3 +453,11 @@ func (m *MockWordleCompletionRepository) GetRecentCompletions(ctx context.Contex
 	}
 	return args.Get(0).([]*models.WordleCompletion), args.Error(1)
 }
+
+func (m *MockWordleCompletionRepository) GetTodaysCompletions(ctx context.Context) ([]*models.WordleCompletion, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.WordleCompletion), args.Error(1)
+}

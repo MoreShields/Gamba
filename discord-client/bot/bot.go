@@ -61,7 +61,8 @@ type Bot struct {
 	summoner    *summoner.Feature
 
 	// Worker cleanup functions
-	stopGroupWagerWorker func()
+	stopGroupWagerWorker  func()
+	stopDailyAwardsWorker func()
 }
 
 // New creates a new bot instance with all features
@@ -163,8 +164,11 @@ func (b *Bot) Close() error {
 	// Stop background workers
 	if b.stopGroupWagerWorker != nil {
 		b.stopGroupWagerWorker()
-		log.Info("Background workers stopped")
 	}
+	if b.stopDailyAwardsWorker != nil {
+		b.stopDailyAwardsWorker()
+	}
+	log.Info("Background workers stopped")
 
 	return b.session.Close()
 }
@@ -172,6 +176,11 @@ func (b *Bot) Close() error {
 // GetSession returns the Discord session
 func (b *Bot) GetSession() *discordgo.Session {
 	return b.session
+}
+
+// SetDailyAwardsWorkerCleanup sets the cleanup function for the daily awards worker
+func (b *Bot) SetDailyAwardsWorkerCleanup(cleanup func()) {
+	b.stopDailyAwardsWorker = cleanup
 }
 
 // GetConfig returns the bot configuration
@@ -589,4 +598,84 @@ func (b *Bot) GetGuilds() []GuildInfo {
 	}
 
 	return guilds
+}
+
+// PostDailyAwardsSummary posts a daily awards summary to a Discord channel
+func (b *Bot) PostDailyAwardsSummary(ctx context.Context, channelID string, summary *service.DailyAwardsSummary) error {
+	// Create embed fields for different award types
+	var fields []*discordgo.MessageEmbedField
+
+	// Group awards by type
+	awardsByType := make(map[service.DailyAwardType][]service.DailyAward)
+	for _, award := range summary.Awards {
+		awardsByType[award.GetType()] = append(awardsByType[award.GetType()], award)
+	}
+
+	// Format Wordle awards if present
+	if wordleAwards, ok := awardsByType[service.DailyAwardTypeWordle]; ok && len(wordleAwards) > 0 {
+		// Build the table content
+		var tableContent strings.Builder
+		tableContent.WriteString("```\n")
+		tableContent.WriteString("User                Score  Reward\n")
+		tableContent.WriteString("──────────────────  ─────  ──────\n")
+
+		for _, award := range wordleAwards {
+			// For the table, we need the username
+			user, err := b.session.User(fmt.Sprintf("%d", award.GetDiscordID()))
+			username := "Unknown"
+			if err == nil && user != nil {
+				username = user.Username
+				if len(username) > 18 {
+					username = username[:15] + "..."
+				}
+			}
+
+			// Format the row
+			tableContent.WriteString(fmt.Sprintf("%-18s  %-5s  %s\n",
+				username,
+				award.GetDetails(),
+				common.FormatBalance(award.GetReward()),
+			))
+		}
+		tableContent.WriteString("```")
+
+		fields = append(fields, &discordgo.MessageEmbedField{
+			Name:   "🧩 Wordle Completions",
+			Value:  tableContent.String(),
+			Inline: false,
+		})
+	}
+
+	// Add total payout field
+	fields = append(fields, &discordgo.MessageEmbedField{
+		Name:   "💰 Total Payout",
+		Value:  common.FormatBalance(summary.TotalPayout),
+		Inline: true,
+	})
+
+	fields = append(fields, &discordgo.MessageEmbedField{
+		Name:   "👥 Recipients",
+		Value:  fmt.Sprintf("%d", len(summary.Awards)),
+		Inline: true,
+	})
+
+	// Create the embed
+	embed := &discordgo.MessageEmbed{
+		Title:       "📊 Daily Awards Summary",
+		Description: fmt.Sprintf("Awards for %s", summary.Date.Format("January 2, 2006")),
+		Color:       common.ColorInfo,
+		Fields:      fields,
+		Timestamp:   time.Now().Format(time.RFC3339),
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: "Rewards shown were already awarded when tasks were completed.",
+		},
+	}
+
+	// Send the message
+	_, err := b.session.ChannelMessageSendEmbed(channelID, embed)
+	if err != nil {
+		return fmt.Errorf("failed to send daily awards summary: %w", err)
+	}
+
+	return nil
 }

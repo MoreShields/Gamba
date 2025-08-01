@@ -133,6 +133,9 @@ type WordleCompletionRepository interface {
 
 	// GetRecentCompletions returns recent completions for streak calculation
 	GetRecentCompletions(ctx context.Context, discordID, guildID int64, limit int) ([]*models.WordleCompletion, error)
+
+	// GetTodaysCompletions retrieves all completions for today in the repository's guild
+	GetTodaysCompletions(ctx context.Context) ([]*models.WordleCompletion, error)
 }
 
 // WagerService defines the interface for wager operations

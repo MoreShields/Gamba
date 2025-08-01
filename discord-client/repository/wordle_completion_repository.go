@@ -8,6 +8,7 @@ import (
 	"gambler/discord-client/database"
 	"gambler/discord-client/models"
 	"gambler/discord-client/service"
+
 	"github.com/jackc/pgx/v5"
 )
 
@@ -120,6 +121,49 @@ func (r *wordleCompletionRepository) GetRecentCompletions(ctx context.Context, d
 	rows, err := r.q.Query(ctx, query, discordID, r.guildID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query recent wordle completions: %w", err)
+	}
+	defer rows.Close()
+
+	var completions []*models.WordleCompletion
+	for rows.Next() {
+		var dbCompletion wordleCompletionDB
+		err := rows.Scan(
+			&dbCompletion.ID,
+			&dbCompletion.DiscordID,
+			&dbCompletion.GuildID,
+			&dbCompletion.GuessCount,
+			&dbCompletion.CompletedAt,
+			&dbCompletion.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan wordle completion: %w", err)
+		}
+
+		completion, err := dbCompletion.toDomain()
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert wordle completion: %w", err)
+		}
+		completions = append(completions, completion)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating wordle completions: %w", err)
+	}
+
+	return completions, nil
+}
+
+// GetTodaysCompletions retrieves all completions for today in this repository's guild
+func (r *wordleCompletionRepository) GetTodaysCompletions(ctx context.Context) ([]*models.WordleCompletion, error) {
+	query := `
+		SELECT id, discord_id, guild_id, guess_count, completed_at, created_at
+		FROM wordle_completions
+		WHERE guild_id = $1 AND DATE(completed_at) = CURRENT_DATE
+		ORDER BY guess_count ASC, completed_at ASC`
+
+	rows, err := r.q.Query(ctx, query, r.guildID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query today's wordle completions: %w", err)
 	}
 	defer rows.Close()
 
