@@ -336,14 +336,6 @@ class RiotAPIClient:
                 participants=data.get("participants", []),
             )
 
-            logger.info(
-                "Successfully fetched current game info",
-                puuid=puuid,
-                region=region,
-                game_id=current_game.game_id,
-                queue_type=current_game.queue_type,
-            )
-
             return current_game
 
         except PlayerNotInGameError:

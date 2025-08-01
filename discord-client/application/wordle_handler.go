@@ -11,6 +11,7 @@ import (
 	"gambler/discord-client/events"
 	"gambler/discord-client/models"
 	"gambler/discord-client/service"
+
 	"github.com/jackc/pgx/v5"
 
 	log "github.com/sirupsen/logrus"
@@ -81,9 +82,9 @@ func (h *wordleHandler) HandleDiscordMessage(ctx context.Context, event interfac
 	// If wordle channel is configured, only process messages from that channel
 	if settings.WordleChannelID != nil && *settings.WordleChannelID != channelID {
 		log.WithFields(log.Fields{
-			"guild_id":           guildID,
-			"channel_id":         channelID,
-			"wordle_channel_id":  *settings.WordleChannelID,
+			"guild_id":          guildID,
+			"channel_id":        channelID,
+			"wordle_channel_id": *settings.WordleChannelID,
 		}).Debug("Ignoring Wordle message from non-configured channel")
 		return nil
 	}
