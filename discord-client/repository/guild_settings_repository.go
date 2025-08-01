@@ -28,7 +28,7 @@ func NewGuildSettingsRepositoryWithTx(tx Queryable) *GuildSettingsRepository {
 func (r *GuildSettingsRepository) GetOrCreateGuildSettings(ctx context.Context, guildID int64) (*models.GuildSettings, error) {
 	// First try to get existing settings
 	query := `
-		SELECT guild_id, primary_channel_id, lol_channel_id, high_roller_role_id
+		SELECT guild_id, primary_channel_id, lol_channel_id, high_roller_role_id, wordle_channel_id
 		FROM guild_settings
 		WHERE guild_id = $1
 	`
@@ -39,6 +39,7 @@ func (r *GuildSettingsRepository) GetOrCreateGuildSettings(ctx context.Context, 
 		&settings.PrimaryChannelID,
 		&settings.LolChannelID,
 		&settings.HighRollerRoleID,
+		&settings.WordleChannelID,
 	)
 
 	if err == nil {
@@ -51,9 +52,9 @@ func (r *GuildSettingsRepository) GetOrCreateGuildSettings(ctx context.Context, 
 
 	// If not found, create default settings
 	insertQuery := `
-		INSERT INTO guild_settings (guild_id, primary_channel_id, lol_channel_id, high_roller_role_id)
-		VALUES ($1, NULL, NULL, NULL)
-		RETURNING guild_id, primary_channel_id, lol_channel_id, high_roller_role_id
+		INSERT INTO guild_settings (guild_id, primary_channel_id, lol_channel_id, high_roller_role_id, wordle_channel_id)
+		VALUES ($1, NULL, NULL, NULL, NULL)
+		RETURNING guild_id, primary_channel_id, lol_channel_id, high_roller_role_id, wordle_channel_id
 	`
 
 	err = r.q.QueryRow(ctx, insertQuery, guildID).Scan(
@@ -61,6 +62,7 @@ func (r *GuildSettingsRepository) GetOrCreateGuildSettings(ctx context.Context, 
 		&settings.PrimaryChannelID,
 		&settings.LolChannelID,
 		&settings.HighRollerRoleID,
+		&settings.WordleChannelID,
 	)
 
 	if err != nil {
@@ -76,7 +78,8 @@ func (r *GuildSettingsRepository) UpdateGuildSettings(ctx context.Context, setti
 		UPDATE guild_settings
 		SET primary_channel_id = $2,
 		    lol_channel_id = $3,
-		    high_roller_role_id = $4
+		    high_roller_role_id = $4,
+		    wordle_channel_id = $5
 		WHERE guild_id = $1
 	`
 
@@ -85,6 +88,7 @@ func (r *GuildSettingsRepository) UpdateGuildSettings(ctx context.Context, setti
 		settings.PrimaryChannelID,
 		settings.LolChannelID,
 		settings.HighRollerRoleID,
+		settings.WordleChannelID,
 	)
 
 	if err != nil {
