@@ -1,6 +1,7 @@
 package application
 
 import (
+	"context"
 	"reflect"
 	"testing"
 )
@@ -102,7 +103,7 @@ func TestParseWordleResults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseWordleResults(tt.content)
+			got, err := parseWordleResults(context.Background(), tt.content, 123456, nil)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("parseWordleResults() error = %v, wantErr %v", err, tt.wantErr)
 				return

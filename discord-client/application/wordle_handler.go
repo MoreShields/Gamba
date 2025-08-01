@@ -24,13 +24,15 @@ type WordleHandler interface {
 
 // wordleHandler implements the WordleHandler interface
 type wordleHandler struct {
-	uowFactory UnitOfWorkFactory
+	uowFactory   UnitOfWorkFactory
+	userResolver UserResolver
 }
 
 // NewWordleHandler creates a new WordleHandler
-func NewWordleHandler(uowFactory UnitOfWorkFactory) WordleHandler {
+func NewWordleHandler(uowFactory UnitOfWorkFactory, userResolver UserResolver) WordleHandler {
 	return &wordleHandler{
-		uowFactory: uowFactory,
+		uowFactory:   uowFactory,
+		userResolver: userResolver,
 	}
 }
 
@@ -104,7 +106,7 @@ func (h *wordleHandler) HandleDiscordMessage(ctx context.Context, event interfac
 	}
 
 	// Parse Wordle results from the message
-	results, err := parseWordleResults(m.Content)
+	results, err := parseWordleResults(ctx, m.Content, guildID, h.userResolver)
 	if err != nil {
 		log.WithError(err).WithField("message_id", m.MessageID).Error("Failed to parse Wordle results")
 		return nil // Don't return error to avoid retries on parsing issues
@@ -195,15 +197,22 @@ func (h *wordleHandler) processWordleResult(ctx context.Context, result WordleRe
 	}
 
 	// Get or create user
+	var balanceBefore int64
 	user, err := uow.UserRepository().GetByDiscordID(ctx, userID)
 	if err != nil {
+		return fmt.Errorf("failed to get user: %w", err)
+	}
+	
+	if user == nil {
 		// User doesn't exist, create with initial balance as the reward
+		balanceBefore = 0
 		user, err = uow.UserRepository().Create(ctx, userID, fmt.Sprintf("User%d", userID), reward)
 		if err != nil {
 			return fmt.Errorf("failed to create user: %w", err)
 		}
 	} else {
 		// Update user balance
+		balanceBefore = user.Balance
 		newBalance := user.Balance + reward
 		if err := uow.UserRepository().UpdateBalance(ctx, userID, newBalance); err != nil {
 			return fmt.Errorf("failed to update user balance: %w", err)
@@ -215,7 +224,7 @@ func (h *wordleHandler) processWordleResult(ctx context.Context, result WordleRe
 	balanceHistory := &models.BalanceHistory{
 		DiscordID:       userID,
 		GuildID:         guildID,
-		BalanceBefore:   user.Balance - reward,
+		BalanceBefore:   balanceBefore,
 		BalanceAfter:    user.Balance,
 		ChangeAmount:    reward,
 		TransactionType: models.TransactionTypeWordleReward,

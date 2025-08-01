@@ -179,12 +179,16 @@ func setupEventSubscriptions(natsClient *infrastructure.NATSClient, subjectMappe
 	log.Println("Initializing NATS event subscriber...")
 	natsEventSubscriber := infrastructure.NewNATSEventSubscriber(natsClient, subjectMapper)
 
+	// Create UserResolver
+	userResolver := bot.NewUserResolver(discordBot.GetSession())
+
 	// Register application-level subscriptions
 	log.Println("Registering application event subscriptions...")
 	if err := application.RegisterApplicationSubscriptions(
 		natsEventSubscriber,
 		uowFactory,
 		discordBot.GetDiscordPoster(),
+		userResolver,
 	); err != nil {
 		return fmt.Errorf("failed to register application subscriptions: %w", err)
 	}
@@ -216,7 +220,7 @@ func startBackgroundServices(ctx context.Context, cfg *config.Config, lolHandler
 
 	// Start Discord bot workers
 	log.Println("Starting Discord bot workers...")
-	
+
 	// Start group wager expiration worker
 	groupWagerCleanup := discordBot.StartGroupWagerExpirationWorker(ctx)
 	cleanupFuncs = append(cleanupFuncs, groupWagerCleanup)

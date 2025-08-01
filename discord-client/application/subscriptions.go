@@ -20,12 +20,13 @@ func RegisterApplicationSubscriptions(
 	subscriber domain.EventSubscriber,
 	uowFactory UnitOfWorkFactory,
 	discordPoster DiscordPoster,
+	userResolver UserResolver,
 ) error {
 	// Create the wager state event handler
 	wagerStateHandler := NewWagerStateEventHandler(uowFactory, discordPoster)
 
 	// Create the Wordle handler
-	wordleHandler := NewWordleHandler(uowFactory)
+	wordleHandler := NewWordleHandler(uowFactory, userResolver)
 
 	// Register as local handler to handle events published within the same process
 	// Since NATS doesn't deliver messages back to the publisher, we need local handling

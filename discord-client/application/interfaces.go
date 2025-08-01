@@ -52,3 +52,11 @@ type GuildDiscoveryService interface {
 	// GetGuildsWithPrimaryChannel returns all guilds that have a primary channel configured
 	GetGuildsWithPrimaryChannel(ctx context.Context) ([]dto.GuildChannelInfo, error)
 }
+
+// UserResolver resolves Discord user information from various identifiers
+type UserResolver interface {
+	// ResolveUsersByNick finds Discord user IDs by their server nickname
+	// Returns a slice since nicknames may not be unique
+	// Returns empty slice if no users found with the given nickname
+	ResolveUsersByNick(ctx context.Context, guildID int64, nickname string) ([]int64, error)
+}
