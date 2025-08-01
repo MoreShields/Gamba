@@ -6,22 +6,17 @@ import (
 
 // WordleScore represents a value object for Wordle game scoring
 type WordleScore struct {
-	Guesses    int
-	MaxGuesses int
+	Guesses int
 }
 
 // NewWordleScore creates a new WordleScore with validation
-func NewWordleScore(guesses, maxGuesses int) (WordleScore, error) {
-	if maxGuesses < 1 || maxGuesses > 6 {
-		return WordleScore{}, fmt.Errorf("maxGuesses must be between 1 and 6, got %d", maxGuesses)
-	}
-	if guesses < 1 || guesses > maxGuesses {
-		return WordleScore{}, fmt.Errorf("guesses must be between 1 and %d, got %d", maxGuesses, guesses)
+func NewWordleScore(guesses int) (WordleScore, error) {
+	if guesses < 1 || guesses > 6 {
+		return WordleScore{}, fmt.Errorf("guesses must be between 1 and 6, got %d", guesses)
 	}
 
 	return WordleScore{
-		Guesses:    guesses,
-		MaxGuesses: maxGuesses,
+		Guesses: guesses,
 	}, nil
 }
 

@@ -26,7 +26,7 @@ func TestWordleRewardService_CalculateReward(t *testing.T) {
 	}{
 		{
 			name:  "single guess always 50k",
-			score: mustCreateScore(t, 1, 6),
+			score: mustCreateScore(t, 1),
 			setupMock: func(repo *MockWordleCompletionRepository) {
 				repo.On("GetRecentCompletions", ctx, int64(123), int64(456), 7).
 					Return([]*models.WordleCompletion{}, nil)
@@ -35,7 +35,7 @@ func TestWordleRewardService_CalculateReward(t *testing.T) {
 		},
 		{
 			name:  "single guess with 30 day streak still 50k",
-			score: mustCreateScore(t, 1, 6),
+			score: mustCreateScore(t, 1),
 			setupMock: func(repo *MockWordleCompletionRepository) {
 				today := time.Now().UTC().Truncate(24 * time.Hour)
 				var completions []*models.WordleCompletion
@@ -49,7 +49,7 @@ func TestWordleRewardService_CalculateReward(t *testing.T) {
 		},
 		{
 			name:  "2 guesses no streak",
-			score: mustCreateScore(t, 2, 6),
+			score: mustCreateScore(t, 2),
 			setupMock: func(repo *MockWordleCompletionRepository) {
 				repo.On("GetRecentCompletions", ctx, int64(123), int64(456), 7).
 					Return([]*models.WordleCompletion{}, nil)
@@ -58,7 +58,7 @@ func TestWordleRewardService_CalculateReward(t *testing.T) {
 		},
 		{
 			name:  "2 guesses 7 day streak capped at 5x",
-			score: mustCreateScore(t, 2, 6),
+			score: mustCreateScore(t, 2),
 			setupMock: func(repo *MockWordleCompletionRepository) {
 				today := time.Now().UTC().Truncate(24 * time.Hour)
 				var completions []*models.WordleCompletion
@@ -72,7 +72,7 @@ func TestWordleRewardService_CalculateReward(t *testing.T) {
 		},
 		{
 			name:  "3 guesses 3 day streak",
-			score: mustCreateScore(t, 3, 6),
+			score: mustCreateScore(t, 3),
 			setupMock: func(repo *MockWordleCompletionRepository) {
 				today := time.Now().UTC().Truncate(24 * time.Hour)
 				completions := []*models.WordleCompletion{
@@ -87,7 +87,7 @@ func TestWordleRewardService_CalculateReward(t *testing.T) {
 		},
 		{
 			name:  "4 guesses 14 day streak capped at 5x",
-			score: mustCreateScore(t, 4, 6),
+			score: mustCreateScore(t, 4),
 			setupMock: func(repo *MockWordleCompletionRepository) {
 				today := time.Now().UTC().Truncate(24 * time.Hour)
 				var completions []*models.WordleCompletion
@@ -102,7 +102,7 @@ func TestWordleRewardService_CalculateReward(t *testing.T) {
 		},
 		{
 			name:  "5 guesses 30 day streak capped at 5x",
-			score: mustCreateScore(t, 5, 6),
+			score: mustCreateScore(t, 5),
 			setupMock: func(repo *MockWordleCompletionRepository) {
 				today := time.Now().UTC().Truncate(24 * time.Hour)
 				var completions []*models.WordleCompletion
@@ -117,7 +117,7 @@ func TestWordleRewardService_CalculateReward(t *testing.T) {
 		},
 		{
 			name:  "6 guesses no streak",
-			score: mustCreateScore(t, 6, 6),
+			score: mustCreateScore(t, 6),
 			setupMock: func(repo *MockWordleCompletionRepository) {
 				repo.On("GetRecentCompletions", ctx, int64(123), int64(456), 7).
 					Return([]*models.WordleCompletion{}, nil)
@@ -126,7 +126,7 @@ func TestWordleRewardService_CalculateReward(t *testing.T) {
 		},
 		{
 			name:  "streak broken yesterday",
-			score: mustCreateScore(t, 3, 6),
+			score: mustCreateScore(t, 3),
 			setupMock: func(repo *MockWordleCompletionRepository) {
 				today := time.Now().UTC().Truncate(24 * time.Hour)
 				completions := []*models.WordleCompletion{
@@ -142,7 +142,7 @@ func TestWordleRewardService_CalculateReward(t *testing.T) {
 		},
 		{
 			name:  "repository error",
-			score: mustCreateScore(t, 3, 6),
+			score: mustCreateScore(t, 3),
 			setupMock: func(repo *MockWordleCompletionRepository) {
 				repo.On("GetRecentCompletions", ctx, int64(123), int64(456), 7).
 					Return(nil, assert.AnError)
@@ -193,7 +193,7 @@ func TestWordleRewardService_StreakEdgeCases(t *testing.T) {
 			Return(completions, nil)
 
 		service := NewWordleRewardService(mockRepo, baseReward)
-		score, _ := models.NewWordleScore(3, 6)
+		score, _ := models.NewWordleScore(3)
 		reward, err := service.CalculateReward(ctx, 123, 456, score)
 
 		require.NoError(t, err)
@@ -214,7 +214,7 @@ t.Run("future dated completion", func(t *testing.T) {
 			Return(completions, nil)
 
 		service := NewWordleRewardService(mockRepo, baseReward)
-		score, _ := models.NewWordleScore(3, 6)
+		score, _ := models.NewWordleScore(3)
 		reward, err := service.CalculateReward(ctx, 123, 456, score)
 
 		require.NoError(t, err)
@@ -243,7 +243,7 @@ func TestWordleRewardService_SpecialCases(t *testing.T) {
 
 		// Note: baseReward parameter is ignored for single guess
 		service := NewWordleRewardService(mockRepo, 999999)
-		score, _ := models.NewWordleScore(1, 6)
+		score, _ := models.NewWordleScore(1)
 		reward, err := service.CalculateReward(ctx, 123, 456, score)
 
 		require.NoError(t, err)
@@ -258,7 +258,7 @@ func TestWordleRewardService_SpecialCases(t *testing.T) {
 			Return([]*models.WordleCompletion{}, nil)
 
 		service := NewWordleRewardService(mockRepo, 1000)
-		score, _ := models.NewWordleScore(2, 6)
+		score, _ := models.NewWordleScore(2)
 		reward, err := service.CalculateReward(ctx, 123, 456, score)
 
 		require.NoError(t, err)
@@ -278,7 +278,7 @@ func TestWordleRewardService_SpecialCases(t *testing.T) {
 			Return(completions, nil)
 
 		service := NewWordleRewardService(mockRepo, 1000)
-		score, _ := models.NewWordleScore(3, 6)
+		score, _ := models.NewWordleScore(3)
 		reward, err := service.CalculateReward(ctx, 123, 456, score)
 
 		require.NoError(t, err)
@@ -298,7 +298,7 @@ func TestWordleRewardService_SpecialCases(t *testing.T) {
 			Return(completions, nil)
 
 		service := NewWordleRewardService(mockRepo, 1000)
-		score, _ := models.NewWordleScore(3, 6)
+		score, _ := models.NewWordleScore(3)
 		reward, err := service.CalculateReward(ctx, 123, 456, score)
 
 		require.NoError(t, err)
@@ -308,14 +308,14 @@ func TestWordleRewardService_SpecialCases(t *testing.T) {
 
 // Helper functions
 
-func mustCreateScore(t *testing.T, guesses, maxGuesses int) models.WordleScore {
-	score, err := models.NewWordleScore(guesses, maxGuesses)
+func mustCreateScore(t *testing.T, guesses int) models.WordleScore {
+	score, err := models.NewWordleScore(guesses)
 	require.NoError(t, err)
 	return score
 }
 
 func createCompletionForDate(t *testing.T, date time.Time) *models.WordleCompletion {
-	score, _ := models.NewWordleScore(3, 6)
+	score, _ := models.NewWordleScore(3)
 	completion, err := models.NewWordleCompletion(123, 456, score, date)
 	require.NoError(t, err)
 	return completion

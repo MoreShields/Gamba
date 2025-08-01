@@ -10,67 +10,41 @@ func TestNewWordleScore(t *testing.T) {
 	tests := []struct {
 		name        string
 		guesses     int
-		maxGuesses  int
 		expectError bool
 		errorMsg    string
 	}{
 		{
-			name:        "valid score with 3 guesses out of 6",
+			name:        "valid score with 3 guesses",
 			guesses:     3,
-			maxGuesses:  6,
 			expectError: false,
 		},
 		{
 			name:        "valid perfect score",
 			guesses:     1,
-			maxGuesses:  6,
 			expectError: false,
 		},
 		{
 			name:        "valid last guess",
 			guesses:     6,
-			maxGuesses:  6,
 			expectError: false,
-		},
-		{
-			name:        "invalid maxGuesses too low",
-			guesses:     1,
-			maxGuesses:  0,
-			expectError: true,
-			errorMsg:    "maxGuesses must be between 1 and 6, got 0",
-		},
-		{
-			name:        "invalid maxGuesses too high",
-			guesses:     1,
-			maxGuesses:  7,
-			expectError: true,
-			errorMsg:    "maxGuesses must be between 1 and 6, got 7",
 		},
 		{
 			name:        "invalid guesses too low",
 			guesses:     0,
-			maxGuesses:  6,
 			expectError: true,
 			errorMsg:    "guesses must be between 1 and 6, got 0",
 		},
 		{
-			name:        "invalid guesses exceeds maxGuesses",
+			name:        "invalid guesses too high",
 			guesses:     7,
-			maxGuesses:  6,
 			expectError: true,
 			errorMsg:    "guesses must be between 1 and 6, got 7",
-		},
-		{
-			name:        "valid with custom maxGuesses",
-			guesses:     2,
-			maxGuesses:  4,
-			expectError: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			score, err := NewWordleScore(tt.guesses, tt.maxGuesses)
+			score, err := NewWordleScore(tt.guesses)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -79,7 +53,6 @@ func TestNewWordleScore(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.guesses, score.Guesses)
-				assert.Equal(t, tt.maxGuesses, score.MaxGuesses)
 			}
 		})
 	}
@@ -127,7 +100,7 @@ func TestWordleScore_BasePoints(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			score, err := NewWordleScore(tt.guesses, 6)
+			score, err := NewWordleScore(tt.guesses)
 			assert.NoError(t, err)
 
 			points := score.BasePoints(baseReward)
@@ -138,7 +111,7 @@ func TestWordleScore_BasePoints(t *testing.T) {
 
 func TestWordleScore_BasePoints_EdgeCases(t *testing.T) {
 	// Test with different base rewards
-	score, err := NewWordleScore(1, 6)
+	score, err := NewWordleScore(1)
 	assert.NoError(t, err)
 
 	assert.Equal(t, 0, score.BasePoints(0))
@@ -147,7 +120,7 @@ func TestWordleScore_BasePoints_EdgeCases(t *testing.T) {
 	assert.Equal(t, 6000, score.BasePoints(1000))
 
 	// Test division for 6 guesses
-	score6, err := NewWordleScore(6, 6)
+	score6, err := NewWordleScore(6)
 	assert.NoError(t, err)
 
 	assert.Equal(t, 0, score6.BasePoints(1))    // 1/2 = 0 in integer division
@@ -157,40 +130,30 @@ func TestWordleScore_BasePoints_EdgeCases(t *testing.T) {
 
 func TestWordleScore_IsPerfect(t *testing.T) {
 	tests := []struct {
-		name       string
-		guesses    int
-		maxGuesses int
-		isPerfect  bool
+		name      string
+		guesses   int
+		isPerfect bool
 	}{
 		{
-			name:       "1 guess is perfect",
-			guesses:    1,
-			maxGuesses: 6,
-			isPerfect:  true,
+			name:      "1 guess is perfect",
+			guesses:   1,
+			isPerfect: true,
 		},
 		{
-			name:       "2 guesses is not perfect",
-			guesses:    2,
-			maxGuesses: 6,
-			isPerfect:  false,
+			name:      "2 guesses is not perfect",
+			guesses:   2,
+			isPerfect: false,
 		},
 		{
-			name:       "6 guesses is not perfect",
-			guesses:    6,
-			maxGuesses: 6,
-			isPerfect:  false,
-		},
-		{
-			name:       "1 guess with maxGuesses 3 is still perfect",
-			guesses:    1,
-			maxGuesses: 3,
-			isPerfect:  true,
+			name:      "6 guesses is not perfect",
+			guesses:   6,
+			isPerfect: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			score, err := NewWordleScore(tt.guesses, tt.maxGuesses)
+			score, err := NewWordleScore(tt.guesses)
 			assert.NoError(t, err)
 
 			assert.Equal(t, tt.isPerfect, score.IsPerfect())

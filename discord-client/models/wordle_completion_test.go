@@ -8,7 +8,7 @@ import (
 )
 
 func TestNewWordleCompletion(t *testing.T) {
-	validScore, _ := NewWordleScore(3, 6)
+	validScore, _ := NewWordleScore(3)
 	validTime := time.Now()
 
 	tests := []struct {
@@ -77,7 +77,7 @@ func TestNewWordleCompletion(t *testing.T) {
 			name:        "valid with perfect score",
 			discordID:   999999,
 			guildID:     111111,
-			score:       WordleScore{Guesses: 1, MaxGuesses: 6},
+			score:       WordleScore{Guesses: 1},
 			completedAt: validTime,
 			expectError: false,
 		},
@@ -114,7 +114,7 @@ func TestNewWordleCompletion(t *testing.T) {
 
 func TestWordleCompletion_FullScenario(t *testing.T) {
 	// Create a score
-	score, err := NewWordleScore(3, 6)
+	score, err := NewWordleScore(3)
 	assert.NoError(t, err)
 
 	// Create a completion
@@ -126,7 +126,7 @@ func TestWordleCompletion_FullScenario(t *testing.T) {
 	assert.Equal(t, int64(123456), completion.DiscordID)
 	assert.Equal(t, int64(789012), completion.GuildID)
 	assert.Equal(t, 3, completion.Score.Guesses)
-	assert.Equal(t, 6, completion.Score.MaxGuesses)
+	// MaxGuesses is no longer configurable, it's always 6
 	assert.Equal(t, completedAt, completion.CompletedAt)
 	assert.False(t, completion.Score.IsPerfect())
 
@@ -138,7 +138,7 @@ func TestWordleCompletion_FullScenario(t *testing.T) {
 
 func TestWordleCompletion_PerfectScoreScenario(t *testing.T) {
 	// Create a perfect score
-	score, err := NewWordleScore(1, 6)
+	score, err := NewWordleScore(1)
 	assert.NoError(t, err)
 	assert.True(t, score.IsPerfect())
 
