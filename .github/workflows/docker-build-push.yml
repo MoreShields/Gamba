@@ -19,6 +19,17 @@ jobs:
     permissions:
       contents: read
       packages: write
+    strategy:
+      matrix:
+        include:
+          - service: discord-client
+            dockerfile: discord-client/Dockerfile
+            target: prod
+            image: ${{ github.repository }}
+          - service: lol-tracker
+            dockerfile: lol-tracker/Dockerfile
+            target: production
+            image: moreshields/lol-tracker
 
     steps:
     - name: Checkout repository
@@ -56,48 +67,25 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Extract metadata for discord-client
-      id: meta-discord
+    - name: Extract metadata
+      id: meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        images: ${{ env.REGISTRY }}/${{ matrix.image }}
         tags: |
           type=ref,event=branch
           type=ref,event=pr
           type=sha,prefix={{branch}}-
           type=raw,value=latest,enable={{is_default_branch}}
 
-    - name: Build and push discord-client Docker image
+    - name: Build and push ${{ matrix.service }} Docker image
       uses: docker/build-push-action@v5
       with:
         context: .
-        file: discord-client/Dockerfile
-        target: prod
+        file: ${{ matrix.dockerfile }}
+        target: ${{ matrix.target }}
         push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ steps.meta-discord.outputs.tags }}
-        labels: ${{ steps.meta-discord.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-    - name: Extract metadata for lol-tracker
-      id: meta-lol
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/moreshields/lol-tracker
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=sha,prefix={{branch}}-
-          type=raw,value=latest,enable={{is_default_branch}}
-
-    - name: Build and push lol-tracker Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: lol-tracker/Dockerfile
-        target: production
-        push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ steps.meta-lol.outputs.tags }}
-        labels: ${{ steps.meta-lol.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha,scope=${{ matrix.service }}
+        cache-to: type=gha,mode=max,scope=${{ matrix.service }}
