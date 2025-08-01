@@ -41,18 +41,18 @@ func (h *wordleHandler) HandleDiscordMessage(ctx context.Context, event interfac
 		return err
 	}
 
-	// Check if message is from the Wordle bot
-	cfg := config.Get()
-	if m.UserID != cfg.WordleBotID {
-		return nil
-	}
-
 	log.WithFields(log.Fields{
 		"message_id": m.MessageID,
 		"channel_id": m.ChannelID,
 		"guild_id":   m.GuildID,
 		"content":    m.Content,
 	}).Debug("Processing Wordle bot message")
+
+	// Check if message is from the Wordle bot
+	cfg := config.Get()
+	if m.UserID != cfg.WordleBotID {
+		return nil
+	}
 
 	// Parse guild ID
 	guildID, err := strconv.ParseInt(m.GuildID, 10, 64)
