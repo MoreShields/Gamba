@@ -11,13 +11,23 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"syscall"
 
 	"gambler/discord-client/cmd"
+	"gambler/discord-client/cmd/debug"
 )
 
 func main() {
+	// Check if invoked as debug-shell (via symlink)
+	if filepath.Base(os.Args[0]) == "debug-shell" {
+		if err := runDebugMode(); err != nil {
+			log.Fatal("Debug mode error:", err)
+		}
+		return
+	}
+
 	// Check for migration subcommands
 	if len(os.Args) > 1 && os.Args[1] == "migrate" {
 		if err := handleMigrationCommand(); err != nil {
@@ -26,7 +36,14 @@ func main() {
 		return
 	}
 
-	fmt.Println(os.Args)
+	// Check for debug mode
+	if len(os.Args) > 1 && os.Args[1] == "debug" {
+		if err := runDebugMode(); err != nil {
+			log.Fatal("Debug mode error:", err)
+		}
+		return
+	}
+
 	// Check for balance adjustment subcommands
 	if len(os.Args) > 1 && os.Args[1] == "update-balance" {
 		if err := handleBalanceAdjustment(); err != nil {
@@ -126,4 +143,43 @@ type dummyEventPublisher struct{}
 func (d *dummyEventPublisher) Publish(event events.Event) error {
 	// No-op for admin commands
 	return nil
+}
+
+// runDebugMode starts the debug shell connecting to the running bot via debug API
+func runDebugMode() error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	log.Println("Starting debug shell...")
+	// Run shell that connects to bot via debug API
+	runDebugShell(ctx)
+	return nil
+}
+
+// runDebugShell runs a simple debug shell
+func runDebugShell(ctx context.Context) {
+	log.Println("Debug shell ready. Type 'help' for commands.")
+	
+	// Load configuration
+	cfg := config.Get()
+
+	// Create database connection for shell operations
+	db, err := database.NewConnection(ctx, cfg.GetDatabaseURL())
+	if err != nil {
+		log.Printf("Failed to connect to database: %v", err)
+		return
+	}
+	defer db.Close()
+
+	// Create dummy event publisher for admin operations
+	eventPublisher := &dummyEventPublisher{}
+	uowFactory := infrastructure.NewUnitOfWorkFactory(db, eventPublisher)
+
+	// Create shell that will connect to bot via debug API
+	shell := debug.NewShell(db, uowFactory)
+	
+	// Run the shell
+	if err := shell.Run(ctx); err != nil {
+		log.Printf("Debug shell error: %v", err)
+	}
 }

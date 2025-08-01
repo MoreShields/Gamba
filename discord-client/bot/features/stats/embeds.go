@@ -142,8 +142,8 @@ func buildLoLPage(ctx context.Context, embed *discordgo.MessageEmbed, metricsSer
 	}
 
 	embed.Description += strings.Join(lines, "\n") + "\n\n" +
-		fmt.Sprintf("**Total LoL Bits Wagered: %s**\n\n", common.FormatBalance(totalBitsWagered)) +
-		fmt.Sprintf("*Minimum %d LoL wagers to qualify*", MinLoLWagersForLeaderboard)
+		fmt.Sprintf("**Total LoL Bits Wagered: %s**\n", common.FormatBalance(totalBitsWagered)) +
+		fmt.Sprintf("*Minimum %d LoL wagers to qualify*\n", MinLoLWagersForLeaderboard)
 }
 
 // GetPageFromFooter extracts the current page from the footer text

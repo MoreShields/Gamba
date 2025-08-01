@@ -42,7 +42,7 @@ type Bot struct {
 	session        *discordgo.Session
 	uowFactory     application.UnitOfWorkFactory
 	summonerClient summoner_pb.SummonerTrackingServiceClient
-	
+
 	// Event publishing
 	eventPublisher service.EventPublisher
 
@@ -140,6 +140,12 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory appli
 	ctx := context.Background()
 	bot.stopGroupWagerWorker = bot.StartGroupWagerExpirationWorker(ctx)
 	log.Info("Background workers started")
+
+	// Always start debug API
+	debugPort := 8899
+	if err := bot.StartDebugAPI(debugPort); err != nil {
+		log.Warnf("Failed to start debug API on port %d: %v", debugPort, err)
+	}
 
 	return bot, nil
 }
@@ -486,6 +492,7 @@ func (b *Bot) handleMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 
 	// Skip if message is not from a guild
 	if m.GuildID == "" {
+		log.Debugf("Skipping message %s - not from a guild (possibly a DM)", m.ID)
 		return
 	}
 
@@ -512,4 +519,74 @@ func (b *Bot) handleReactionAdd(s *discordgo.Session, r *discordgo.MessageReacti
 	// For now, only route to stats feature
 	// In the future, other features can handle reactions too
 	b.stats.HandleReaction(s, r)
+}
+
+// ReplayMessage fetches a message and replays it as if just received
+func (b *Bot) ReplayMessage(channelID, messageID string) error {
+	// Fetch the message from Discord API
+	msg, err := b.session.ChannelMessage(channelID, messageID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch message %s from channel %s: %w", messageID, channelID, err)
+	}
+
+	// Fetch channel info to get the guild ID
+	channel, err := b.session.Channel(channelID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch channel %s: %w", channelID, err)
+	}
+
+	// Set the guild ID on the message (it's not populated by ChannelMessage)
+	msg.GuildID = channel.GuildID
+
+	// Create MessageCreate event from the fetched message
+	msgCreate := &discordgo.MessageCreate{
+		Message: msg,
+	}
+
+	// Log the replay action
+	log.WithFields(log.Fields{
+		"channel_id": channelID,
+		"message_id": messageID,
+		"guild_id":   msg.GuildID,
+		"content":    msg.Content,
+		"author":     msg.Author.Username,
+		"source":     "debug_replay",
+	}).Info("Replaying Discord message")
+
+	// Call the handler directly - this ensures all registered handlers work
+	b.handleMessageCreate(b.session, msgCreate)
+
+	return nil
+}
+
+// GetGuilds returns a list of guilds the bot is connected to
+func (b *Bot) GetGuilds() []GuildInfo {
+	guilds := make([]GuildInfo, 0)
+
+	// Get all guilds from Discord session
+	for _, guild := range b.session.State.Guilds {
+		guilds = append(guilds, GuildInfo{
+			ID:   guild.ID,
+			Name: guild.Name,
+		})
+	}
+
+	// If no guilds in state, try fetching them
+	if len(guilds) == 0 {
+		log.Warn("No guilds in session state, attempting to fetch user guilds")
+		userGuilds, err := b.session.UserGuilds(100, "", "", false)
+		if err != nil {
+			log.Errorf("Failed to fetch user guilds: %v", err)
+		} else {
+			for _, guild := range userGuilds {
+				log.Infof("User guild found: ID=%s, Name=%s", guild.ID, guild.Name)
+				guilds = append(guilds, GuildInfo{
+					ID:   guild.ID,
+					Name: guild.Name,
+				})
+			}
+		}
+	}
+
+	return guilds
 }
