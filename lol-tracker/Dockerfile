@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Multi-stage build for Python service
 FROM python:3.11-slim AS builder
 
@@ -8,6 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Install system dependencies including protobuf compiler
+# This layer is cached effectively
 RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
@@ -18,9 +20,24 @@ RUN apt-get update && apt-get install -y \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy requirements and install Python dependencies
+# Pre-install common Python packages for better caching
+# This layer only rebuilds when we add new core dependencies
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install \
+    grpcio \
+    grpcio-tools \
+    protobuf \
+    psycopg2 \
+    sqlalchemy \
+    alembic \
+    nats-py \
+    pydantic \
+    python-dotenv
+
+# Copy requirements and install specific versions
 COPY lol-tracker/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy protobuf source files
 COPY api/proto/ ./proto/
@@ -81,7 +98,7 @@ ENV PYTHONPATH=/app
 # For development, we'll mount the source code
 CMD ["python", "-m", "lol_tracker.main"]
 
-# Production stage
+# Production stage - use minimal python slim image
 FROM python:3.11-slim AS production
 
 # Set environment variables
@@ -89,7 +106,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:$PATH"
 
-# Install runtime dependencies
+# Install only runtime dependencies (no build tools)
 RUN apt-get update && apt-get install -y \
     libpq5 \
     && rm -rf /var/lib/apt/lists/*
