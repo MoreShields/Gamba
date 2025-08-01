@@ -67,7 +67,7 @@ func parseWordleResults(ctx context.Context, content string, guildID int64, user
 					atPositions = append(atPositions, i)
 				}
 			}
-			
+
 			// Extract nickname from each @ position
 			for _, pos := range atPositions {
 				// Find the end of the nickname
@@ -79,16 +79,18 @@ func parseWordleResults(ctx context.Context, content string, guildID int64, user
 					}
 					end++
 				}
-				
-				nickname := strings.TrimSpace(line[pos+1:end])
+
+				nickname := strings.TrimSpace(line[pos+1 : end])
 				if nickname == "" {
 					continue
 				}
-				
+
 				// Debug logging
 				log.WithFields(log.Fields{
 					"nickname": nickname,
-					"line": line,
+					"line":     line,
+					"position": pos,
+					"raw":      line[pos:end],
 				}).Debug("Found nickname mention")
 
 				// Resolve nickname to user IDs
@@ -99,6 +101,21 @@ func parseWordleResults(ctx context.Context, content string, guildID int64, user
 						"guild_id": guildID,
 					}).Error("Failed to resolve nickname to user ID")
 					continue
+				}
+
+				// Log resolution result
+				if len(userIDs) == 0 {
+					log.WithFields(log.Fields{
+						"nickname": nickname,
+						"guild_id": guildID,
+					}).Warn("No users found for nickname")
+				} else {
+					log.WithFields(log.Fields{
+						"nickname":   nickname,
+						"guild_id":   guildID,
+						"user_count": len(userIDs),
+						"user_ids":   userIDs,
+					}).Debug("Resolved nickname to users")
 				}
 
 				// Create a result for each resolved user
@@ -113,6 +130,13 @@ func parseWordleResults(ctx context.Context, content string, guildID int64, user
 		}
 	}
 
+	// Log parsing summary
+	if len(results) > 0 {
+		log.WithFields(log.Fields{
+			"total_results": len(results),
+			"guild_id":      guildID,
+		}).Info("Wordle parsing complete")
+	}
+
 	return results, nil
 }
-
