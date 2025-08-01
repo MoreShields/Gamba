@@ -55,7 +55,7 @@ func buildWinEmbed(result *models.BetResult, odds float64, session *BetSession, 
 	})
 
 	return &discordgo.MessageEmbed{
-		Description: fmt.Sprintf("🎉 **<@%d>** 🎉\nBalance: **%s bits**", userID, common.FormatBalance(result.NewBalance)),
+		Description: fmt.Sprintf("🎉 **<@%d>** 🎉\nBalance: **%s bits**", userID, common.FormatBalance(session.CurrentBalance)),
 		Color:       common.ColorSuccess,
 		Fields:      fields,
 	}
@@ -104,7 +104,7 @@ func buildLossEmbed(result *models.BetResult, odds float64, session *BetSession,
 	}
 
 	return &discordgo.MessageEmbed{
-		Description: fmt.Sprintf("🤡 **<@%d>** 🤡\nBalance: %s", userID, common.FormatBalance(result.NewBalance)),
+		Description: fmt.Sprintf("🤡 **<@%d>** 🤡\nBalance: %s", userID, common.FormatBalance(session.CurrentBalance)),
 		Color:       common.ColorDanger,
 		Fields:      fields,
 		Footer: &discordgo.MessageEmbedFooter{

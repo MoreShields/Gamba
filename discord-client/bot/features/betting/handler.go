@@ -376,15 +376,15 @@ func (f *Feature) handleNewBet(s *discordgo.Session, i *discordgo.InteractionCre
 	// Update session - reset PnL tracking for new bet session
 	session := getBetSession(discordID)
 	if session != nil {
-		session.CurrentBalance = user.Balance
-		session.StartingBalance = user.Balance
+		session.CurrentBalance = user.AvailableBalance
+		session.StartingBalance = user.AvailableBalance
 		session.SessionPnL = 0
 		session.BetCount = 0
-		updateSessionBalance(session.UserID, user.Balance, false)
+		updateSessionBalance(session.UserID, user.AvailableBalance, false)
 	}
 
 	// Show odds selection again as public message
-	embed := buildInitialBetEmbed(user.Balance, remaining)
+	embed := buildInitialBetEmbed(user.AvailableBalance, remaining)
 	components := CreateInitialComponents()
 
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{

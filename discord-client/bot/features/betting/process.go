@@ -37,35 +37,39 @@ func (f *Feature) processBetAndUpdateMessage(ctx context.Context, s *discordgo.S
 		return fmt.Errorf("unable to place bet: %w", err)
 	}
 
+	// Get updated user to fetch available balance after bet (within same transaction)
+	updatedUser, err := uow.UserRepository().GetByDiscordID(ctx, session.UserID)
+	if err != nil {
+		log.Errorf("Error getting updated user balance: %v", err)
+		return fmt.Errorf("unable to get updated balance: %w", err)
+	}
+	if updatedUser == nil {
+		return fmt.Errorf("user not found after bet")
+	}
+
 	// Commit the bet transaction
 	if err := uow.Commit(); err != nil {
 		log.Errorf("Error committing bet transaction: %v", err)
 		return fmt.Errorf("unable to commit bet: %w", err)
 	}
 
-	// Update session with new balance and bet info
-	updateSessionBalance(session.UserID, result.NewBalance, true)
+	// Update session with new available balance and bet info
+	updateSessionBalance(session.UserID, updatedUser.AvailableBalance, true)
 	updateBetSession(session.UserID, session.LastOdds, betAmount)
 
-	// Get updated session for embed
-	updatedSession := getBetSession(session.UserID)
-	if updatedSession == nil {
-		return fmt.Errorf("session lost after bet")
-	}
-
 	// Get display name for embed and logging
-	displayName := common.GetDisplayNameInt64(s, i.GuildID, updatedSession.UserID)
+	displayName := common.GetDisplayNameInt64(s, i.GuildID, session.UserID)
 
 	// Create result embed based on win/loss
 	var embed *discordgo.MessageEmbed
 	if result.Won {
-		embed = buildWinEmbed(result, updatedSession.LastOdds, updatedSession, updatedSession.UserID)
+		embed = buildWinEmbed(result, session.LastOdds, session, session.UserID)
 	} else {
-		embed = buildLossEmbed(result, updatedSession.LastOdds, updatedSession, updatedSession.UserID)
+		embed = buildLossEmbed(result, session.LastOdds, session, session.UserID)
 	}
 
-	// Create action buttons for next bet
-	components := CreateActionButtons(betAmount, result.NewBalance)
+	// Create action buttons for next bet (use available balance from session)
+	components := CreateActionButtons(betAmount, session.CurrentBalance)
 
 	// Update the original message with bet results
 	err = common.UpdateMessage(s, i, embed, components)
@@ -79,14 +83,14 @@ func (f *Feature) processBetAndUpdateMessage(ctx context.Context, s *discordgo.S
 		log.Infof("Bet WON: %s wagered %s at %.0f%% odds, won %s. New balance: %s",
 			displayName,
 			common.FormatBalance(betAmount),
-			updatedSession.LastOdds*100,
+			session.LastOdds*100,
 			common.FormatBalance(result.WinAmount),
 			common.FormatBalance(result.NewBalance))
 	} else {
 		log.Infof("Bet LOST: %s wagered %s at %.0f%% odds. New balance: %s",
 			displayName,
 			common.FormatBalance(betAmount),
-			updatedSession.LastOdds*100,
+			session.LastOdds*100,
 			common.FormatBalance(result.NewBalance))
 	}
 
@@ -113,10 +117,7 @@ func (f *Feature) processRepeatBet(ctx context.Context, s *discordgo.Session, i 
 	}
 
 	// Calculate new bet amount
-	newAmount := int64(float64(session.LastAmount) * multiplier)
-	if newAmount < 1 {
-		newAmount = 1
-	}
+	newAmount := max(int64(float64(session.LastAmount) * multiplier), 1)
 
 	// Validate new amount
 	if err := validateBetAmount(newAmount, session.CurrentBalance); err != nil {
