@@ -86,6 +86,7 @@ func (s *Shell) performStartupChecks() {
 		fmt.Println("Available commands:")
 		fmt.Println("  • guild - Select guild from menu (auto-selects if only one)")
 		fmt.Println("  • replay <channel_id> <message_id> - Replay a Discord message")
+		fmt.Println("  • daily-awards [guild_id] - Post daily awards summary")
 		fmt.Println("  • adjust-balance [guild_id] <user_id> <amount> - Adjust user balance")
 		fmt.Println("  • admin-transfer [guild_id] <from> <to> <amount> - Transfer between users")
 		fmt.Println("  • help - Show all available commands")

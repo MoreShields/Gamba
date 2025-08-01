@@ -179,9 +179,17 @@ func (h *wordleHandler) processWordleResult(ctx context.Context, result WordleRe
 		return fmt.Errorf("failed to save WordleCompletion: %w", err)
 	}
 
+	// Create DailyAwardsService with guild-scoped repositories
+	dailyAwardsService := service.NewDailyAwardsService(
+		uow.WordleCompletionRepo(),
+		uow.UserRepository(),
+		uow.WagerRepository(),
+		uow.BetRepository(),
+		uow.GroupWagerRepository(),
+	)
+
 	// Calculate reward including streak bonus
-	rewardService := service.NewWordleRewardService(uow.WordleCompletionRepo(), 0) // baseReward not used with new payout structure
-	reward, err := rewardService.CalculateReward(ctx, userID, guildID, score)
+	reward, err := dailyAwardsService.CalculateWordleReward(ctx, uow.WordleCompletionRepo(), userID, guildID, score)
 	if err != nil {
 		return fmt.Errorf("failed to calculate reward: %w", err)
 	}

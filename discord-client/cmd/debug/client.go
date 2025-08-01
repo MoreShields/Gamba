@@ -62,6 +62,27 @@ func (c *DebugClient) ReplayMessage(channelID, messageID string) error {
 	return nil
 }
 
+// PostDailyAwards posts the daily awards summary for a guild
+func (c *DebugClient) PostDailyAwards(guildID string) error {
+	cmd := map[string]interface{}{
+		"action": "post-daily-awards",
+		"params": map[string]string{
+			"guild_id": guildID,
+		},
+	}
+	
+	resp, err := c.sendCommand(cmd)
+	if err != nil {
+		return err
+	}
+	
+	if !resp.Success {
+		return fmt.Errorf("%s", resp.Error)
+	}
+	
+	return nil
+}
+
 // GetGuilds fetches the list of guilds from the bot
 func (c *DebugClient) GetGuilds() ([]GuildInfo, error) {
 	resp, err := c.client.Get(c.baseURL + "/debug/guilds")

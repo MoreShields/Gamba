@@ -27,6 +27,12 @@ func (s *Shell) initializeCommands() {
 			Usage:       "replay <channel_id> <message_id>",
 			Category:    "admin",
 		},
+		"daily-awards": {
+			Handler:     s.handleDailyAwards,
+			Description: "Post daily awards summary for a guild",
+			Usage:       "daily-awards [guild_id] - uses current guild if not specified",
+			Category:    "admin",
+		},
 		// Admin commands are defined in admin.go
 	}
 
@@ -85,6 +91,38 @@ func (s *Shell) handleReplay(shell *Shell, args []string) error {
 	}
 
 	s.printSuccess("Message replayed successfully")
+	return nil
+}
+
+// handleDailyAwards posts the daily awards summary for a guild
+func (s *Shell) handleDailyAwards(shell *Shell, args []string) error {
+	var guildID int64
+	
+	// Determine guild ID
+	if len(args) > 0 {
+		// Guild ID provided as argument
+		parsedGuildID, err := strconv.ParseInt(args[0], 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid guild ID: %w", err)
+		}
+		guildID = parsedGuildID
+	} else {
+		// Use current guild context
+		if s.currentGuild == 0 {
+			return fmt.Errorf("no guild context set - use 'guild' command first or provide guild ID")
+		}
+		guildID = s.currentGuild
+	}
+
+	guildIDStr := strconv.FormatInt(guildID, 10)
+	s.printInfo(fmt.Sprintf("Posting daily awards summary for guild %d...", guildID))
+
+	// Use debug client to post daily awards
+	if err := s.debugClient.PostDailyAwards(guildIDStr); err != nil {
+		return fmt.Errorf("failed to post daily awards: %w", err)
+	}
+
+	s.printSuccess("Daily awards summary posted successfully")
 	return nil
 }
 
