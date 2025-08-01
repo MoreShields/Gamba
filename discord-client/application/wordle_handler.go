@@ -86,7 +86,7 @@ func (h *wordleHandler) HandleDiscordMessage(ctx context.Context, event interfac
 			"guild_id":          guildID,
 			"channel_id":        channelID,
 			"wordle_channel_id": *settings.WordleChannelID,
-		}).Debug("Ignoring Wordle message from non-configured channel")
+		}).Info("Ignoring Wordle message from non-configured channel")
 		return nil
 	}
 
@@ -94,7 +94,7 @@ func (h *wordleHandler) HandleDiscordMessage(ctx context.Context, event interfac
 	if settings.WordleChannelID == nil {
 		log.WithFields(log.Fields{
 			"guild_id": guildID,
-		}).Debug("No Wordle channel configured for guild")
+		}).Info("No Wordle channel configured for guild")
 		return nil
 	}
 
@@ -163,7 +163,7 @@ func (h *wordleHandler) processWordleResult(ctx context.Context, result WordleRe
 	}
 
 	// Create WordleScore
-	score, err := models.NewWordleScore(result.GuessCount, result.MaxGuesses)
+	score, err := models.NewWordleScore(result.GuessCount)
 	if err != nil {
 		return fmt.Errorf("failed to create WordleScore: %w", err)
 	}
@@ -213,7 +213,6 @@ func (h *wordleHandler) processWordleResult(ctx context.Context, result WordleRe
 		TransactionType: models.TransactionTypeWordleReward,
 		TransactionMetadata: map[string]any{
 			"guess_count":  result.GuessCount,
-			"max_guesses":  result.MaxGuesses,
 			"final_reward": reward,
 		},
 		CreatedAt: time.Now(),

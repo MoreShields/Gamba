@@ -17,14 +17,13 @@ type wordleCompletionDB struct {
 	DiscordID   int64     `db:"discord_id"`
 	GuildID     int64     `db:"guild_id"`
 	GuessCount  int       `db:"guess_count"`
-	MaxGuesses  int       `db:"max_guesses"`
 	CompletedAt time.Time `db:"completed_at"`
 	CreatedAt   time.Time `db:"created_at"`
 }
 
 // toDomain converts the database struct to the domain model
 func (w *wordleCompletionDB) toDomain() (*models.WordleCompletion, error) {
-	score, err := models.NewWordleScore(w.GuessCount, w.MaxGuesses)
+	score, err := models.NewWordleScore(w.GuessCount)
 	if err != nil {
 		return nil, fmt.Errorf("invalid wordle score data: %w", err)
 	}
@@ -61,15 +60,14 @@ func NewWordleCompletionRepositoryScoped(tx Queryable, guildID int64) service.Wo
 // Create creates a new wordle completion record
 func (r *wordleCompletionRepository) Create(ctx context.Context, completion *models.WordleCompletion) error {
 	query := `
-		INSERT INTO wordle_completions (discord_id, guild_id, guess_count, max_guesses, completed_at)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO wordle_completions (discord_id, guild_id, guess_count, completed_at)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id, created_at`
 
 	err := r.q.QueryRow(ctx, query,
 		completion.DiscordID,
 		r.guildID, // Use repository's guild scope
 		completion.Score.Guesses,
-		completion.Score.MaxGuesses,
 		completion.CompletedAt,
 	).Scan(&completion.ID, &completion.CreatedAt)
 
@@ -86,7 +84,7 @@ func (r *wordleCompletionRepository) Create(ctx context.Context, completion *mod
 // GetByUserToday retrieves today's completion for a specific user
 func (r *wordleCompletionRepository) GetByUserToday(ctx context.Context, discordID, guildID int64) (*models.WordleCompletion, error) {
 	query := `
-		SELECT id, discord_id, guild_id, guess_count, max_guesses, completed_at, created_at
+		SELECT id, discord_id, guild_id, guess_count, completed_at, created_at
 		FROM wordle_completions
 		WHERE discord_id = $1 AND guild_id = $2 AND DATE(completed_at) = CURRENT_DATE`
 
@@ -96,7 +94,6 @@ func (r *wordleCompletionRepository) GetByUserToday(ctx context.Context, discord
 		&dbCompletion.DiscordID,
 		&dbCompletion.GuildID,
 		&dbCompletion.GuessCount,
-		&dbCompletion.MaxGuesses,
 		&dbCompletion.CompletedAt,
 		&dbCompletion.CreatedAt,
 	)
@@ -114,7 +111,7 @@ func (r *wordleCompletionRepository) GetByUserToday(ctx context.Context, discord
 // GetRecentCompletions returns recent completions for streak calculation
 func (r *wordleCompletionRepository) GetRecentCompletions(ctx context.Context, discordID, guildID int64, limit int) ([]*models.WordleCompletion, error) {
 	query := `
-		SELECT id, discord_id, guild_id, guess_count, max_guesses, completed_at, created_at
+		SELECT id, discord_id, guild_id, guess_count, completed_at, created_at
 		FROM wordle_completions
 		WHERE discord_id = $1 AND guild_id = $2
 		ORDER BY completed_at DESC
@@ -134,7 +131,6 @@ func (r *wordleCompletionRepository) GetRecentCompletions(ctx context.Context, d
 			&dbCompletion.DiscordID,
 			&dbCompletion.GuildID,
 			&dbCompletion.GuessCount,
-			&dbCompletion.MaxGuesses,
 			&dbCompletion.CompletedAt,
 			&dbCompletion.CreatedAt,
 		)
