@@ -24,6 +24,7 @@ type DailyAwardDTO struct {
 	DiscordID int64
 	Reward    int64
 	Details   string
+	Streak    int // For wordle awards
 }
 
 // GuildChannelInfo contains channel information for a guild

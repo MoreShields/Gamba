@@ -31,6 +31,7 @@ type WordleDailyAward struct {
 	DiscordID  int64
 	GuessCount int
 	Reward     int64
+	Streak     int
 }
 
 func (w WordleDailyAward) GetType() DailyAwardType {
@@ -47,6 +48,10 @@ func (w WordleDailyAward) GetReward() int64 {
 
 func (w WordleDailyAward) GetDetails() string {
 	return fmt.Sprintf("%d/6", w.GuessCount)
+}
+
+func (w WordleDailyAward) GetStreak() int {
+	return w.Streak
 }
 
 // DailyAwardsSummary represents all daily awards for a guild
@@ -137,10 +142,17 @@ func (s *DailyAwardsService) getWordleAwards(ctx context.Context, guildID int64)
 			return nil, fmt.Errorf("failed to calculate reward for user %d: %w", completion.DiscordID, err)
 		}
 
+		// Get streak for this user
+		streak, err := s.CountConsecutiveDays(ctx, s.wordleRepo, completion.DiscordID, guildID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to calculate streak for user %d: %w", completion.DiscordID, err)
+		}
+
 		awards = append(awards, WordleDailyAward{
 			DiscordID:  completion.DiscordID,
 			GuessCount: completion.Score.Guesses,
 			Reward:     reward,
+			Streak:     streak,
 		})
 	}
 

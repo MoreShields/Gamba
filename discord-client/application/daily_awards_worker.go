@@ -181,12 +181,19 @@ func (w *DailyAwardsWorkerImpl) processGuildAwards(ctx context.Context, guild dt
 func (w *DailyAwardsWorkerImpl) convertSummaryToDTO(summary *service.DailyAwardsSummary) *dto.DailyAwardsSummaryDTO {
 	awards := make([]dto.DailyAwardDTO, len(summary.Awards))
 	for i, award := range summary.Awards {
-		awards[i] = dto.DailyAwardDTO{
+		awardDTO := dto.DailyAwardDTO{
 			Type:      string(award.GetType()),
 			DiscordID: award.GetDiscordID(),
 			Reward:    award.GetReward(),
 			Details:   award.GetDetails(),
 		}
+		
+		// If it's a wordle award, include the streak
+		if wordleAward, ok := award.(service.WordleDailyAward); ok {
+			awardDTO.Streak = wordleAward.GetStreak()
+		}
+		
+		awards[i] = awardDTO
 	}
 
 	return &dto.DailyAwardsSummaryDTO{

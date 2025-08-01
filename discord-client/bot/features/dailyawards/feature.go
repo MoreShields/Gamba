@@ -44,8 +44,8 @@ func (f *Feature) PostDailyAwardsSummary(ctx context.Context, guildID int64, cha
 		// Build the table content
 		var tableContent strings.Builder
 		tableContent.WriteString("```\n")
-		tableContent.WriteString("User                Score  Reward\n")
-		tableContent.WriteString("──────────────────  ─────  ──────\n")
+		tableContent.WriteString("User                Score  Streak  Reward\n")
+		tableContent.WriteString("──────────────────  ─────  ──────  ──────\n")
 
 		// Convert guild ID to string for Discord API
 		guildIDStr := fmt.Sprintf("%d", guildID)
@@ -57,10 +57,17 @@ func (f *Feature) PostDailyAwardsSummary(ctx context.Context, guildID int64, cha
 				username = username[:15] + "..."
 			}
 
+			// Get streak info if available
+			streak := "1"
+			if wordleAward, ok := award.(service.WordleDailyAward); ok {
+				streak = fmt.Sprintf("%d", wordleAward.GetStreak())
+			}
+
 			// Format the row
-			tableContent.WriteString(fmt.Sprintf("%-18s  %-5s  %s\n",
+			tableContent.WriteString(fmt.Sprintf("%-18s  %-5s  %-6s  %s\n",
 				username,
 				award.GetDetails(),
+				streak,
 				common.FormatBalance(award.GetReward()),
 			))
 		}
@@ -211,8 +218,8 @@ func (f *Feature) PostDailyAwardsSummaryFromDTO(ctx context.Context, postDTO dto
 		// Build the table content
 		var tableContent strings.Builder
 		tableContent.WriteString("```\n")
-		tableContent.WriteString("User                Score  Reward\n")
-		tableContent.WriteString("──────────────────  ─────  ──────\n")
+		tableContent.WriteString("User                Score  Streak  Reward\n")
+		tableContent.WriteString("──────────────────  ─────  ──────  ──────\n")
 
 		// Convert guild ID to string for Discord API
 		guildIDStr := fmt.Sprintf("%d", postDTO.GuildID)
@@ -224,10 +231,17 @@ func (f *Feature) PostDailyAwardsSummaryFromDTO(ctx context.Context, postDTO dto
 				username = username[:15] + "..."
 			}
 
+			// Format streak
+			streak := "1"
+			if award.Streak > 0 {
+				streak = fmt.Sprintf("%d", award.Streak)
+			}
+
 			// Use the Details field directly - no parsing needed
-			tableContent.WriteString(fmt.Sprintf("%-18s  %-5s  %s\n",
+			tableContent.WriteString(fmt.Sprintf("%-18s  %-5s  %-6s  %s\n",
 				username,
 				award.Details,
+				streak,
 				common.FormatBalance(award.Reward),
 			))
 		}
