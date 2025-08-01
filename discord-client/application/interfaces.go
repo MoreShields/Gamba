@@ -24,6 +24,9 @@ type DiscordPoster interface {
 
 	// UpdateGroupWager updates an existing group wager message in Discord
 	UpdateGroupWager(ctx context.Context, messageID, channelID int64, detail interface{}) error
+
+	// PostDailyAwards posts daily awards summary to the appropriate Discord channel
+	PostDailyAwards(ctx context.Context, dto dto.DailyAwardsPostDTO) error
 }
 
 // WagerStateEventHandler defines the interface for handling internal wager state change events
@@ -42,4 +45,10 @@ type LoLEventHandler interface {
 
 	// HandleGameEnded processes a game ended event
 	HandleGameEnded(ctx context.Context, gameEnded dto.GameEndedDTO) error
+}
+
+// GuildDiscoveryService discovers guilds and their channel configurations
+type GuildDiscoveryService interface {
+	// GetGuildsWithPrimaryChannel returns all guilds that have a primary channel configured
+	GetGuildsWithPrimaryChannel(ctx context.Context) ([]dto.GuildChannelInfo, error)
 }

@@ -42,3 +42,12 @@ func (m *MockDiscordPoster) UpdateGroupWager(ctx context.Context, messageID, cha
 	// For tests, we don't need to track updates, just return success
 	return nil
 }
+
+// PostDailyAwards mock implementation
+func (m *MockDiscordPoster) PostDailyAwards(ctx context.Context, dto dto.DailyAwardsPostDTO) error {
+	if m.Error != nil {
+		return m.Error
+	}
+	// For tests, we don't need to track daily awards posts, just return success
+	return nil
+}

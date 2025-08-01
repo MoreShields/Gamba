@@ -85,6 +85,21 @@ func (b *Bot) StartDebugAPI(port int) error {
 			
 			respondWithSuccess(w, "Message replayed successfully")
 			
+		case "post-daily-awards":
+			guildID := cmd.Params["guild_id"]
+			
+			if guildID == "" {
+				respondWithError(w, "Missing guild_id", http.StatusBadRequest)
+				return
+			}
+			
+			if err := b.PostDailyAwardsForGuild(guildID); err != nil {
+				respondWithError(w, fmt.Sprintf("Failed to post daily awards: %v", err), http.StatusInternalServerError)
+				return
+			}
+			
+			respondWithSuccess(w, "Daily awards summary posted successfully")
+			
 		default:
 			respondWithError(w, fmt.Sprintf("Unknown action: %s", cmd.Action), http.StatusBadRequest)
 		}
