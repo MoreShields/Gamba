@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"gambler/discord-client/application"
@@ -15,13 +16,31 @@ import (
 
 	summoner_pb "gambler/discord-client/proto/services"
 
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 // Run initializes and starts the application
 func Run(ctx context.Context) error {
-	log.Println("Starting gambler bot...")
+	// Configure logrus
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "info" // default to info level
+	}
+	
+	level, err := logrus.ParseLevel(logLevel)
+	if err != nil {
+		log.Printf("Invalid LOG_LEVEL '%s', defaulting to info: %v", logLevel, err)
+		level = logrus.InfoLevel
+	}
+	
+	logrus.SetLevel(level)
+	logrus.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+	})
+	
+	log.Printf("Starting gambler bot with log level: %s", level)
 
 	// Load configuration
 	cfg := config.Get()
