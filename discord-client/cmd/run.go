@@ -66,14 +66,14 @@ func Run(ctx context.Context) error {
 	}
 
 	// Start background services
-	messageConsumer := startBackgroundServices(ctx, cfg, lolHandler)
+	messageConsumer, cleanupFuncs := startBackgroundServices(ctx, cfg, lolHandler, discordBot)
 
 	// Wait for shutdown signal
 	log.Printf("Bot is running in %s mode...", cfg.Environment)
 	<-ctx.Done()
 
 	// Graceful shutdown
-	performGracefulShutdown(messageConsumer, discordBot, natsClient, summonerConn, db)
+	performGracefulShutdown(messageConsumer, discordBot, natsClient, summonerConn, db, cleanupFuncs)
 
 	return nil
 }
@@ -188,7 +188,9 @@ func setupEventSubscriptions(natsClient *infrastructure.NATSClient, subjectMappe
 }
 
 // starts all background services
-func startBackgroundServices(ctx context.Context, cfg *config.Config, lolHandler *application.LoLHandlerImpl) *infrastructure.MessageConsumer {
+func startBackgroundServices(ctx context.Context, cfg *config.Config, lolHandler *application.LoLHandlerImpl, discordBot *bot.Bot) (*infrastructure.MessageConsumer, []func()) {
+	var cleanupFuncs []func()
+
 	log.Printf("Initializing message consumer with NATS servers: %s...", cfg.NATSServers)
 	messageConsumer := infrastructure.NewMessageConsumer(cfg.NATSServers, lolHandler)
 
@@ -199,7 +201,20 @@ func startBackgroundServices(ctx context.Context, cfg *config.Config, lolHandler
 		}
 	}()
 	log.Println("Message consumer started successfully")
-	return messageConsumer
+
+	// Start Discord bot workers
+	log.Println("Starting Discord bot workers...")
+	
+	// Start group wager expiration worker
+	groupWagerCleanup := discordBot.StartGroupWagerExpirationWorker(ctx)
+	cleanupFuncs = append(cleanupFuncs, groupWagerCleanup)
+	log.Println("Group wager expiration worker started")
+
+	// Start daily awards worker and store cleanup function in bot
+	discordBot.SetDailyAwardsWorkerCleanup(discordBot.StartDailyAwardsWorker(ctx, cfg.DailyAwardsHour))
+	log.Printf("Daily awards worker started (notification at %02d:00 UTC)", cfg.DailyAwardsHour)
+
+	return messageConsumer, cleanupFuncs
 }
 
 // handles graceful shutdown of all services
@@ -209,8 +224,15 @@ func performGracefulShutdown(
 	natsClient *infrastructure.NATSClient,
 	summonerConn *grpc.ClientConn,
 	db *database.DB,
+	cleanupFuncs []func(),
 ) {
 	log.Println("Shutting down services...")
+
+	// Stop all workers
+	log.Println("Stopping Discord bot workers...")
+	for _, cleanup := range cleanupFuncs {
+		cleanup()
+	}
 
 	// Stop message consumer
 	log.Println("Stopping message consumer...")
