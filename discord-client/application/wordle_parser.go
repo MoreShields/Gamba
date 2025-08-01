@@ -25,7 +25,6 @@ func parseWordleResults(ctx context.Context, content string, guildID int64, user
 
 	// Regex patterns
 	userPattern := regexp.MustCompile(`<@(\d+)>`)
-	nickPattern := regexp.MustCompile(`@([\w\s]+?)(?:\s|$|<)`)
 	scorePattern := regexp.MustCompile(`(\d+)/(\d+)`)
 
 	var results []WordleResult
@@ -61,9 +60,36 @@ func parseWordleResults(ctx context.Context, content string, guildID int64, user
 
 		// If we have a userResolver, also look for @nickname mentions
 		if userResolver != nil {
-			nickMatches := nickPattern.FindAllStringSubmatch(line, -1)
-			for _, nickMatch := range nickMatches {
-				nickname := strings.TrimSpace(nickMatch[1])
+			// Find all @ positions that are not part of <@userid> pattern
+			atPositions := []int{}
+			for i := 0; i < len(line); i++ {
+				if line[i] == '@' && (i == 0 || line[i-1] != '<') {
+					atPositions = append(atPositions, i)
+				}
+			}
+			
+			// Extract nickname from each @ position
+			for _, pos := range atPositions {
+				// Find the end of the nickname
+				end := pos + 1
+				for end < len(line) {
+					ch := line[end]
+					if ch == '@' || ch == '<' || ch == '\n' {
+						break
+					}
+					end++
+				}
+				
+				nickname := strings.TrimSpace(line[pos+1:end])
+				if nickname == "" {
+					continue
+				}
+				
+				// Debug logging
+				log.WithFields(log.Fields{
+					"nickname": nickname,
+					"line": line,
+				}).Debug("Found nickname mention")
 
 				// Resolve nickname to user IDs
 				userIDs, err := userResolver.ResolveUsersByNick(ctx, guildID, nickname)
