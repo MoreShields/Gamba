@@ -56,7 +56,7 @@ func (c *DebugClient) ReplayMessage(channelID, messageID string) error {
 	}
 	
 	if !resp.Success {
-		return fmt.Errorf(resp.Error)
+		return fmt.Errorf("%s", resp.Error)
 	}
 	
 	return nil
