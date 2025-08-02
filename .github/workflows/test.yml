@@ -7,88 +7,127 @@ on:
     branches: [ main ]
 
 jobs:
-  test:
+  build-base-images:
     runs-on: ubuntu-latest
+    outputs:
+      go-base-image: ${{ steps.go-image.outputs.image }}
+      python-builder-image: ${{ steps.python-image.outputs.image }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Go base image
+      id: go-image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: discord-client/Dockerfile
+        target: base
+        tags: gambler-go-base:latest
+        outputs: type=docker,dest=/tmp/go-base.tar
+        cache-from: type=gha,scope=go-base
+        cache-to: type=gha,mode=max,scope=go-base
+
+    - name: Build Python builder image
+      id: python-image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: lol-tracker/Dockerfile
+        target: builder
+        tags: gambler-python-builder:latest
+        outputs: type=docker,dest=/tmp/python-builder.tar
+        cache-from: type=gha,scope=python-builder
+        cache-to: type=gha,mode=max,scope=python-builder
+
+    - name: Upload Go base image
+      uses: actions/upload-artifact@v4
+      with:
+        name: go-base-image
+        path: /tmp/go-base.tar
+        retention-days: 1
+
+    - name: Upload Python builder image
+      uses: actions/upload-artifact@v4
+      with:
+        name: python-builder-image
+        path: /tmp/python-builder.tar
+        retention-days: 1
+
+  test:
+    needs: build-base-images
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        test-suite:
+          - name: discord-unit
+            service: discord-client
+            command: go test -v -short -p 4 ./...
+            env: |
+              ENVIRONMENT=test
+          - name: discord-integration
+            service: discord-client
+            command: go test -v -p 2 ./repository/...
+            env: |
+              ENVIRONMENT=test
+              TESTCONTAINERS_RYUK_DISABLED=true
+          - name: lol-tracker
+            service: lol-tracker
+            command: make test
+            env: |
+              ENVIRONMENT=test
+              TESTCONTAINERS_RYUK_DISABLED=true
+              DATABASE_URL=postgresql://test:test@localhost:5432/test
     
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.24.4'
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Download base images
+      uses: actions/download-artifact@v4
       with:
-        python-version: '3.11'
+        path: /tmp
 
-    - name: Install protobuf compiler
+    - name: Load Docker images
       run: |
-        sudo apt-get update
-        sudo apt-get install -y protobuf-compiler
+        docker load -i /tmp/go-base-image/go-base.tar
+        docker load -i /tmp/python-builder-image/python-builder.tar
 
-    - name: Install protobuf tools
-      run: make -C api install-tools
-
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('discord-client/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
-
-    - name: Cache Python dependencies
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('lol-tracker/requirements*.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
-
-    - name: Generate protobuf code for all services
-      run: make proto
-
-    - name: Download dependencies
-      working-directory: discord-client
-      run: go mod download
-
-    - name: Setup Python virtual environment
+    - name: Run ${{ matrix.test-suite.name }} tests
       run: |
-        python -m venv venv
-        ./venv/bin/pip install --upgrade pip
+        if [[ "${{ matrix.test-suite.service }}" == "discord-client" ]]; then
+          docker run --rm \
+            -v $PWD:/app \
+            -w /app/${{ matrix.test-suite.service }} \
+            --env-file <(echo "${{ matrix.test-suite.env }}") \
+            gambler-go-base:latest \
+            sh -c "go mod download && ${{ matrix.test-suite.command }}"
+        else
+          docker run --rm \
+            -v $PWD:/app \
+            -w /app/${{ matrix.test-suite.service }} \
+            --env-file <(echo "${{ matrix.test-suite.env }}") \
+            gambler-python-builder:latest \
+            ${{ matrix.test-suite.command }}
+        fi
 
-    - name: Install lol-tracker dependencies
-      working-directory: lol-tracker
-      run: ../venv/bin/pip install -r requirements-dev.txt
-
-    - name: Run discord-client unit tests
-      working-directory: discord-client
-      env:
-        ENVIRONMENT: test
-      run: go test -v -short ./...
-
-    - name: Run discord-client integration tests
-      working-directory: discord-client
-      env:
-        ENVIRONMENT: test
-        TESTCONTAINERS_RYUK_DISABLED: true
-      run: go test -v ./repository/...
-
-    - name: Run lol-tracker tests
-      working-directory: lol-tracker
-      env:
-        ENVIRONMENT: test
-        TESTCONTAINERS_RYUK_DISABLED: true
-        DATABASE_URL: postgresql://test:test@localhost:5432/test
-      run: make test
-
-    - name: Upload test coverage
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: test-results
-        path: test-results/
-        retention-days: 7
+  test-summary:
+    needs: test
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+    - name: Check test results
+      run: |
+        if [[ "${{ needs.test.result }}" == "success" ]]; then
+          echo "All tests passed!"
+          exit 0
+        else
+          echo "Some tests failed!"
+          exit 1
+        fi
