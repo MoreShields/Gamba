@@ -66,21 +66,12 @@ jobs:
           - name: discord-unit
             service: discord-client
             command: go test -v -short -p 4 ./...
-            env: |
-              ENVIRONMENT=test
           - name: discord-integration
             service: discord-client
             command: go test -v -p 2 ./repository/...
-            env: |
-              ENVIRONMENT=test
-              TESTCONTAINERS_RYUK_DISABLED=true
           - name: lol-tracker
             service: lol-tracker
             command: make test
-            env: |
-              ENVIRONMENT=test
-              TESTCONTAINERS_RYUK_DISABLED=true
-              DATABASE_URL=postgresql://test:test@localhost:5432/test
     
     steps:
     - name: Checkout repository
@@ -102,17 +93,26 @@ jobs:
     - name: Run ${{ matrix.test-suite.name }} tests
       run: |
         if [[ "${{ matrix.test-suite.service }}" == "discord-client" ]]; then
+          # Set up environment based on test type
+          ENV_VARS="-e ENVIRONMENT=test"
+          if [[ "${{ matrix.test-suite.name }}" == "discord-integration" ]]; then
+            ENV_VARS="$ENV_VARS -e TESTCONTAINERS_RYUK_DISABLED=true"
+          fi
+          
           docker run --rm \
             -v $PWD:/app \
             -w /app/${{ matrix.test-suite.service }} \
-            --env-file <(echo "${{ matrix.test-suite.env }}") \
+            $ENV_VARS \
             gambler-go-base:latest \
             sh -c "go mod download && ${{ matrix.test-suite.command }}"
         else
+          # Python tests
           docker run --rm \
             -v $PWD:/app \
             -w /app/${{ matrix.test-suite.service }} \
-            --env-file <(echo "${{ matrix.test-suite.env }}") \
+            -e ENVIRONMENT=test \
+            -e TESTCONTAINERS_RYUK_DISABLED=true \
+            -e DATABASE_URL=postgresql://test:test@localhost:5432/test \
             gambler-python-builder:latest \
             ${{ matrix.test-suite.command }}
         fi
