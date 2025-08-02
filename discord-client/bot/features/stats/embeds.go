@@ -40,13 +40,13 @@ func getMedalForRank(rank int) string {
 	}
 }
 
-// formatProfitLoss formats the profit/loss amount with appropriate markdown
+// formatProfitLoss formats the profit/loss amount with appropriate markdown and compact formatting
 func formatProfitLoss(amount int64) string {
 	if amount >= 0 {
-		return fmt.Sprintf("**+%s**", common.FormatBalance(amount))
+		return fmt.Sprintf("**+%s**", common.FormatBalanceCompact(amount))
 	}
-	// Negative amount already has minus sign from FormatBalance
-	return fmt.Sprintf("*%s*", common.FormatBalance(amount))
+	// Negative amount already has minus sign from FormatBalanceCompact
+	return fmt.Sprintf("*%s*", common.FormatBalanceCompact(amount))
 }
 
 // BuildScoreboardEmbed creates the scoreboard embed with pagination support
@@ -125,10 +125,10 @@ func buildBitsPage(embed *discordgo.MessageEmbed, entry []*entities.ScoreboardEn
 		balanceStr := common.FormatBalanceCompact(user.TotalBalance)
 		volumeStr := common.FormatBalanceCompact(user.TotalVolume)
 		donationStr := common.FormatBalanceCompact(user.TotalDonations)
-		
+
 		// Build the stats line
 		statsLine := fmt.Sprintf("%s | %s | %s", balanceStr, volumeStr, donationStr)
-		
+
 		// Add icons for highest values
 		if user.TotalVolume == highestVolume && highestVolume > 0 {
 			statsLine += " 🎲"
@@ -136,7 +136,7 @@ func buildBitsPage(embed *discordgo.MessageEmbed, entry []*entities.ScoreboardEn
 		if user.TotalDonations == highestDonations && highestDonations > 0 {
 			statsLine += " 🎁"
 		}
-		
+
 		statsLines = append(statsLines, statsLine)
 	}
 
@@ -160,9 +160,8 @@ func buildBitsPage(embed *discordgo.MessageEmbed, entry []*entities.ScoreboardEn
 
 // buildLoLPage populates the embed with LoL wager leaderboard using real data
 func buildLoLPage(ctx context.Context, embed *discordgo.MessageEmbed, metricsService interfaces.UserMetricsService, session *discordgo.Session, guildID string) {
-	// Add page description with table header
-	embed.Description = "**LoL Wager Stats**\n" +
-		"*Rank User | Win% (W/L) | Total Wagered (P/L)*\n\n"
+	// Clear description
+	embed.Description = ""
 
 	// Get LoL leaderboard data with minimum wagers
 	entries, totalBitsWagered, err := metricsService.GetLOLLeaderboard(ctx, MinLoLWagersForLeaderboard)
@@ -173,25 +172,47 @@ func buildLoLPage(ctx context.Context, embed *discordgo.MessageEmbed, metricsSer
 	}
 
 	if len(entries) == 0 {
-		embed.Description += fmt.Sprintf("No LoL wager data available yet\n\n*Minimum %d LoL wagers to qualify*", MinLoLWagersForLeaderboard)
+		embed.Description = fmt.Sprintf("No LoL wager data available yet\n\n*Minimum %d LoL wagers to qualify*", MinLoLWagersForLeaderboard)
 		return
 	}
 
-	var lines []string
+	// Build field values
+	var userLines []string
+	var statsLines []string
 
 	for _, entry := range entries {
 		medal := getMedalForRank(entry.Rank)
 
-		profitLossStr := formatProfitLoss(entry.ProfitLoss)
+		// User field
+		userLines = append(userLines, fmt.Sprintf("%s <@%d>", medal, entry.DiscordID))
 
-		lines = append(lines, fmt.Sprintf("%s <@%d> | **%.1f%%** (%d/%d) | %s (%s)",
-			medal, entry.DiscordID, entry.AccuracyPercentage, entry.CorrectPredictions, entry.TotalPredictions,
-			common.FormatBalance(entry.TotalAmountWagered), profitLossStr))
+		// Stats field - format values
+		profitLossStr := formatProfitLoss(entry.ProfitLoss)
+		wageredStr := common.FormatBalanceCompact(entry.TotalAmountWagered)
+		winRateStr := fmt.Sprintf("%.1f%%", entry.AccuracyPercentage)
+		winsLossesStr := fmt.Sprintf("(%d/%d)", entry.CorrectPredictions, entry.TotalPredictions)
+
+		// Build the stats line: P/L | Wagered | Win%
+		statsLine := fmt.Sprintf("%s | %s | %s %s", profitLossStr, wageredStr, winRateStr, winsLossesStr)
+		statsLines = append(statsLines, statsLine)
 	}
 
-	embed.Description += strings.Join(lines, "\n") + "\n\n" +
-		fmt.Sprintf("**Total LoL Bits Wagered: %s**\n", common.FormatBalance(totalBitsWagered)) +
-		fmt.Sprintf("*Minimum %d LoL wagers to qualify*\n", MinLoLWagersForLeaderboard)
+	// Add fields
+	embed.Fields = []*discordgo.MessageEmbedField{
+		{
+			Name:   "Rank & User",
+			Value:  strings.Join(userLines, "\n") + fmt.Sprintf("\n\n*Minimum %d wagers to qualify*", MinLoLWagersForLeaderboard),
+			Inline: true,
+		},
+		{
+			Name:   "P/L | Wagered | Win%",
+			Value:  strings.Join(statsLines, "\n"),
+			Inline: true,
+		},
+	}
+
+	// Add footer info to description
+	embed.Description = fmt.Sprintf("**Total LoL Bits Wagered: %s**", common.FormatBalance(totalBitsWagered))
 }
 
 // GetPageFromFooter extracts the current page from the footer text

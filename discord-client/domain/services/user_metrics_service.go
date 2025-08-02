@@ -332,13 +332,13 @@ func (s *userMetricsService) GetLOLLeaderboard(ctx context.Context, minWagers in
 		}
 	}
 
-	// Sort by accuracy percentage (descending)
+	// Sort by profit/loss (descending)
 	sort.Slice(entries, func(i, j int) bool {
-		// If accuracy is the same, sort by total predictions (more = higher rank)
-		if entries[i].AccuracyPercentage == entries[j].AccuracyPercentage {
+		// If profit/loss is the same, sort by total predictions (more = higher rank)
+		if entries[i].ProfitLoss == entries[j].ProfitLoss {
 			return entries[i].TotalPredictions > entries[j].TotalPredictions
 		}
-		return entries[i].AccuracyPercentage > entries[j].AccuracyPercentage
+		return entries[i].ProfitLoss > entries[j].ProfitLoss
 	})
 
 	// Assign ranks
