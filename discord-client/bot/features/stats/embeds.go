@@ -90,9 +90,8 @@ func buildFooter(currentPage string) *discordgo.MessageEmbedFooter {
 
 // buildBitsPage populates the embed with bits scoreboard data
 func buildBitsPage(embed *discordgo.MessageEmbed, entry []*entities.ScoreboardEntry, totalBits int64) {
-	// Add page description with table header
-	embed.Description = "**Current Balance Rankings**\n" +
-		"*Rank User | Balance | Volume | Donated*\n\n"
+	// Add page description
+	embed.Description = ""
 
 	if len(entry) == 0 {
 		embed.Description += "No players found\n\n" +
@@ -112,28 +111,51 @@ func buildBitsPage(embed *discordgo.MessageEmbed, entry []*entities.ScoreboardEn
 		}
 	}
 
-	var lines []string
+	// Build field values
+	var userLines []string
+	var statsLines []string
+
 	for i, user := range entry {
 		medal := getMedalForRank(i + 1)
-		volumeStr := common.FormatBalance(user.TotalVolume)
-		donationStr := common.FormatBalance(user.TotalDonations)
+
+		// User field
+		userLines = append(userLines, fmt.Sprintf("%s <@%d>", medal, user.DiscordID))
+
+		// Stats field - format values compactly
+		balanceStr := common.FormatBalanceCompact(user.TotalBalance)
+		volumeStr := common.FormatBalanceCompact(user.TotalVolume)
+		donationStr := common.FormatBalanceCompact(user.TotalDonations)
 		
-		// Add dice icon for highest volume player
+		// Build the stats line
+		statsLine := fmt.Sprintf("%s | %s | %s", balanceStr, volumeStr, donationStr)
+		
+		// Add icons for highest values
 		if user.TotalVolume == highestVolume && highestVolume > 0 {
-			volumeStr += " 🎲"
+			statsLine += " 🎲"
 		}
-		
-		// Add gift icon for highest donator
 		if user.TotalDonations == highestDonations && highestDonations > 0 {
-			donationStr += " 🎁"
+			statsLine += " 🎁"
 		}
 		
-		lines = append(lines, fmt.Sprintf("%s <@%d> | %s | %s | %s",
-			medal, user.DiscordID, common.FormatBalance(user.TotalBalance), volumeStr, donationStr))
+		statsLines = append(statsLines, statsLine)
 	}
 
-	embed.Description += strings.Join(lines, "\n") + "\n\n" +
-		fmt.Sprintf("**Total Server Bits: %s**", common.FormatBalance(totalBits))
+	// Add fields
+	embed.Fields = []*discordgo.MessageEmbedField{
+		{
+			Name:   "Rank & User",
+			Value:  strings.Join(userLines, "\n"),
+			Inline: true,
+		},
+		{
+			Name:   "Balance | Volume | Donated",
+			Value:  strings.Join(statsLines, "\n"),
+			Inline: true,
+		},
+	}
+
+	// Add total server bits to description
+	embed.Description += fmt.Sprintf("**Total Server Bits: %s**", common.FormatBalance(totalBits))
 }
 
 // buildLoLPage populates the embed with LoL wager leaderboard using real data
