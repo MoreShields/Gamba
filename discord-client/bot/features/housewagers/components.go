@@ -9,8 +9,8 @@ import (
 
 	"gambler/discord-client/application/dto"
 	"gambler/discord-client/bot/common"
-	"gambler/discord-client/models"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/entities"
+	"gambler/discord-client/domain/services"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -129,7 +129,7 @@ func (f *Feature) handleHouseWagerBetButton(s *discordgo.Session, i *discordgo.I
 	}
 
 	// Find the selected option
-	var selectedOption *models.GroupWagerOption
+	var selectedOption *entities.GroupWagerOption
 	for _, opt := range wagerDetail.Options {
 		if opt.ID == optionID {
 			selectedOption = opt
@@ -266,7 +266,7 @@ func (f *Feature) handleHouseWagerBetModal(s *discordgo.Session, i *discordgo.In
 	}
 
 	// Find selected option
-	var selectedOption *models.GroupWagerOption
+	var selectedOption *entities.GroupWagerOption
 	for _, opt := range wagerDetail.Options {
 		if opt.ID == optionID {
 			selectedOption = opt
@@ -281,7 +281,7 @@ func (f *Feature) handleHouseWagerBetModal(s *discordgo.Session, i *discordgo.In
 	}
 
 	// Create group wager service
-	groupWagerService := service.NewGroupWagerService(
+	groupWagerService := services.NewGroupWagerService(
 		uow.GroupWagerRepository(),
 		uow.UserRepository(),
 		uow.BalanceHistoryRepository(),

@@ -8,7 +8,7 @@ import (
 	"gambler/discord-client/application/dto"
 	"gambler/discord-client/config"
 	"gambler/discord-client/infrastructure"
-	"gambler/discord-client/models"
+	"gambler/discord-client/domain/entities"
 	"gambler/discord-client/repository/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -74,8 +74,8 @@ func TestLoLHandler_EndToEndFlow(t *testing.T) {
 		require.NoError(t, uow.Begin(ctx))
 		defer uow.Rollback()
 
-		externalRef := models.ExternalReference{
-			System: models.SystemLeagueOfLegends,
+		externalRef := entities.ExternalReference{
+			System: entities.SystemLeagueOfLegends,
 			ID:     gameID,
 		}
 
@@ -83,12 +83,12 @@ func TestLoLHandler_EndToEndFlow(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, wager)
 
-		assert.Equal(t, models.GroupWagerTypeHouse, wager.WagerType)
-		assert.Equal(t, models.GroupWagerStateActive, wager.State)
+		assert.Equal(t, entities.GroupWagerTypeHouse, wager.WagerType)
+		assert.Equal(t, entities.GroupWagerStateActive, wager.State)
 		assert.Equal(t, guildID, wager.GuildID)
 		assert.NotNil(t, wager.ExternalRef)
 		assert.Equal(t, gameID, wager.ExternalRef.ID)
-		assert.Equal(t, models.SystemLeagueOfLegends, wager.ExternalRef.System)
+		assert.Equal(t, entities.SystemLeagueOfLegends, wager.ExternalRef.System)
 	})
 
 	t.Run("Game End Resolves House Wager - Win", func(t *testing.T) {
@@ -110,8 +110,8 @@ func TestLoLHandler_EndToEndFlow(t *testing.T) {
 		require.NoError(t, uow.Begin(ctx))
 		defer uow.Rollback()
 
-		externalRef := models.ExternalReference{
-			System: models.SystemLeagueOfLegends,
+		externalRef := entities.ExternalReference{
+			System: entities.SystemLeagueOfLegends,
 			ID:     gameID,
 		}
 
@@ -119,7 +119,7 @@ func TestLoLHandler_EndToEndFlow(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, wager)
 
-		assert.Equal(t, models.GroupWagerStateResolved, wager.State)
+		assert.Equal(t, entities.GroupWagerStateResolved, wager.State)
 		assert.NotNil(t, wager.WinningOptionID)
 
 		// Verify the correct option won (Win option)
@@ -127,7 +127,7 @@ func TestLoLHandler_EndToEndFlow(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, detail)
 
-		var winOption *models.GroupWagerOption
+		var winOption *entities.GroupWagerOption
 		for _, opt := range detail.Options {
 			if opt.ID == *wager.WinningOptionID {
 				winOption = opt
@@ -202,8 +202,8 @@ func TestLoLHandler_EndToEndFlow_Loss(t *testing.T) {
 	require.NoError(t, uow.Begin(ctx))
 	defer uow.Rollback()
 
-	externalRef := models.ExternalReference{
-		System: models.SystemLeagueOfLegends,
+	externalRef := entities.ExternalReference{
+		System: entities.SystemLeagueOfLegends,
 		ID:     gameID,
 	}
 
@@ -211,7 +211,7 @@ func TestLoLHandler_EndToEndFlow_Loss(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, wager)
 
-	assert.Equal(t, models.GroupWagerStateResolved, wager.State)
+	assert.Equal(t, entities.GroupWagerStateResolved, wager.State)
 	assert.NotNil(t, wager.WinningOptionID)
 
 	// Verify the correct option won (Loss option)
@@ -219,7 +219,7 @@ func TestLoLHandler_EndToEndFlow_Loss(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, detail)
 
-	var winOption *models.GroupWagerOption
+	var winOption *entities.GroupWagerOption
 	for _, opt := range detail.Options {
 		if opt.ID == *wager.WinningOptionID {
 			winOption = opt
@@ -282,8 +282,8 @@ func TestLoLHandler_MultipleGuilds(t *testing.T) {
 	assert.Len(t, mockPoster.Posts, 2)
 
 	// Verify both wagers exist in their respective guilds
-	externalRef := models.ExternalReference{
-		System: models.SystemLeagueOfLegends,
+	externalRef := entities.ExternalReference{
+		System: entities.SystemLeagueOfLegends,
 		ID:     gameID,
 	}
 
@@ -322,11 +322,11 @@ func TestLoLHandler_MultipleGuilds(t *testing.T) {
 	// Verify both wagers are resolved
 	wager1, err = uow1.GroupWagerRepository().GetByExternalReference(ctx, externalRef)
 	require.NoError(t, err)
-	assert.Equal(t, models.GroupWagerStateResolved, wager1.State)
+	assert.Equal(t, entities.GroupWagerStateResolved, wager1.State)
 
 	wager2, err = uow2.GroupWagerRepository().GetByExternalReference(ctx, externalRef)
 	require.NoError(t, err)
-	assert.Equal(t, models.GroupWagerStateResolved, wager2.State)
+	assert.Equal(t, entities.GroupWagerStateResolved, wager2.State)
 }
 
 func TestLoLHandler_NoWatchingGuilds(t *testing.T) {
@@ -391,7 +391,7 @@ func setupTestData(t *testing.T, ctx context.Context, uowFactory application.Uni
 	}()
 
 	// Create guild settings with LoL channel
-	guildSettings := &models.GuildSettings{
+	guildSettings := &entities.GuildSettings{
 		GuildID:      guildID,
 		LolChannelID: func() *int64 { id := int64(999999); return &id }(), // Mock channel ID
 	}
@@ -457,15 +457,15 @@ func TestLoLHandler_ForfeitRemake(t *testing.T) {
 	uow := uowFactory.CreateForGuild(guildID)
 	require.NoError(t, uow.Begin(ctx))
 
-	externalRef := models.ExternalReference{
-		System: models.SystemLeagueOfLegends,
+	externalRef := entities.ExternalReference{
+		System: entities.SystemLeagueOfLegends,
 		ID:     gameID,
 	}
 
 	wager, err := uow.GroupWagerRepository().GetByExternalReference(ctx, externalRef)
 	require.NoError(t, err)
 	require.NotNil(t, wager)
-	require.Equal(t, models.GroupWagerStateActive, wager.State)
+	require.Equal(t, entities.GroupWagerStateActive, wager.State)
 	uow.Rollback()
 
 	// Game end - neither win nor loss (forfeit/remake)
@@ -488,5 +488,5 @@ func TestLoLHandler_ForfeitRemake(t *testing.T) {
 	wager, err = uow.GroupWagerRepository().GetByExternalReference(ctx, externalRef)
 	require.NoError(t, err)
 	require.NotNil(t, wager)
-	assert.Equal(t, models.GroupWagerStateCancelled, wager.State)
+	assert.Equal(t, entities.GroupWagerStateCancelled, wager.State)
 }

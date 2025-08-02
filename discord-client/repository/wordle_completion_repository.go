@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"gambler/discord-client/database"
-	"gambler/discord-client/models"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/entities"
+	"gambler/discord-client/domain/interfaces"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -23,13 +23,13 @@ type wordleCompletionDB struct {
 }
 
 // toDomain converts the database struct to the domain model
-func (w *wordleCompletionDB) toDomain() (*models.WordleCompletion, error) {
-	score, err := models.NewWordleScore(w.GuessCount)
+func (w *wordleCompletionDB) toDomain() (*entities.WordleCompletion, error) {
+	score, err := entities.NewWordleScore(w.GuessCount)
 	if err != nil {
 		return nil, fmt.Errorf("invalid wordle score data: %w", err)
 	}
 
-	return &models.WordleCompletion{
+	return &entities.WordleCompletion{
 		ID:          w.ID,
 		DiscordID:   w.DiscordID,
 		GuildID:     w.GuildID,
@@ -39,19 +39,19 @@ func (w *wordleCompletionDB) toDomain() (*models.WordleCompletion, error) {
 	}, nil
 }
 
-// wordleCompletionRepository implements service.WordleCompletionRepository
+// wordleCompletionRepository implements services.WordleCompletionRepository
 type wordleCompletionRepository struct {
 	q       Queryable
 	guildID int64
 }
 
 // NewWordleCompletionRepository creates a new wordle completion repository
-func NewWordleCompletionRepository(db *database.DB) service.WordleCompletionRepository {
+func NewWordleCompletionRepository(db *database.DB) interfaces.WordleCompletionRepository {
 	return &wordleCompletionRepository{q: db.Pool}
 }
 
 // NewWordleCompletionRepositoryScoped creates a new wordle completion repository with guild scope
-func NewWordleCompletionRepositoryScoped(tx Queryable, guildID int64) service.WordleCompletionRepository {
+func NewWordleCompletionRepositoryScoped(tx Queryable, guildID int64) interfaces.WordleCompletionRepository {
 	return &wordleCompletionRepository{
 		q:       tx,
 		guildID: guildID,
@@ -59,7 +59,7 @@ func NewWordleCompletionRepositoryScoped(tx Queryable, guildID int64) service.Wo
 }
 
 // Create creates a new wordle completion record
-func (r *wordleCompletionRepository) Create(ctx context.Context, completion *models.WordleCompletion) error {
+func (r *wordleCompletionRepository) Create(ctx context.Context, completion *entities.WordleCompletion) error {
 	query := `
 		INSERT INTO wordle_completions (discord_id, guild_id, guess_count, completed_at)
 		VALUES ($1, $2, $3, $4)
@@ -83,7 +83,7 @@ func (r *wordleCompletionRepository) Create(ctx context.Context, completion *mod
 }
 
 // GetByUserToday retrieves today's completion for a specific user
-func (r *wordleCompletionRepository) GetByUserToday(ctx context.Context, discordID, guildID int64) (*models.WordleCompletion, error) {
+func (r *wordleCompletionRepository) GetByUserToday(ctx context.Context, discordID, guildID int64) (*entities.WordleCompletion, error) {
 	query := `
 		SELECT id, discord_id, guild_id, guess_count, completed_at, created_at
 		FROM wordle_completions
@@ -110,7 +110,7 @@ func (r *wordleCompletionRepository) GetByUserToday(ctx context.Context, discord
 }
 
 // GetRecentCompletions returns recent completions for streak calculation
-func (r *wordleCompletionRepository) GetRecentCompletions(ctx context.Context, discordID, guildID int64, limit int) ([]*models.WordleCompletion, error) {
+func (r *wordleCompletionRepository) GetRecentCompletions(ctx context.Context, discordID, guildID int64, limit int) ([]*entities.WordleCompletion, error) {
 	query := `
 		SELECT id, discord_id, guild_id, guess_count, completed_at, created_at
 		FROM wordle_completions
@@ -124,7 +124,7 @@ func (r *wordleCompletionRepository) GetRecentCompletions(ctx context.Context, d
 	}
 	defer rows.Close()
 
-	var completions []*models.WordleCompletion
+	var completions []*entities.WordleCompletion
 	for rows.Next() {
 		var dbCompletion wordleCompletionDB
 		err := rows.Scan(
@@ -154,7 +154,7 @@ func (r *wordleCompletionRepository) GetRecentCompletions(ctx context.Context, d
 }
 
 // GetTodaysCompletions retrieves all completions for today in this repository's guild
-func (r *wordleCompletionRepository) GetTodaysCompletions(ctx context.Context) ([]*models.WordleCompletion, error) {
+func (r *wordleCompletionRepository) GetTodaysCompletions(ctx context.Context) ([]*entities.WordleCompletion, error) {
 	query := `
 		SELECT id, discord_id, guild_id, guess_count, completed_at, created_at
 		FROM wordle_completions
@@ -167,7 +167,7 @@ func (r *wordleCompletionRepository) GetTodaysCompletions(ctx context.Context) (
 	}
 	defer rows.Close()
 
-	var completions []*models.WordleCompletion
+	var completions []*entities.WordleCompletion
 	for rows.Next() {
 		var dbCompletion wordleCompletionDB
 		err := rows.Scan(

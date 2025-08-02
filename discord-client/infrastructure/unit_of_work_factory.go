@@ -5,19 +5,19 @@ import (
 
 	"gambler/discord-client/application"
 	"gambler/discord-client/database"
-	"gambler/discord-client/events"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/events"
+	"gambler/discord-client/domain/interfaces"
 )
 
 // UnitOfWorkFactory implements the application.UnitOfWorkFactory interface
 // It creates UnitOfWork instances that handle both database transactions and event publishing
 type UnitOfWorkFactory struct {
 	db             *database.DB
-	eventPublisher service.EventPublisher
+	eventPublisher interfaces.EventPublisher
 }
 
 // NewUnitOfWorkFactory creates a new UnitOfWorkFactory
-func NewUnitOfWorkFactory(db *database.DB, eventPublisher service.EventPublisher) *UnitOfWorkFactory {
+func NewUnitOfWorkFactory(db *database.DB, eventPublisher interfaces.EventPublisher) *UnitOfWorkFactory {
 	return &UnitOfWorkFactory{
 		db:             db,
 		eventPublisher: eventPublisher,

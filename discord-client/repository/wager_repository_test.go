@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"gambler/discord-client/models"
+	"gambler/discord-client/domain/entities"
 	"gambler/discord-client/repository/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -25,13 +25,13 @@ func TestWagerRepository_UpdateMessageIDs(t *testing.T) {
 
 	// Create test wager
 	wagerRepo := NewWagerRepositoryScoped(testDB.DB.Pool, testGuildID)
-	wager := &models.Wager{
+	wager := &entities.Wager{
 		ProposerDiscordID: proposer.DiscordID,
 		TargetDiscordID:   target.DiscordID,
 		GuildID:           testGuildID,
 		Amount:            1000,
 		Condition:         "Test wager condition",
-		State:             models.WagerStateProposed,
+		State:             entities.WagerStateProposed,
 		MessageID:         nil,
 		ChannelID:         nil,
 	}

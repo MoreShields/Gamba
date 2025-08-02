@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"gambler/discord-client/bot/common"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/services"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -52,7 +52,7 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 	defer uow.Rollback()
 
 	// Instantiate user metrics service with repositories from UnitOfWork
-	metricsService := service.NewUserMetricsService(
+	metricsService := services.NewUserMetricsService(
 		uow.UserRepository(),
 		uow.WagerRepository(),
 		uow.BetRepository(),
@@ -148,7 +148,7 @@ func (f *Feature) handleStatsBalance(s *discordgo.Session, i *discordgo.Interact
 	defer uow.Rollback()
 
 	// Instantiate user metrics service with repositories from UnitOfWork
-	metricsService := service.NewUserMetricsService(
+	metricsService := services.NewUserMetricsService(
 		uow.UserRepository(),
 		uow.WagerRepository(),
 		uow.BetRepository(),

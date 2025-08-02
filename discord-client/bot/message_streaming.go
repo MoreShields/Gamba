@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"gambler/discord-client/events"
+	"gambler/discord-client/domain/events"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"

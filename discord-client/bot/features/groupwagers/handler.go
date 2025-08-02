@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"gambler/discord-client/bot/common"
-	"gambler/discord-client/models"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/entities"
+	"gambler/discord-client/domain/services"
 	"strconv"
 	"strings"
 
@@ -216,7 +216,7 @@ func (f *Feature) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo
 	defer uow.Rollback()
 
 	// Instantiate group wager service with repositories from UnitOfWork
-	groupWagerService := service.NewGroupWagerService(
+	groupWagerService := services.NewGroupWagerService(
 		uow.GroupWagerRepository(),
 		uow.UserRepository(),
 		uow.BalanceHistoryRepository(),
@@ -225,7 +225,7 @@ func (f *Feature) handleGroupWagerCreateModal(s *discordgo.Session, i *discordgo
 
 	// Create the group wager (message ID will be updated after posting)
 	// Default to pool wager with no preset odds for existing bot command
-	groupWagerDetail, err := groupWagerService.CreateGroupWager(ctx, &creatorID, condition, options, votingPeriodMinutes, 0, 0, models.GroupWagerTypePool, nil)
+	groupWagerDetail, err := groupWagerService.CreateGroupWager(ctx, &creatorID, condition, options, votingPeriodMinutes, 0, 0, entities.GroupWagerTypePool, nil)
 	if err != nil {
 		log.Printf("Error creating group wager: %v", err)
 		common.FollowUpWithError(s, i, fmt.Sprintf("Failed to create group wager: %v", err))
@@ -331,7 +331,7 @@ func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Int
 	defer uow.Rollback()
 
 	// Instantiate group wager service with repositories from UnitOfWork
-	groupWagerService := service.NewGroupWagerService(
+	groupWagerService := services.NewGroupWagerService(
 		uow.GroupWagerRepository(),
 		uow.UserRepository(),
 		uow.BalanceHistoryRepository(),
@@ -491,7 +491,7 @@ func (f *Feature) handleGroupWagerCancel(s *discordgo.Session, i *discordgo.Inte
 	defer uow.Rollback()
 
 	// Instantiate group wager service with repositories from UnitOfWork
-	groupWagerService := service.NewGroupWagerService(
+	groupWagerService := services.NewGroupWagerService(
 		uow.GroupWagerRepository(),
 		uow.UserRepository(),
 		uow.BalanceHistoryRepository(),
@@ -546,7 +546,7 @@ func (f *Feature) handleGroupWagerCancel(s *discordgo.Session, i *discordgo.Inte
 		channelIDStr := strconv.FormatInt(channelID, 10)
 		common.UnpinMessage(s, channelIDStr, messageIDStr)
 		// Update the state in the existing detail object
-		detail.Wager.State = models.GroupWagerStateCancelled
+		detail.Wager.State = entities.GroupWagerStateCancelled
 
 		// Create updated embed and components
 		embed := CreateGroupWagerEmbed(detail)
@@ -677,12 +677,12 @@ func (f *Feature) handleGroupWagerBetModal(s *discordgo.Session, i *discordgo.In
 	defer uow.Rollback()
 
 	// Instantiate services with repositories from UnitOfWork
-	userService := service.NewUserService(
+	userService := services.NewUserService(
 		uow.UserRepository(),
 		uow.BalanceHistoryRepository(),
 		uow.EventBus(),
 	)
-	groupWagerService := service.NewGroupWagerService(
+	groupWagerService := services.NewGroupWagerService(
 		uow.GroupWagerRepository(),
 		uow.UserRepository(),
 		uow.BalanceHistoryRepository(),
@@ -749,7 +749,7 @@ func (f *Feature) updateGroupWagerMessage(s *discordgo.Session, msg *discordgo.M
 	defer uow.Rollback()
 
 	// Instantiate group wager service with repositories from UnitOfWork
-	groupWagerService := service.NewGroupWagerService(
+	groupWagerService := services.NewGroupWagerService(
 		uow.GroupWagerRepository(),
 		uow.UserRepository(),
 		uow.BalanceHistoryRepository(),

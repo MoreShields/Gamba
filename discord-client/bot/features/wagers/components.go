@@ -3,7 +3,7 @@ package wagers
 import (
 	"fmt"
 
-	"gambler/discord-client/models"
+	"gambler/discord-client/domain/entities"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -29,7 +29,7 @@ func BuildWagerProposalComponents(wagerID int64) []discordgo.MessageComponent {
 }
 
 // BuildWagerVotingComponents creates voting buttons for a wager
-func BuildWagerVotingComponents(wager *models.Wager, proposerName, targetName string) []discordgo.MessageComponent {
+func BuildWagerVotingComponents(wager *entities.Wager, proposerName, targetName string) []discordgo.MessageComponent {
 	return []discordgo.MessageComponent{
 		discordgo.ActionsRow{
 			Components: []discordgo.MessageComponent{

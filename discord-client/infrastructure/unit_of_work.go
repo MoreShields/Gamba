@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"gambler/discord-client/database"
-	"gambler/discord-client/events"
+	"gambler/discord-client/domain/events"
 	"gambler/discord-client/repository"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/interfaces"
 
 	"github.com/jackc/pgx/v5"
 	log "github.com/sirupsen/logrus"
@@ -19,17 +19,17 @@ type unitOfWork struct {
 	tx                   pgx.Tx
 	ctx                  context.Context
 	guildID              int64
-	eventPublisher       service.EventPublisher
+	eventPublisher       interfaces.EventPublisher
 	pendingEvents        []events.Event
-	userRepo             service.UserRepository
-	balanceHistoryRepo   service.BalanceHistoryRepository
-	betRepo              service.BetRepository
-	wagerRepo            service.WagerRepository
-	wagerVoteRepo        service.WagerVoteRepository
-	groupWagerRepo       service.GroupWagerRepository
-	guildSettingsRepo    service.GuildSettingsRepository
-	summonerWatchRepo    service.SummonerWatchRepository
-	wordleCompletionRepo service.WordleCompletionRepository
+	userRepo             interfaces.UserRepository
+	balanceHistoryRepo   interfaces.BalanceHistoryRepository
+	betRepo              interfaces.BetRepository
+	wagerRepo            interfaces.WagerRepository
+	wagerVoteRepo        interfaces.WagerVoteRepository
+	groupWagerRepo       interfaces.GroupWagerRepository
+	guildSettingsRepo    interfaces.GuildSettingsRepository
+	summonerWatchRepo    interfaces.SummonerWatchRepository
+	wordleCompletionRepo interfaces.WordleCompletionRepository
 }
 
 // transactionalEventBus wraps the unit of work to buffer events
@@ -148,63 +148,63 @@ func (u *unitOfWork) Rollback() error {
 }
 
 // Repository getters
-func (u *unitOfWork) UserRepository() service.UserRepository {
+func (u *unitOfWork) UserRepository() interfaces.UserRepository {
 	if u.userRepo == nil {
 		panic("unit of work not started - call Begin() first")
 	}
 	return u.userRepo
 }
 
-func (u *unitOfWork) BalanceHistoryRepository() service.BalanceHistoryRepository {
+func (u *unitOfWork) BalanceHistoryRepository() interfaces.BalanceHistoryRepository {
 	if u.balanceHistoryRepo == nil {
 		panic("unit of work not started - call Begin() first")
 	}
 	return u.balanceHistoryRepo
 }
 
-func (u *unitOfWork) BetRepository() service.BetRepository {
+func (u *unitOfWork) BetRepository() interfaces.BetRepository {
 	if u.betRepo == nil {
 		panic("unit of work not started - call Begin() first")
 	}
 	return u.betRepo
 }
 
-func (u *unitOfWork) WagerRepository() service.WagerRepository {
+func (u *unitOfWork) WagerRepository() interfaces.WagerRepository {
 	if u.wagerRepo == nil {
 		panic("unit of work not started - call Begin() first")
 	}
 	return u.wagerRepo
 }
 
-func (u *unitOfWork) WagerVoteRepository() service.WagerVoteRepository {
+func (u *unitOfWork) WagerVoteRepository() interfaces.WagerVoteRepository {
 	if u.wagerVoteRepo == nil {
 		panic("unit of work not started - call Begin() first")
 	}
 	return u.wagerVoteRepo
 }
 
-func (u *unitOfWork) GroupWagerRepository() service.GroupWagerRepository {
+func (u *unitOfWork) GroupWagerRepository() interfaces.GroupWagerRepository {
 	if u.groupWagerRepo == nil {
 		panic("unit of work not started - call Begin() first")
 	}
 	return u.groupWagerRepo
 }
 
-func (u *unitOfWork) GuildSettingsRepository() service.GuildSettingsRepository {
+func (u *unitOfWork) GuildSettingsRepository() interfaces.GuildSettingsRepository {
 	if u.guildSettingsRepo == nil {
 		panic("unit of work not started - call Begin() first")
 	}
 	return u.guildSettingsRepo
 }
 
-func (u *unitOfWork) SummonerWatchRepository() service.SummonerWatchRepository {
+func (u *unitOfWork) SummonerWatchRepository() interfaces.SummonerWatchRepository {
 	if u.summonerWatchRepo == nil {
 		panic("unit of work not started - call Begin() first")
 	}
 	return u.summonerWatchRepo
 }
 
-func (u *unitOfWork) WordleCompletionRepo() service.WordleCompletionRepository {
+func (u *unitOfWork) WordleCompletionRepo() interfaces.WordleCompletionRepository {
 	if u.wordleCompletionRepo == nil {
 		panic("unit of work not started - call Begin() first")
 	}
@@ -212,6 +212,6 @@ func (u *unitOfWork) WordleCompletionRepo() service.WordleCompletionRepository {
 }
 
 // EventBus returns the transactional event publisher
-func (u *unitOfWork) EventBus() service.EventPublisher {
+func (u *unitOfWork) EventBus() interfaces.EventPublisher {
 	return &transactionalEventBus{uow: u}
 }

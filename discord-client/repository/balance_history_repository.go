@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"gambler/discord-client/database"
-	"gambler/discord-client/models"
+	"gambler/discord-client/domain/entities"
 )
 
 // BalanceHistoryRepository implements the BalanceHistoryRepository interface
@@ -30,7 +30,7 @@ func NewBalanceHistoryRepositoryScoped(tx Queryable, guildID int64) *BalanceHist
 }
 
 // Record creates a new balance history entry
-func (r *BalanceHistoryRepository) Record(ctx context.Context, history *models.BalanceHistory) error {
+func (r *BalanceHistoryRepository) Record(ctx context.Context, history *entities.BalanceHistory) error {
 	// Convert metadata to JSON
 	metadataJSON, err := json.Marshal(history.TransactionMetadata)
 	if err != nil {
@@ -67,7 +67,7 @@ func (r *BalanceHistoryRepository) Record(ctx context.Context, history *models.B
 }
 
 // GetByUser returns balance history for a specific user
-func (r *BalanceHistoryRepository) GetByUser(ctx context.Context, discordID int64, limit int) ([]*models.BalanceHistory, error) {
+func (r *BalanceHistoryRepository) GetByUser(ctx context.Context, discordID int64, limit int) ([]*entities.BalanceHistory, error) {
 	query := `
 		SELECT id, discord_id, guild_id, balance_before, balance_after, change_amount, 
 		       transaction_type, transaction_metadata, created_at
@@ -83,9 +83,9 @@ func (r *BalanceHistoryRepository) GetByUser(ctx context.Context, discordID int6
 	}
 	defer rows.Close()
 
-	var histories []*models.BalanceHistory
+	var histories []*entities.BalanceHistory
 	for rows.Next() {
-		var history models.BalanceHistory
+		var history entities.BalanceHistory
 		var metadataJSON []byte
 
 		err := rows.Scan(
@@ -121,7 +121,7 @@ func (r *BalanceHistoryRepository) GetByUser(ctx context.Context, discordID int6
 }
 
 // GetByDateRange returns balance history within a date range
-func (r *BalanceHistoryRepository) GetByDateRange(ctx context.Context, discordID int64, from, to time.Time) ([]*models.BalanceHistory, error) {
+func (r *BalanceHistoryRepository) GetByDateRange(ctx context.Context, discordID int64, from, to time.Time) ([]*entities.BalanceHistory, error) {
 	query := `
 		SELECT id, discord_id, guild_id, balance_before, balance_after, change_amount, 
 		       transaction_type, transaction_metadata, created_at
@@ -136,9 +136,9 @@ func (r *BalanceHistoryRepository) GetByDateRange(ctx context.Context, discordID
 	}
 	defer rows.Close()
 
-	var histories []*models.BalanceHistory
+	var histories []*entities.BalanceHistory
 	for rows.Next() {
-		var history models.BalanceHistory
+		var history entities.BalanceHistory
 		var metadataJSON []byte
 
 		err := rows.Scan(

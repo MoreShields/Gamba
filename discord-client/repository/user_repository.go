@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"gambler/discord-client/database"
-	"gambler/discord-client/models"
+	"gambler/discord-client/domain/entities"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -31,7 +31,7 @@ func NewUserRepositoryScoped(tx Queryable, guildID int64) *UserRepository {
 }
 
 // GetByDiscordID retrieves a user by their Discord ID in the current guild
-func (r *UserRepository) GetByDiscordID(ctx context.Context, discordID int64) (*models.User, error) {
+func (r *UserRepository) GetByDiscordID(ctx context.Context, discordID int64) (*entities.User, error) {
 	query := `
 		SELECT 
 			uga.id,
@@ -62,7 +62,7 @@ func (r *UserRepository) GetByDiscordID(ctx context.Context, discordID int64) (*
 		WHERE uga.discord_id = $1 AND uga.guild_id = $2
 	`
 
-	var account models.UserGuildAccount
+	var account entities.UserGuildAccount
 	var username string
 	err := r.q.QueryRow(ctx, query, discordID, r.guildID).Scan(
 		&account.ID,
@@ -83,7 +83,7 @@ func (r *UserRepository) GetByDiscordID(ctx context.Context, discordID int64) (*
 	}
 
 	// Return User model with balance information from guild account
-	user := &models.User{
+	user := &entities.User{
 		DiscordID:        account.DiscordID,
 		Username:         username,
 		Balance:          account.Balance,
@@ -96,7 +96,7 @@ func (r *UserRepository) GetByDiscordID(ctx context.Context, discordID int64) (*
 }
 
 // Create creates a new user with the initial balance in the current guild
-func (r *UserRepository) Create(ctx context.Context, discordID int64, username string, initialBalance int64) (*models.User, error) {
+func (r *UserRepository) Create(ctx context.Context, discordID int64, username string, initialBalance int64) (*entities.User, error) {
 	// First ensure the user exists in the users table
 	userQuery := `
 		INSERT INTO users (discord_id, username)
@@ -131,7 +131,7 @@ func (r *UserRepository) Create(ctx context.Context, discordID int64, username s
 	}
 
 	// Return User model with balance information
-	user := &models.User{
+	user := &entities.User{
 		DiscordID:        discordID,
 		Username:         username,
 		Balance:          initialBalance,
@@ -163,7 +163,7 @@ func (r *UserRepository) UpdateBalance(ctx context.Context, discordID int64, new
 }
 
 // GetUsersWithPositiveBalance returns all users with balance > 0 in the current guild
-func (r *UserRepository) GetUsersWithPositiveBalance(ctx context.Context) ([]*models.User, error) {
+func (r *UserRepository) GetUsersWithPositiveBalance(ctx context.Context) ([]*entities.User, error) {
 	query := `
 		SELECT 
 			uga.discord_id,
@@ -199,9 +199,9 @@ func (r *UserRepository) GetUsersWithPositiveBalance(ctx context.Context) ([]*mo
 	}
 	defer rows.Close()
 
-	var users []*models.User
+	var users []*entities.User
 	for rows.Next() {
-		var user models.User
+		var user entities.User
 		err := rows.Scan(
 			&user.DiscordID,
 			&user.Username,
@@ -224,7 +224,7 @@ func (r *UserRepository) GetUsersWithPositiveBalance(ctx context.Context) ([]*mo
 }
 
 // GetAll returns all users in the current guild
-func (r *UserRepository) GetAll(ctx context.Context) ([]*models.User, error) {
+func (r *UserRepository) GetAll(ctx context.Context) ([]*entities.User, error) {
 	query := `
 		SELECT 
 			uga.discord_id,
@@ -260,9 +260,9 @@ func (r *UserRepository) GetAll(ctx context.Context) ([]*models.User, error) {
 	}
 	defer rows.Close()
 
-	var users []*models.User
+	var users []*entities.User
 	for rows.Next() {
-		var user models.User
+		var user entities.User
 		err := rows.Scan(
 			&user.DiscordID,
 			&user.Username,

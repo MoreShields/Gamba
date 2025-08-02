@@ -1,7 +1,7 @@
 package infrastructure
 
 import (
-	"gambler/discord-client/events"
+	"gambler/discord-client/domain/events"
 )
 
 // NoopEventPublisher is an event publisher that does nothing

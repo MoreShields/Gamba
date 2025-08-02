@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	"gambler/discord-client/models"
+	"gambler/discord-client/domain/entities"
 )
 
 // GroupWagerDetailToHouseWagerPostDTO converts a GroupWagerDetail to a HouseWagerPostDTO
 // This is used when a house wager needs to be displayed or updated in Discord
-func GroupWagerDetailToHouseWagerPostDTO(detail *models.GroupWagerDetail) HouseWagerPostDTO {
+func GroupWagerDetailToHouseWagerPostDTO(detail *entities.GroupWagerDetail) HouseWagerPostDTO {
 	// Parse the condition to extract title and description
 	// Split on first newline - everything before is title, everything after is description
 	parts := strings.SplitN(detail.Wager.Condition, "\n", 2)
@@ -20,9 +20,9 @@ func GroupWagerDetailToHouseWagerPostDTO(detail *models.GroupWagerDetail) HouseW
 	}
 
 	// Update URL for resolved wagers from League of Legends
-	if detail.Wager.State == models.GroupWagerStateResolved &&
+	if detail.Wager.State == entities.GroupWagerStateResolved &&
 		detail.Wager.ExternalRef != nil &&
-		detail.Wager.ExternalRef.System == models.SystemLeagueOfLegends {
+		detail.Wager.ExternalRef.System == entities.SystemLeagueOfLegends {
 		// Replace porofessor URL with leagueofgraphs URL for resolved wagers
 		leagueOfGraphsURL := fmt.Sprintf("https://www.leagueofgraphs.com/match/NA/%s", detail.Wager.ExternalRef.ID)
 		// Update the description to use the new URL
@@ -68,9 +68,9 @@ func GroupWagerDetailToHouseWagerPostDTO(detail *models.GroupWagerDetail) HouseW
 
 // GroupWagerDetailToGroupWagerDTO converts a GroupWagerDetail to a GroupWagerDTO
 // This would be used for regular group wagers if a similar DTO pattern is needed
-func GroupWagerDetailToGroupWagerDTO(detail *models.GroupWagerDetail) *models.GroupWagerDetail {
+func GroupWagerDetailToGroupWagerDTO(detail *entities.GroupWagerDetail) *entities.GroupWagerDetail {
 	// For now, we can return the detail as-is since groupwagers.CreateGroupWagerEmbed
-	// already accepts *models.GroupWagerDetail directly
+	// already accepts *entities.GroupWagerDetail directly
 	// If a specific DTO is needed in the future, it can be implemented here
 	return detail
 }

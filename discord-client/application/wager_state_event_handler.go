@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"gambler/discord-client/application/dto"
-	"gambler/discord-client/events"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/events"
+	"gambler/discord-client/domain/services"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -49,7 +49,7 @@ func (h *wagerStateEventHandler) HandleGroupWagerStateChange(ctx context.Context
 	defer uow.Rollback()
 
 	// Instantiate service with repositories from UnitOfWork
-	groupWagerService := service.NewGroupWagerService(
+	groupWagerService := services.NewGroupWagerService(
 		uow.GroupWagerRepository(),
 		uow.UserRepository(),
 		uow.BalanceHistoryRepository(),

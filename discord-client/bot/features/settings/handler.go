@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"gambler/discord-client/bot/common"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/services"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -58,7 +58,7 @@ func (f *Feature) handleHighRollerRole(s *discordgo.Session, i *discordgo.Intera
 	defer uow.Rollback()
 
 	// Instantiate guild settings service with repositories from UnitOfWork
-	guildSettingsService := service.NewGuildSettingsService(
+	guildSettingsService := services.NewGuildSettingsService(
 		uow.GuildSettingsRepository(),
 	)
 
@@ -143,7 +143,7 @@ func (f *Feature) handlePrimaryChannel(s *discordgo.Session, i *discordgo.Intera
 	defer uow.Rollback()
 
 	// Instantiate guild settings service with repositories from UnitOfWork
-	guildSettingsService := service.NewGuildSettingsService(
+	guildSettingsService := services.NewGuildSettingsService(
 		uow.GuildSettingsRepository(),
 	)
 
@@ -228,7 +228,7 @@ func (f *Feature) handleLolChannel(s *discordgo.Session, i *discordgo.Interactio
 	defer uow.Rollback()
 
 	// Instantiate guild settings service with repositories from UnitOfWork
-	guildSettingsService := service.NewGuildSettingsService(
+	guildSettingsService := services.NewGuildSettingsService(
 		uow.GuildSettingsRepository(),
 	)
 
@@ -313,7 +313,7 @@ func (f *Feature) handleWordleChannel(s *discordgo.Session, i *discordgo.Interac
 	defer uow.Rollback()
 
 	// Instantiate guild settings service with repositories from UnitOfWork
-	guildSettingsService := service.NewGuildSettingsService(
+	guildSettingsService := services.NewGuildSettingsService(
 		uow.GuildSettingsRepository(),
 	)
 

@@ -5,13 +5,13 @@ import (
 	"gambler/discord-client/bot/common"
 	"time"
 
-	"gambler/discord-client/models"
+	"gambler/discord-client/domain/entities"
 
 	"github.com/bwmarrin/discordgo"
 )
 
 // BuildWagerProposedEmbed creates an embed for a proposed wager
-func BuildWagerProposedEmbed(wager *models.Wager, proposerName, targetName string) *discordgo.MessageEmbed {
+func BuildWagerProposedEmbed(wager *entities.Wager, proposerName, targetName string) *discordgo.MessageEmbed {
 	embed := &discordgo.MessageEmbed{
 		Title:       "⚔️ Wager Proposed",
 		Description: fmt.Sprintf("**%s** challenges %s!", common.GetUserMention(wager.ProposerDiscordID), common.GetUserMention(wager.TargetDiscordID)),
@@ -38,7 +38,7 @@ func BuildWagerProposedEmbed(wager *models.Wager, proposerName, targetName strin
 }
 
 // BuildWagerDeclinedEmbed creates an embed for a declined wager
-func BuildWagerDeclinedEmbed(wager *models.Wager, proposerName, targetName string) *discordgo.MessageEmbed {
+func BuildWagerDeclinedEmbed(wager *entities.Wager, proposerName, targetName string) *discordgo.MessageEmbed {
 	embed := &discordgo.MessageEmbed{
 		Title:       "❌ Wager Declined",
 		Description: fmt.Sprintf("**%s** declined the wager from **%s**", targetName, proposerName),
@@ -65,7 +65,7 @@ func BuildWagerDeclinedEmbed(wager *models.Wager, proposerName, targetName strin
 }
 
 // BuildWagerVotingEmbed creates an embed for a wager in voting state
-func BuildWagerVotingEmbed(wager *models.Wager, proposerName, targetName string, voteCounts *models.VoteCount) *discordgo.MessageEmbed {
+func BuildWagerVotingEmbed(wager *entities.Wager, proposerName, targetName string, voteCounts *entities.VoteCount) *discordgo.MessageEmbed {
 	// Determine voting status for each participant
 	proposerStatus := "⏳ Pending"
 	targetStatus := "⏳ Pending"
@@ -137,7 +137,7 @@ func BuildWagerVotingEmbed(wager *models.Wager, proposerName, targetName string,
 }
 
 // BuildWagerResolvedEmbed creates an embed for a resolved wager
-func BuildWagerResolvedEmbed(wager *models.Wager, proposerName, targetName, winnerName, loserName string, finalVotes *models.VoteCount) *discordgo.MessageEmbed {
+func BuildWagerResolvedEmbed(wager *entities.Wager, proposerName, targetName, winnerName, loserName string, finalVotes *entities.VoteCount) *discordgo.MessageEmbed {
 	embed := &discordgo.MessageEmbed{
 		Title:       "🏆 Wager Resolved",
 		Description: fmt.Sprintf("**%s** wins the wager against **%s**!", winnerName, loserName),
@@ -164,7 +164,7 @@ func BuildWagerResolvedEmbed(wager *models.Wager, proposerName, targetName, winn
 }
 
 // BuildWagerListEmbed creates an embed showing a user's active wagers
-func BuildWagerListEmbed(wagers []*models.Wager, userID int64, userName string) *discordgo.MessageEmbed {
+func BuildWagerListEmbed(wagers []*entities.Wager, userID int64, userName string) *discordgo.MessageEmbed {
 	embed := &discordgo.MessageEmbed{
 		Title:       fmt.Sprintf("📋 Active Wagers for %s", userName),
 		Color:       common.ColorPrimary,
@@ -197,9 +197,9 @@ func BuildWagerListEmbed(wagers []*models.Wager, userID int64, userName string) 
 		}
 
 		status := string(wager.State)
-		if wager.State == models.WagerStateProposed {
+		if wager.State == entities.WagerStateProposed {
 			status = "⏳ Awaiting Response"
-		} else if wager.State == models.WagerStateVoting {
+		} else if wager.State == entities.WagerStateVoting {
 			status = "🗳️ Voting Active"
 		}
 

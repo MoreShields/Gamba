@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"gambler/discord-client/database"
-	"gambler/discord-client/models"
+	"gambler/discord-client/domain/entities"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -34,7 +34,7 @@ func NewWagerVoteRepositoryScoped(tx Queryable, guildID int64) *WagerVoteReposit
 }
 
 // CreateOrUpdate creates a new vote or updates an existing one
-func (r *WagerVoteRepository) CreateOrUpdate(ctx context.Context, vote *models.WagerVote) error {
+func (r *WagerVoteRepository) CreateOrUpdate(ctx context.Context, vote *entities.WagerVote) error {
 	query := `
 		INSERT INTO wager_votes (wager_id, guild_id, voter_discord_id, vote_for_discord_id)
 		VALUES ($1, $2, $3, $4)
@@ -60,7 +60,7 @@ func (r *WagerVoteRepository) CreateOrUpdate(ctx context.Context, vote *models.W
 }
 
 // GetByWager returns all votes for a specific wager
-func (r *WagerVoteRepository) GetByWager(ctx context.Context, wagerID int64) ([]*models.WagerVote, error) {
+func (r *WagerVoteRepository) GetByWager(ctx context.Context, wagerID int64) ([]*entities.WagerVote, error) {
 	query := `
 		SELECT id, wager_id, guild_id, voter_discord_id, vote_for_discord_id, created_at, updated_at
 		FROM wager_votes
@@ -74,9 +74,9 @@ func (r *WagerVoteRepository) GetByWager(ctx context.Context, wagerID int64) ([]
 	}
 	defer rows.Close()
 
-	var votes []*models.WagerVote
+	var votes []*entities.WagerVote
 	for rows.Next() {
-		var vote models.WagerVote
+		var vote entities.WagerVote
 		err := rows.Scan(
 			&vote.ID,
 			&vote.WagerID,
@@ -100,7 +100,7 @@ func (r *WagerVoteRepository) GetByWager(ctx context.Context, wagerID int64) ([]
 }
 
 // GetVoteCounts returns the participant vote counts and status for a wager
-func (r *WagerVoteRepository) GetVoteCounts(ctx context.Context, wagerID int64) (*models.VoteCount, error) {
+func (r *WagerVoteRepository) GetVoteCounts(ctx context.Context, wagerID int64) (*entities.VoteCount, error) {
 	// First, get the wager to know who the participants are
 	wagerQuery := `
 		SELECT proposer_discord_id, target_discord_id
@@ -129,7 +129,7 @@ func (r *WagerVoteRepository) GetVoteCounts(ctx context.Context, wagerID int64) 
 		WHERE wager_id = $1
 	`
 
-	var voteCounts models.VoteCount
+	var voteCounts entities.VoteCount
 	err = r.q.QueryRow(ctx, countQuery, wagerID, proposerID, targetID).Scan(
 		&voteCounts.ProposerVotes,
 		&voteCounts.TargetVotes,
@@ -146,14 +146,14 @@ func (r *WagerVoteRepository) GetVoteCounts(ctx context.Context, wagerID int64) 
 }
 
 // GetByVoter returns a vote by a specific voter for a wager
-func (r *WagerVoteRepository) GetByVoter(ctx context.Context, wagerID int64, voterDiscordID int64) (*models.WagerVote, error) {
+func (r *WagerVoteRepository) GetByVoter(ctx context.Context, wagerID int64, voterDiscordID int64) (*entities.WagerVote, error) {
 	query := `
 		SELECT id, wager_id, guild_id, voter_discord_id, vote_for_discord_id, created_at, updated_at
 		FROM wager_votes
 		WHERE wager_id = $1 AND voter_discord_id = $2
 	`
 
-	var vote models.WagerVote
+	var vote entities.WagerVote
 	err := r.q.QueryRow(ctx, query, wagerID, voterDiscordID).Scan(
 		&vote.ID,
 		&vote.WagerID,

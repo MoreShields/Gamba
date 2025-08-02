@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"gambler/discord-client/domain"
-	"gambler/discord-client/events"
+	"gambler/discord-client/domain/events"
 
 	log "github.com/sirupsen/logrus"
 )

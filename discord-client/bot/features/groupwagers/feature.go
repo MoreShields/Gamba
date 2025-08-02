@@ -7,7 +7,7 @@ import (
 
 	"gambler/discord-client/application"
 	"gambler/discord-client/bot/common"
-	"gambler/discord-client/models"
+	"gambler/discord-client/domain/entities"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -103,9 +103,9 @@ func (f *Feature) UpdateGroupWager(ctx context.Context, messageID, channelID int
 	}
 
 	// Type assert the detail to GroupWagerDetail
-	groupDetail, ok := detail.(*models.GroupWagerDetail)
+	groupDetail, ok := detail.(*entities.GroupWagerDetail)
 	if !ok {
-		return fmt.Errorf("invalid detail type, expected *models.GroupWagerDetail")
+		return fmt.Errorf("invalid detail type, expected *entities.GroupWagerDetail")
 	}
 
 	// Create embed and components

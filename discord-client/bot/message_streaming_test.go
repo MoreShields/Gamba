@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"gambler/discord-client/events"
+	"gambler/discord-client/domain/events"
 	"github.com/bwmarrin/discordgo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// MockEventPublisher implements service.EventPublisher for testing
+// MockEventPublisher implements services.EventPublisher for testing
 type MockEventPublisher struct {
 	PublishedEvents []events.Event
 }

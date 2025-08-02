@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"gambler/discord-client/models"
+	"gambler/discord-client/domain/entities"
 	"gambler/discord-client/repository/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -22,33 +22,33 @@ func TestWordleCompletionRepository_Create(t *testing.T) {
 	tests := []struct {
 		name        string
 		setup       func()
-		completion  *models.WordleCompletion
+		completion  *entities.WordleCompletion
 		wantErr     bool
 		errContains string
 	}{
 		{
 			name: "successful creation",
-			completion: func() *models.WordleCompletion {
-				score, _ := models.NewWordleScore(3)
-				comp, _ := models.NewWordleCompletion(987654321, 123456789, score, time.Now())
+			completion: func() *entities.WordleCompletion {
+				score, _ := entities.NewWordleScore(3)
+				comp, _ := entities.NewWordleCompletion(987654321, 123456789, score, time.Now())
 				return comp
 			}(),
 			wantErr: false,
 		},
 		{
 			name: "create with perfect score",
-			completion: func() *models.WordleCompletion {
-				score, _ := models.NewWordleScore(1)
-				comp, _ := models.NewWordleCompletion(987654322, 123456789, score, time.Now())
+			completion: func() *entities.WordleCompletion {
+				score, _ := entities.NewWordleScore(1)
+				comp, _ := entities.NewWordleCompletion(987654322, 123456789, score, time.Now())
 				return comp
 			}(),
 			wantErr: false,
 		},
 		{
 			name: "create with max guesses",
-			completion: func() *models.WordleCompletion {
-				score, _ := models.NewWordleScore(6)
-				comp, _ := models.NewWordleCompletion(987654323, 123456789, score, time.Now())
+			completion: func() *entities.WordleCompletion {
+				score, _ := entities.NewWordleScore(6)
+				comp, _ := entities.NewWordleCompletion(987654323, 123456789, score, time.Now())
 				return comp
 			}(),
 			wantErr: false,
@@ -57,15 +57,15 @@ func TestWordleCompletionRepository_Create(t *testing.T) {
 			name: "duplicate entry for same day",
 			setup: func() {
 				// Create an initial completion for today
-				score, _ := models.NewWordleScore(3)
-				comp, _ := models.NewWordleCompletion(111111111, 123456789, score, time.Now())
+				score, _ := entities.NewWordleScore(3)
+				comp, _ := entities.NewWordleCompletion(111111111, 123456789, score, time.Now())
 				err := repo.Create(ctx, comp)
 				require.NoError(t, err)
 			},
-			completion: func() *models.WordleCompletion {
+			completion: func() *entities.WordleCompletion {
 				// Try to create another completion for the same user/guild/day
-				score, _ := models.NewWordleScore(4)
-				comp, _ := models.NewWordleCompletion(111111111, 123456789, score, time.Now())
+				score, _ := entities.NewWordleScore(4)
+				comp, _ := entities.NewWordleCompletion(111111111, 123456789, score, time.Now())
 				return comp
 			}(),
 			wantErr:     true,
@@ -111,10 +111,10 @@ func TestWordleCompletionRepository_GetByUserToday(t *testing.T) {
 	t.Run("completion found for today", func(t *testing.T) {
 		// Create a completion for today with a unique discord ID
 		uniqueDiscordID := int64(222222222)
-		score, _ := models.NewWordleScore(3)
+		score, _ := entities.NewWordleScore(3)
 		// Use UTC to ensure consistent timezone handling
 		now := time.Now().UTC()
-		testCompletion, _ := models.NewWordleCompletion(uniqueDiscordID, 999999999, score, now) // guild ID will be overridden
+		testCompletion, _ := entities.NewWordleCompletion(uniqueDiscordID, 999999999, score, now) // guild ID will be overridden
 		err := repo.Create(ctx, testCompletion)
 		require.NoError(t, err)
 		// Repository now updates the completion's guild ID to match the scoped value
@@ -142,8 +142,8 @@ func TestWordleCompletionRepository_GetByUserToday(t *testing.T) {
 	t.Run("completion from yesterday not returned", func(t *testing.T) {
 		// Create a completion for yesterday
 		yesterday := time.Now().AddDate(0, 0, -1)
-		score, _ := models.NewWordleScore(4)
-		testCompletion, _ := models.NewWordleCompletion(333333333, 123456789, score, yesterday)
+		score, _ := entities.NewWordleScore(4)
+		testCompletion, _ := entities.NewWordleCompletion(333333333, 123456789, score, yesterday)
 		err := repo.Create(ctx, testCompletion)
 		require.NoError(t, err)
 
@@ -155,8 +155,8 @@ func TestWordleCompletionRepository_GetByUserToday(t *testing.T) {
 
 	t.Run("different guild isolation", func(t *testing.T) {
 		// Create completion in guild 123456789
-		score, _ := models.NewWordleScore(2)
-		testCompletion, _ := models.NewWordleCompletion(444444444, 123456789, score, time.Now())
+		score, _ := entities.NewWordleScore(2)
+		testCompletion, _ := entities.NewWordleCompletion(444444444, 123456789, score, time.Now())
 		err := repo.Create(ctx, testCompletion)
 		require.NoError(t, err)
 
@@ -197,8 +197,8 @@ func TestWordleCompletionRepository_GetRecentCompletions(t *testing.T) {
 		}
 
 		for i, date := range dates {
-			score, _ := models.NewWordleScore(i+1)
-			completion, _ := models.NewWordleCompletion(userID, guildID, score, date)
+			score, _ := entities.NewWordleScore(i+1)
+			completion, _ := entities.NewWordleCompletion(userID, guildID, score, date)
 			err := repo.Create(ctx, completion)
 			require.NoError(t, err)
 		}
@@ -221,8 +221,8 @@ func TestWordleCompletionRepository_GetRecentCompletions(t *testing.T) {
 		// Create 10 completions
 		for i := 0; i < 10; i++ {
 			date := time.Now().AddDate(0, 0, -i)
-			score, _ := models.NewWordleScore((i%6)+1)
-			completion, _ := models.NewWordleCompletion(userID, guildID, score, date)
+			score, _ := entities.NewWordleScore((i%6)+1)
+			completion, _ := entities.NewWordleCompletion(userID, guildID, score, date)
 			err := repo.Create(ctx, completion)
 			require.NoError(t, err)
 		}
@@ -249,8 +249,8 @@ func TestWordleCompletionRepository_GetRecentCompletions(t *testing.T) {
 			repoForGuild := NewWordleCompletionRepositoryScoped(testDB.DB.Pool, guildID)
 			for i := 0; i < 3; i++ {
 				date := time.Now().AddDate(0, 0, -i)
-				score, _ := models.NewWordleScore(i+1)
-				completion, _ := models.NewWordleCompletion(userID, guildID, score, date)
+				score, _ := entities.NewWordleScore(i+1)
+				completion, _ := entities.NewWordleCompletion(userID, guildID, score, date)
 				err := repoForGuild.Create(ctx, completion)
 				require.NoError(t, err)
 			}
@@ -281,9 +281,9 @@ func TestWordleCompletionRepository_ScopedRepository(t *testing.T) {
 		repo := NewWordleCompletionRepositoryScoped(testDB.DB.Pool, guildID)
 
 		// Create a completion with a different guild ID in the model
-		score, _ := models.NewWordleScore(3)
+		score, _ := entities.NewWordleScore(3)
 		now := time.Now().UTC()
-		completion, _ := models.NewWordleCompletion(123123123, 111111111, score, now)
+		completion, _ := entities.NewWordleCompletion(123123123, 111111111, score, now)
 
 		// The repository should use its scoped guild ID, not the model's
 		err := repo.Create(ctx, completion)
@@ -312,11 +312,11 @@ func TestWordleCompletionRepository_EdgeCases(t *testing.T) {
 		// Test with different valid max guesses (1-6)
 		for maxGuesses := 1; maxGuesses <= 6; maxGuesses++ {
 			userID := int64(100000000 + maxGuesses)
-			score, err := models.NewWordleScore(maxGuesses)
+			score, err := entities.NewWordleScore(maxGuesses)
 			require.NoError(t, err)
 
 			now := time.Now().UTC()
-			completion, err := models.NewWordleCompletion(userID, 123456789, score, now)
+			completion, err := entities.NewWordleCompletion(userID, 123456789, score, now)
 			require.NoError(t, err)
 
 			err = repo.Create(ctx, completion)
@@ -344,15 +344,15 @@ func TestWordleCompletionRepository_EdgeCases(t *testing.T) {
 		// Create completion at 23:59:59 yesterday
 		yesterday := now.AddDate(0, 0, -1)
 		almostMidnight := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 23, 59, 59, 0, time.UTC)
-		score1, _ := models.NewWordleScore(3)
-		completion1, _ := models.NewWordleCompletion(userID, 123456789, score1, almostMidnight)
+		score1, _ := entities.NewWordleScore(3)
+		completion1, _ := entities.NewWordleCompletion(userID, 123456789, score1, almostMidnight)
 		err := repo.Create(ctx, completion1)
 		require.NoError(t, err)
 
 		// Create completion at 00:00:01 today
 		justAfterMidnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 1, 0, time.UTC)
-		score2, _ := models.NewWordleScore(4)
-		completion2, _ := models.NewWordleCompletion(userID+1, 123456789, score2, justAfterMidnight)
+		score2, _ := entities.NewWordleScore(4)
+		completion2, _ := entities.NewWordleCompletion(userID+1, 123456789, score2, justAfterMidnight)
 		err = repo.Create(ctx, completion2)
 		require.NoError(t, err)
 

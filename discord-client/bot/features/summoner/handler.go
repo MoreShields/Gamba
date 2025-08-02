@@ -13,7 +13,7 @@ import (
 
 	"gambler/discord-client/bot/common"
 	summoner_pb "gambler/discord-client/proto/services"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/services"
 )
 
 // handleWatchCommand handles the /summoner watch command
@@ -61,7 +61,7 @@ func (f *Feature) handleWatchCommand(s *discordgo.Session, i *discordgo.Interact
 	validateResp, err := f.summonerClient.StartTrackingSummoner(ctx, validateReq)
 	if err != nil {
 		log.Errorf("Failed to validate summoner %s#%s: %v", gameName, tagLine, err)
-		common.RespondWithError(s, i, "Failed to connect to summoner validation service. Please try again later.")
+		common.RespondWithError(s, i, "Failed to connect to summoner validation services. Please try again later.")
 		return
 	}
 
@@ -88,7 +88,7 @@ func (f *Feature) handleWatchCommand(s *discordgo.Session, i *discordgo.Interact
 	defer uow.Rollback()
 
 	// Create summoner watch service
-	summonerWatchService := service.NewSummonerWatchService(uow.SummonerWatchRepository())
+	summonerWatchService := services.NewSummonerWatchService(uow.SummonerWatchRepository())
 
 	// Add the watch - use the validated game name and tag line
 	watchDetail, err := summonerWatchService.AddWatch(ctx, guildID, validateResp.SummonerDetails.GameName, tagLine)
@@ -157,7 +157,7 @@ func (f *Feature) handleUnwatchCommand(s *discordgo.Session, i *discordgo.Intera
 	defer uow.Rollback()
 
 	// Create summoner watch service
-	summonerWatchService := service.NewSummonerWatchService(uow.SummonerWatchRepository())
+	summonerWatchService := services.NewSummonerWatchService(uow.SummonerWatchRepository())
 
 	// Remove the watch using the parsed name and tag line
 	err = summonerWatchService.RemoveWatch(ctx, guildID, gameName, tagLine)
