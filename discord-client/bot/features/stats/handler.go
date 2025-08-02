@@ -57,6 +57,7 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 		uow.WagerRepository(),
 		uow.BetRepository(),
 		uow.GroupWagerRepository(),
+		uow.BalanceHistoryRepository(),
 	)
 
 	// Get scoreboard entries
@@ -153,6 +154,7 @@ func (f *Feature) handleStatsBalance(s *discordgo.Session, i *discordgo.Interact
 		uow.WagerRepository(),
 		uow.BetRepository(),
 		uow.GroupWagerRepository(),
+		uow.BalanceHistoryRepository(),
 	)
 
 	// Get user stats

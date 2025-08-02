@@ -78,6 +78,11 @@ func (m *MockBalanceHistoryRepository) GetByDateRange(ctx context.Context, disco
 	return args.Get(0).([]*entities.BalanceHistory), args.Error(1)
 }
 
+func (m *MockBalanceHistoryRepository) GetTotalVolumeByUser(ctx context.Context, discordID int64) (int64, error) {
+	args := m.Called(ctx, discordID)
+	return args.Get(0).(int64), args.Error(1)
+}
+
 // MockBetRepository is a mock implementation of BetRepository
 type MockBetRepository struct {
 	mock.Mock

@@ -172,3 +172,20 @@ func (r *BalanceHistoryRepository) GetByDateRange(ctx context.Context, discordID
 
 	return histories, nil
 }
+
+// GetTotalVolumeByUser returns the total volume (sum of absolute balance changes) for a user
+func (r *BalanceHistoryRepository) GetTotalVolumeByUser(ctx context.Context, discordID int64) (int64, error) {
+	query := `
+		SELECT COALESCE(SUM(ABS(change_amount)), 0)
+		FROM balance_history
+		WHERE discord_id = $1 AND guild_id = $2
+	`
+
+	var totalVolume int64
+	err := r.q.QueryRow(ctx, query, discordID, r.guildID).Scan(&totalVolume)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get total volume for user %d: %w", discordID, err)
+	}
+
+	return totalVolume, nil
+}

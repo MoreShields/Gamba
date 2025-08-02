@@ -90,8 +90,9 @@ func buildFooter(currentPage string) *discordgo.MessageEmbedFooter {
 
 // buildBitsPage populates the embed with bits scoreboard data
 func buildBitsPage(embed *discordgo.MessageEmbed, entry []*entities.ScoreboardEntry, totalBits int64) {
-	// Add page description
-	embed.Description = "**Current Balance Rankings**\n\n"
+	// Add page description with table header
+	embed.Description = "**Current Balance Rankings**\n" +
+		"*Rank User | Balance | Volume*\n\n"
 
 	if len(entry) == 0 {
 		embed.Description += "No players found\n\n" +
@@ -99,11 +100,26 @@ func buildBitsPage(embed *discordgo.MessageEmbed, entry []*entities.ScoreboardEn
 		return
 	}
 
+	// Find the highest volume to mark with dice icon
+	var highestVolume int64
+	for _, user := range entry {
+		if user.TotalVolume > highestVolume {
+			highestVolume = user.TotalVolume
+		}
+	}
+
 	var lines []string
 	for i, user := range entry {
 		medal := getMedalForRank(i + 1)
-		lines = append(lines, fmt.Sprintf("%s <@%d> | %s",
-			medal, user.DiscordID, common.FormatBalance(user.TotalBalance)))
+		volumeStr := common.FormatBalance(user.TotalVolume)
+		
+		// Add dice icon for highest volume player
+		if user.TotalVolume == highestVolume && highestVolume > 0 {
+			volumeStr += " 🎲"
+		}
+		
+		lines = append(lines, fmt.Sprintf("%s <@%d> | %s | %s",
+			medal, user.DiscordID, common.FormatBalance(user.TotalBalance), volumeStr))
 	}
 
 	embed.Description += strings.Join(lines, "\n") + "\n\n" +

@@ -127,6 +127,7 @@ func (f *Feature) updateScoreboardPage(s *discordgo.Session, channelID, messageI
 		uow.WagerRepository(),
 		uow.BetRepository(),
 		uow.GroupWagerRepository(),
+		uow.BalanceHistoryRepository(),
 	)
 
 	// Get scoreboard entries

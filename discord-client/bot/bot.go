@@ -322,6 +322,7 @@ func (b *Bot) postHighRollerChangeMessage(ctx context.Context, guildID int64, ne
 		uow.WagerRepository(),
 		uow.BetRepository(),
 		uow.GroupWagerRepository(),
+		uow.BalanceHistoryRepository(),
 	)
 
 	// Get the scoreboard
