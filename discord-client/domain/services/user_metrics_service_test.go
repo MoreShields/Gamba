@@ -240,6 +240,10 @@ func TestUserMetricsService_GetScoreboard(t *testing.T) {
 		// Mock volume for each user
 		mockBalanceHistoryRepo.On("GetTotalVolumeByUser", ctx, int64(100)).Return(int64(10000), nil)
 		mockBalanceHistoryRepo.On("GetTotalVolumeByUser", ctx, int64(200)).Return(int64(5000), nil)
+		
+		// Mock donations for each user
+		mockBalanceHistoryRepo.On("GetTotalDonationsByUser", ctx, int64(100)).Return(int64(2000), nil)
+		mockBalanceHistoryRepo.On("GetTotalDonationsByUser", ctx, int64(200)).Return(int64(1000), nil)
 
 		// Execute
 		entries, totalBits, err := service.GetScoreboard(ctx, 10)
@@ -257,6 +261,7 @@ func TestUserMetricsService_GetScoreboard(t *testing.T) {
 		assert.Equal(t, float64(60), entries[0].WagerWinRate)
 		assert.Equal(t, float64(75), entries[0].BetWinRate)
 		assert.Equal(t, int64(10000), entries[0].TotalVolume)
+		assert.Equal(t, int64(2000), entries[0].TotalDonations)
 
 		assert.Equal(t, 2, entries[1].Rank)
 		assert.Equal(t, int64(200), entries[1].DiscordID)
@@ -265,6 +270,7 @@ func TestUserMetricsService_GetScoreboard(t *testing.T) {
 		assert.Equal(t, float64(40), entries[1].WagerWinRate)
 		assert.Equal(t, float64(30), entries[1].BetWinRate)
 		assert.Equal(t, int64(5000), entries[1].TotalVolume)
+		assert.Equal(t, int64(1000), entries[1].TotalDonations)
 
 		mockUserRepo.AssertExpectations(t)
 		mockWagerRepo.AssertExpectations(t)
@@ -297,6 +303,7 @@ func TestUserMetricsService_GetScoreboard(t *testing.T) {
 			mockWagerRepo.On("GetStats", ctx, int64(100+i)).Return(&entities.WagerStats{}, nil)
 			mockBetRepo.On("GetStats", ctx, int64(100+i)).Return(&entities.BetStats{}, nil)
 			mockBalanceHistoryRepo.On("GetTotalVolumeByUser", ctx, int64(100+i)).Return(int64(0), nil)
+			mockBalanceHistoryRepo.On("GetTotalDonationsByUser", ctx, int64(100+i)).Return(int64(0), nil)
 		}
 
 		// Execute with limit

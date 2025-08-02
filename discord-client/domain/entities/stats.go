@@ -103,6 +103,7 @@ type ScoreboardEntry struct {
 	WagerWinRate     float64 // Percentage as 0-100
 	BetWinRate       float64 // Percentage as 0-100
 	TotalVolume      int64   // Total bits exchanged (sum of absolute balance changes)
+	TotalDonations   int64   // Total amount donated (transfer_out transactions)
 }
 
 // GroupWagerPrediction represents a user's prediction for any group wager

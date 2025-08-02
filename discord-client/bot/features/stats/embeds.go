@@ -92,7 +92,7 @@ func buildFooter(currentPage string) *discordgo.MessageEmbedFooter {
 func buildBitsPage(embed *discordgo.MessageEmbed, entry []*entities.ScoreboardEntry, totalBits int64) {
 	// Add page description with table header
 	embed.Description = "**Current Balance Rankings**\n" +
-		"*Rank User | Balance | Volume*\n\n"
+		"*Rank User | Balance | Volume | Donated*\n\n"
 
 	if len(entry) == 0 {
 		embed.Description += "No players found\n\n" +
@@ -100,11 +100,15 @@ func buildBitsPage(embed *discordgo.MessageEmbed, entry []*entities.ScoreboardEn
 		return
 	}
 
-	// Find the highest volume to mark with dice icon
+	// Find the highest volume and highest donations to mark with icons
 	var highestVolume int64
+	var highestDonations int64
 	for _, user := range entry {
 		if user.TotalVolume > highestVolume {
 			highestVolume = user.TotalVolume
+		}
+		if user.TotalDonations > highestDonations {
+			highestDonations = user.TotalDonations
 		}
 	}
 
@@ -112,14 +116,20 @@ func buildBitsPage(embed *discordgo.MessageEmbed, entry []*entities.ScoreboardEn
 	for i, user := range entry {
 		medal := getMedalForRank(i + 1)
 		volumeStr := common.FormatBalance(user.TotalVolume)
+		donationStr := common.FormatBalance(user.TotalDonations)
 		
 		// Add dice icon for highest volume player
 		if user.TotalVolume == highestVolume && highestVolume > 0 {
 			volumeStr += " 🎲"
 		}
 		
-		lines = append(lines, fmt.Sprintf("%s <@%d> | %s | %s",
-			medal, user.DiscordID, common.FormatBalance(user.TotalBalance), volumeStr))
+		// Add gift icon for highest donator
+		if user.TotalDonations == highestDonations && highestDonations > 0 {
+			donationStr += " 🎁"
+		}
+		
+		lines = append(lines, fmt.Sprintf("%s <@%d> | %s | %s | %s",
+			medal, user.DiscordID, common.FormatBalance(user.TotalBalance), volumeStr, donationStr))
 	}
 
 	embed.Description += strings.Join(lines, "\n") + "\n\n" +
