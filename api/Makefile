@@ -1,4 +1,4 @@
-.PHONY: generate clean install-tools help
+.PHONY: generate install-tools help
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -40,9 +40,6 @@ generate-python: ## Generate Python protobuf code
 		--python_out=gen/python \
 		--grpc_python_out=gen/python \
 		proto/events/*.proto proto/models/*.proto proto/services/*.proto
-
-clean: ## Clean generated files
-	rm -rf gen/
 
 # Add to .gitignore
 gitignore: ## Add gen/ to .gitignore

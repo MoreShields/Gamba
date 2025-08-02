@@ -1,4 +1,4 @@
-.PHONY: help build test clean dev install lint format proto run
+.PHONY: help build test dev install lint format proto run
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -21,17 +21,6 @@ install: ## Install dependencies in virtual environment
 	else \
 		echo "Using parent project venv"; \
 		$(PIP) install -r requirements-dev.txt; \
-	fi
-
-install-prod: ## Install production dependencies only
-	@if [ ! -d "../venv" ]; then \
-		echo "Creating local venv (parent venv not found)"; \
-		python3 -m venv venv; \
-		./venv/bin/pip install --upgrade pip; \
-		./venv/bin/pip install -r requirements.txt; \
-	else \
-		echo "Using parent project venv"; \
-		$(PIP) install -r requirements.txt; \
 	fi
 
 # Code quality
@@ -105,30 +94,6 @@ dev: ## Start development environment (use root 'make dev' instead)
 
 run: dev-local ## Alias for dev-local
 
-# Utilities
-clean: ## Clean build artifacts and cache
-	rm -rf build/
-	rm -rf dist/
-	rm -rf *.egg-info/
-	rm -rf .pytest_cache/
-	rm -rf .coverage
-	rm -rf htmlcov/
-	find . -type d -name __pycache__ -exec rm -rf {} +
-	find . -type f -name "*.pyc" -delete
-
-clean-venv: ## Remove virtual environment
-	rm -rf venv/
-
-# Database migration commands
-migrate-up: ## Run pending database migrations (production)
-	$(PYTHON) -m alembic upgrade head
-
-migrate-down: ## Rollback last database migration (production)
-	$(PYTHON) -m alembic downgrade -1
-
-migrate-status: ## Check migration status (production)
-	$(PYTHON) -m alembic current
-
 migrate-up-dev: ## Run pending database migrations (local development)
 	@if [ -f ../.env ]; then \
 		set -a; source ../.env; set +a; $(PYTHON) -m alembic upgrade head; \
@@ -155,11 +120,4 @@ migrate-status-dev: ## Check migration status (local development)
 	else \
 		echo "Error: .env file not found. Create .env in project root or lol-tracker/ directory."; exit 1; \
 	fi
-
-migrate-create: ## Create a new migration file (usage: make migrate-create NAME=add_feature)
-	@if [ -z "$(NAME)" ]; then echo "Usage: make migrate-create NAME=<migration_name>"; exit 1; fi
-	$(PYTHON) -m alembic revision --autogenerate -m "$(NAME)"
-
-# Build target for CI/CD
-build: install proto lint test ## Build the service (install, generate proto, lint, test)
 

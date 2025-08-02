@@ -1,10 +1,20 @@
-.PHONY: help dev down build test clean deploy proto
+.PHONY: help dev down build test deploy proto
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
 	@echo ''
 	@echo 'Targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+setup-venv: ## Create and setup Python virtual environment with all dev dependencies
+	@if [ ! -d "venv" ]; then \
+		echo "Creating Python virtual environment..."; \
+		python3 -m venv venv; \
+		./venv/bin/pip install --upgrade pip; \
+	fi
+	@echo "Installing lol-tracker dependencies..."
+	@./venv/bin/pip install -r lol-tracker/requirements-dev.txt
+	@echo "Virtual environment setup complete!"
 
 # Development commands
 dev: proto ## Start complete development environment (discord-client + lol-tracker + postgres + nats)
@@ -40,17 +50,6 @@ verify-deployment: ## Verify production deployment status
 	@echo "=== LoL Tracker ==="
 	@docker-compose -f docker-compose.yml ps lol-tracker nats || echo "LoL Tracker not deployed"
 
-prod-logs: ## View production logs (use SERVICE=discord|lol|nats to specify)
-	@if [ "$(SERVICE)" = "discord" ]; then \
-		docker-compose -f docker-compose.yml logs -f discord-bot; \
-	elif [ "$(SERVICE)" = "lol" ]; then \
-		docker-compose -f docker-compose.yml logs -f lol-tracker; \
-	elif [ "$(SERVICE)" = "nats" ]; then \
-		docker-compose -f docker-compose.yml logs -f nats; \
-	else \
-		docker-compose -f docker-compose.yml logs -f; \
-	fi
-
 # Protobuf commands
 proto: ## Generate protobuf code for all services
 	$(MAKE) -C discord-client proto
@@ -59,21 +58,6 @@ proto: ## Generate protobuf code for all services
 # Build commands
 build: proto build-discord build-lol ## Build all services
 	@echo "All services built successfully"
-
-build-discord: ## Build discord client service
-	$(MAKE) -C discord-client build
-
-build-lol: ## Build lol-tracker service
-	$(MAKE) -C lol-tracker build
-
-# Docker build commands (for CI/CD)
-docker-build: docker-build-discord docker-build-lol ## Build all Docker images
-
-docker-build-discord: ## Build Discord bot Docker image
-	docker build -f discord-client/Dockerfile --target prod .
-
-docker-build-lol: ## Build LoL tracker Docker image
-	docker build -f lol-tracker/Dockerfile --target production .
 
 # Test commands
 test: test-discord test-lol ## Run tests for all services
@@ -92,30 +76,6 @@ test-integration: ## Run integration tests for all services
 	$(MAKE) -C discord-client test-integration
 	$(MAKE) -C lol-tracker test-integration
 
-# Clean commands
-clean: clean-api clean-discord clean-lol ## Clean build artifacts for all services
-
-clean-api: ## Clean API artifacts
-	$(MAKE) -C api clean
-
-clean-discord: ## Clean discord service artifacts
-	$(MAKE) -C discord-client clean
-
-clean-lol: ## Clean lol service artifacts
-	$(MAKE) -C lol-tracker clean
-
-setup-venv: ## Create and setup Python virtual environment with all dev dependencies
-	@if [ ! -d "venv" ]; then \
-		echo "Creating Python virtual environment..."; \
-		python3 -m venv venv; \
-		./venv/bin/pip install --upgrade pip; \
-	fi
-	@echo "Installing lol-tracker dependencies..."
-	@./venv/bin/pip install -r lol-tracker/requirements-dev.txt
-	@echo "Virtual environment setup complete!"
-
-clean-venv: ## Remove Python virtual environment
-	rm -rf venv/
 
 # Database commands
 db-shell-discord: ## Connect to the discord database shell
@@ -139,45 +99,3 @@ migrate-dev-up-discord: ## Run pending database migrations for discord service (
 migrate-dev-up-lol: ## Run pending database migrations for lol service (local development)
 	$(MAKE) setup-venv
 	$(MAKE) -C lol-tracker migrate-up-dev
-
-migrate-up-discord: ## Run pending database migrations for discord service (production)
-	$(MAKE) -C discord-client migrate-up
-
-migrate-up-lol: ## Run pending database migrations for lol service (production)
-	$(MAKE) setup-venv
-	$(MAKE) -C lol-tracker migrate-up
-
-migrate-down-discord: ## Rollback last database migration for discord service
-	$(MAKE) -C discord-client migrate-down
-
-migrate-down-lol: ## Rollback last database migration for lol service
-	$(MAKE) setup-venv
-	$(MAKE) -C lol-tracker migrate-down
-
-migrate-status-discord: ## Check migration status for discord service
-	$(MAKE) -C discord-client migrate-status
-
-migrate-status-lol: ## Check migration status for lol service
-	$(MAKE) setup-venv
-	$(MAKE) -C lol-tracker migrate-status
-
-migrate-create-discord: ## Create a new migration file for discord service (usage: make migrate-create-discord NAME=add_feature)
-	$(MAKE) -C discord-client migrate-create NAME=$(NAME)
-
-migrate-create-lol: ## Create a new migration file for lol service (usage: make migrate-create-lol NAME=add_feature)
-	$(MAKE) setup-venv
-	$(MAKE) -C lol-tracker migrate-create NAME=$(NAME)
-
-# Logging
-logs: ## View service logs (use SERVICE=discord|lol|postgres|nats to specify, or all if not specified)
-	@if [ "$(SERVICE)" = "discord" ]; then \
-		docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f discord-bot; \
-	elif [ "$(SERVICE)" = "lol" ]; then \
-		docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f lol-tracker; \
-	elif [ "$(SERVICE)" = "postgres" ]; then \
-		docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f postgres; \
-	elif [ "$(SERVICE)" = "nats" ]; then \
-		docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f nats; \
-	else \
-		docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f; \
-	fi

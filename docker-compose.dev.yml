@@ -115,7 +115,7 @@ services:
       ENVIRONMENT: development
       LOG_LEVEL: info
       MOCK_RIOT_API_URL: ${MOCK_RIOT_API_URL}
-      POLL_INTERVAL_SECONDS: 10
+      POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS-60}
     volumes:
       - ./lol-tracker/lol_tracker:/app/lol_tracker
       - ./lol-tracker/tests:/app/tests
