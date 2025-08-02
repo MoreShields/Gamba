@@ -18,10 +18,11 @@ func calculateWinRate(wins, total int) float64 {
 
 // userMetricsService implements the UserMetricsService interface
 type userMetricsService struct {
-	userRepo       interfaces.UserRepository
-	wagerRepo      interfaces.WagerRepository
-	betRepo        interfaces.BetRepository
-	groupWagerRepo interfaces.GroupWagerRepository
+	userRepo            interfaces.UserRepository
+	wagerRepo           interfaces.WagerRepository
+	betRepo             interfaces.BetRepository
+	groupWagerRepo      interfaces.GroupWagerRepository
+	balanceHistoryRepo  interfaces.BalanceHistoryRepository
 }
 
 // NewUserMetricsService creates a new user metrics service
@@ -30,12 +31,14 @@ func NewUserMetricsService(
 	wagerRepo interfaces.WagerRepository,
 	betRepo interfaces.BetRepository,
 	groupWagerRepo interfaces.GroupWagerRepository,
+	balanceHistoryRepo interfaces.BalanceHistoryRepository,
 ) interfaces.UserMetricsService {
 	return &userMetricsService{
-		userRepo:       userRepo,
-		wagerRepo:      wagerRepo,
-		betRepo:        betRepo,
-		groupWagerRepo: groupWagerRepo,
+		userRepo:           userRepo,
+		wagerRepo:          wagerRepo,
+		betRepo:            betRepo,
+		groupWagerRepo:     groupWagerRepo,
+		balanceHistoryRepo: balanceHistoryRepo,
 	}
 }
 
@@ -81,6 +84,12 @@ func (s *userMetricsService) GetScoreboard(ctx context.Context, limit int) ([]*e
 		wagerWinRate := calculateWinRate(wagerStats.TotalWon, wagerStats.TotalResolved)
 		betWinRate := calculateWinRate(betStats.TotalWins, betStats.TotalBets)
 
+		// Get total volume for the user
+		totalVolume, err := s.balanceHistoryRepo.GetTotalVolumeByUser(ctx, user.DiscordID)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to get total volume for user %d: %w", user.DiscordID, err)
+		}
+
 		entry := &entities.ScoreboardEntry{
 			DiscordID:        user.DiscordID,
 			Username:         user.Username,
@@ -89,6 +98,7 @@ func (s *userMetricsService) GetScoreboard(ctx context.Context, limit int) ([]*e
 			ActiveWagerCount: len(activeWagers),
 			WagerWinRate:     wagerWinRate,
 			BetWinRate:       betWinRate,
+			TotalVolume:      totalVolume,
 		}
 
 		entries = append(entries, entry)

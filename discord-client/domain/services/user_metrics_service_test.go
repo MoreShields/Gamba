@@ -20,7 +20,8 @@ func TestUserMetricsService_GetLOLPredictionStats(t *testing.T) {
 		mockWagerRepo := new(testhelpers.MockWagerRepository)
 		mockBetRepo := new(testhelpers.MockBetRepository)
 		mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
-		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo)
+		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
 
 		// Mock data: 3 users with different prediction patterns
 		predictions := []*entities.GroupWagerPrediction{
@@ -81,7 +82,8 @@ func TestUserMetricsService_GetLOLPredictionStats(t *testing.T) {
 		mockWagerRepo := new(testhelpers.MockWagerRepository)
 		mockBetRepo := new(testhelpers.MockBetRepository)
 		mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
-		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo)
+		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
 
 		// Include some non-Win/Loss options that should be filtered
 		predictions := []*entities.GroupWagerPrediction{
@@ -115,7 +117,8 @@ func TestUserMetricsService_GetLOLPredictionStats(t *testing.T) {
 		mockWagerRepo := new(testhelpers.MockWagerRepository)
 		mockBetRepo := new(testhelpers.MockBetRepository)
 		mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
-		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo)
+		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
 
 		expectedErr := fmt.Errorf("database error")
 		lolSystem := entities.SystemLeagueOfLegends
@@ -142,7 +145,8 @@ func TestUserMetricsService_GetWagerPredictionStats(t *testing.T) {
 		mockWagerRepo := new(testhelpers.MockWagerRepository)
 		mockBetRepo := new(testhelpers.MockBetRepository)
 		mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
-		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo)
+		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
 
 		predictions := []*entities.GroupWagerPrediction{
 			{DiscordID: 100, GroupWagerID: 1, OptionID: 1, OptionText: "Option A", WinningOptionID: 1, Amount: 1000, WasCorrect: true},
@@ -172,7 +176,8 @@ func TestUserMetricsService_GetWagerPredictionStats(t *testing.T) {
 		mockWagerRepo := new(testhelpers.MockWagerRepository)
 		mockBetRepo := new(testhelpers.MockBetRepository)
 		mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
-		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo)
+		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
 
 		tftSystem := entities.SystemTFT
 		predictions := []*entities.GroupWagerPrediction{
@@ -200,7 +205,8 @@ func TestUserMetricsService_GetScoreboard(t *testing.T) {
 		mockWagerRepo := new(testhelpers.MockWagerRepository)
 		mockBetRepo := new(testhelpers.MockBetRepository)
 		mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
-		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo)
+		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
 
 		// Mock users
 		users := []*entities.User{
@@ -231,6 +237,10 @@ func TestUserMetricsService_GetScoreboard(t *testing.T) {
 		mockBetRepo.On("GetStats", ctx, int64(200)).Return(betStats2, nil)
 		// Note: user3 with 0 balance is skipped by GetScoreboard, so no calls expected
 
+		// Mock volume for each user
+		mockBalanceHistoryRepo.On("GetTotalVolumeByUser", ctx, int64(100)).Return(int64(10000), nil)
+		mockBalanceHistoryRepo.On("GetTotalVolumeByUser", ctx, int64(200)).Return(int64(5000), nil)
+
 		// Execute
 		entries, totalBits, err := service.GetScoreboard(ctx, 10)
 
@@ -246,6 +256,7 @@ func TestUserMetricsService_GetScoreboard(t *testing.T) {
 		assert.Equal(t, 2, entries[0].ActiveWagerCount)
 		assert.Equal(t, float64(60), entries[0].WagerWinRate)
 		assert.Equal(t, float64(75), entries[0].BetWinRate)
+		assert.Equal(t, int64(10000), entries[0].TotalVolume)
 
 		assert.Equal(t, 2, entries[1].Rank)
 		assert.Equal(t, int64(200), entries[1].DiscordID)
@@ -253,6 +264,7 @@ func TestUserMetricsService_GetScoreboard(t *testing.T) {
 		assert.Equal(t, 1, entries[1].ActiveWagerCount)
 		assert.Equal(t, float64(40), entries[1].WagerWinRate)
 		assert.Equal(t, float64(30), entries[1].BetWinRate)
+		assert.Equal(t, int64(5000), entries[1].TotalVolume)
 
 		mockUserRepo.AssertExpectations(t)
 		mockWagerRepo.AssertExpectations(t)
@@ -264,7 +276,8 @@ func TestUserMetricsService_GetScoreboard(t *testing.T) {
 		mockWagerRepo := new(testhelpers.MockWagerRepository)
 		mockBetRepo := new(testhelpers.MockBetRepository)
 		mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
-		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo)
+		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
 
 		// Mock many users
 		users := make([]*entities.User, 5)
@@ -283,6 +296,7 @@ func TestUserMetricsService_GetScoreboard(t *testing.T) {
 			mockWagerRepo.On("GetActiveByUser", ctx, int64(100+i)).Return([]*entities.Wager{}, nil)
 			mockWagerRepo.On("GetStats", ctx, int64(100+i)).Return(&entities.WagerStats{}, nil)
 			mockBetRepo.On("GetStats", ctx, int64(100+i)).Return(&entities.BetStats{}, nil)
+			mockBalanceHistoryRepo.On("GetTotalVolumeByUser", ctx, int64(100+i)).Return(int64(0), nil)
 		}
 
 		// Execute with limit
@@ -304,7 +318,8 @@ func TestUserMetricsService_GetUserStats(t *testing.T) {
 		mockWagerRepo := new(testhelpers.MockWagerRepository)
 		mockBetRepo := new(testhelpers.MockBetRepository)
 		mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
-		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo)
+		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
 
 		// Mock user
 		user := &entities.User{
@@ -386,7 +401,8 @@ func TestUserMetricsService_GetUserStats(t *testing.T) {
 		mockWagerRepo := new(testhelpers.MockWagerRepository)
 		mockBetRepo := new(testhelpers.MockBetRepository)
 		mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
-		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo)
+		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
 
 		mockUserRepo.On("GetByDiscordID", ctx, int64(999)).Return(nil, nil)
 

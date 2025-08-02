@@ -36,6 +36,9 @@ type BalanceHistoryRepository interface {
 
 	// GetByDateRange returns balance history within a date range
 	GetByDateRange(ctx context.Context, discordID int64, from, to time.Time) ([]*entities.BalanceHistory, error)
+
+	// GetTotalVolumeByUser returns the total volume (sum of absolute balance changes) for a user
+	GetTotalVolumeByUser(ctx context.Context, discordID int64) (int64, error)
 }
 
 // BetRepository defines the interface for bet data access

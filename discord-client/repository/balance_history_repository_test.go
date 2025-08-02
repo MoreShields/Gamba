@@ -251,3 +251,105 @@ func TestBalanceHistoryRepository_GetByDateRange(t *testing.T) {
 		assert.Len(t, histories, 1)
 	})
 }
+
+func TestBalanceHistoryRepository_GetTotalVolumeByUser(t *testing.T) {
+	testDB := testutil.SetupTestDatabase(t)
+	userRepo := NewUserRepository(testDB.DB)
+
+	ctx := context.Background()
+	guildID := int64(123456789)
+	repo := NewBalanceHistoryRepositoryScoped(testDB.DB.Pool, guildID)
+
+	t.Run("no history returns zero volume", func(t *testing.T) {
+		volume, err := repo.GetTotalVolumeByUser(ctx, 99999)
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), volume)
+	})
+
+	t.Run("calculates total volume correctly", func(t *testing.T) {
+		userID := int64(100)
+		
+		// Create test user first
+		_, err := userRepo.Create(ctx, userID, "testuser100", 10000)
+		require.NoError(t, err)
+		
+		// Create some balance history entries with different change amounts
+		entries := []struct {
+			changeAmount int64
+		}{
+			{changeAmount: 1000},   // +1000
+			{changeAmount: -500},   // -500
+			{changeAmount: 2000},   // +2000
+			{changeAmount: -1500},  // -1500
+		}
+
+		balance := int64(10000)
+		for _, entry := range entries {
+			history := &entities.BalanceHistory{
+				DiscordID:           userID,
+				GuildID:             guildID,
+				BalanceBefore:       balance,
+				BalanceAfter:        balance + entry.changeAmount,
+				ChangeAmount:        entry.changeAmount,
+				TransactionType:     entities.TransactionTypeBetWin,
+				TransactionMetadata: map[string]any{},
+			}
+			balance += entry.changeAmount
+			
+			err := repo.Record(ctx, history)
+			require.NoError(t, err)
+		}
+
+		// Get total volume - should be sum of absolute values: |1000| + |-500| + |2000| + |-1500| = 5000
+		volume, err := repo.GetTotalVolumeByUser(ctx, userID)
+		require.NoError(t, err)
+		assert.Equal(t, int64(5000), volume)
+	})
+
+	t.Run("only counts entries for specified user", func(t *testing.T) {
+		// Add entries for different users
+		user1 := int64(200)
+		user2 := int64(201)
+		
+		// Create test users first
+		_, err := userRepo.Create(ctx, user1, "testuser200", 10000)
+		require.NoError(t, err)
+		_, err = userRepo.Create(ctx, user2, "testuser201", 10000)
+		require.NoError(t, err)
+		
+		history1 := &entities.BalanceHistory{
+			DiscordID:           user1,
+			GuildID:             guildID,
+			BalanceBefore:       10000,
+			BalanceAfter:        11000,
+			ChangeAmount:        1000,
+			TransactionType:     entities.TransactionTypeBetWin,
+			TransactionMetadata: map[string]any{},
+		}
+		
+		history2 := &entities.BalanceHistory{
+			DiscordID:           user2,
+			GuildID:             guildID,
+			BalanceBefore:       10000,
+			BalanceAfter:        12000,
+			ChangeAmount:        2000,
+			TransactionType:     entities.TransactionTypeBetWin,
+			TransactionMetadata: map[string]any{},
+		}
+		
+		err = repo.Record(ctx, history1)
+		require.NoError(t, err)
+		err = repo.Record(ctx, history2)
+		require.NoError(t, err)
+		
+		// Check volume for user1 - should only be their transactions
+		volume, err := repo.GetTotalVolumeByUser(ctx, user1)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1000), volume)
+		
+		// Check volume for user2
+		volume, err = repo.GetTotalVolumeByUser(ctx, user2)
+		require.NoError(t, err)
+		assert.Equal(t, int64(2000), volume)
+	})
+}
