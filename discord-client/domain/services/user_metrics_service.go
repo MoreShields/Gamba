@@ -90,6 +90,12 @@ func (s *userMetricsService) GetScoreboard(ctx context.Context, limit int) ([]*e
 			return nil, 0, fmt.Errorf("failed to get total volume for user %d: %w", user.DiscordID, err)
 		}
 
+		// Get total donations for the user
+		totalDonations, err := s.balanceHistoryRepo.GetTotalDonationsByUser(ctx, user.DiscordID)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to get total donations for user %d: %w", user.DiscordID, err)
+		}
+
 		entry := &entities.ScoreboardEntry{
 			DiscordID:        user.DiscordID,
 			Username:         user.Username,
@@ -99,6 +105,7 @@ func (s *userMetricsService) GetScoreboard(ctx context.Context, limit int) ([]*e
 			WagerWinRate:     wagerWinRate,
 			BetWinRate:       betWinRate,
 			TotalVolume:      totalVolume,
+			TotalDonations:   totalDonations,
 		}
 
 		entries = append(entries, entry)

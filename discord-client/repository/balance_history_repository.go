@@ -189,3 +189,20 @@ func (r *BalanceHistoryRepository) GetTotalVolumeByUser(ctx context.Context, dis
 
 	return totalVolume, nil
 }
+
+// GetTotalDonationsByUser returns the total amount donated (transfer_out) by a user
+func (r *BalanceHistoryRepository) GetTotalDonationsByUser(ctx context.Context, discordID int64) (int64, error) {
+	query := `
+		SELECT COALESCE(SUM(ABS(change_amount)), 0)
+		FROM balance_history
+		WHERE discord_id = $1 AND guild_id = $2 AND transaction_type = 'transfer_out'
+	`
+
+	var totalDonations int64
+	err := r.q.QueryRow(ctx, query, discordID, r.guildID).Scan(&totalDonations)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get total donations for user %d: %w", discordID, err)
+	}
+
+	return totalDonations, nil
+}

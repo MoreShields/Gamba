@@ -39,6 +39,9 @@ type BalanceHistoryRepository interface {
 
 	// GetTotalVolumeByUser returns the total volume (sum of absolute balance changes) for a user
 	GetTotalVolumeByUser(ctx context.Context, discordID int64) (int64, error)
+
+	// GetTotalDonationsByUser returns the total amount donated (transfer_out) by a user
+	GetTotalDonationsByUser(ctx context.Context, discordID int64) (int64, error)
 }
 
 // BetRepository defines the interface for bet data access

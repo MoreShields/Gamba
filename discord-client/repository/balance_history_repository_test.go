@@ -353,3 +353,59 @@ func TestBalanceHistoryRepository_GetTotalVolumeByUser(t *testing.T) {
 		assert.Equal(t, int64(2000), volume)
 	})
 }
+
+func TestBalanceHistoryRepository_GetTotalDonationsByUser(t *testing.T) {
+	testDB := testutil.SetupTestDatabase(t)
+	userRepo := NewUserRepository(testDB.DB)
+
+	ctx := context.Background()
+	guildID := int64(123456789)
+	repo := NewBalanceHistoryRepositoryScoped(testDB.DB.Pool, guildID)
+
+	t.Run("no donations returns zero", func(t *testing.T) {
+		donations, err := repo.GetTotalDonationsByUser(ctx, 99999)
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), donations)
+	})
+
+	t.Run("calculates total donations correctly", func(t *testing.T) {
+		userID := int64(300)
+		
+		// Create test user first
+		_, err := userRepo.Create(ctx, userID, "testuser300", 10000)
+		require.NoError(t, err)
+		
+		// Create some balance history entries with different transaction types
+		entries := []struct {
+			changeAmount    int64
+			transactionType entities.TransactionType
+		}{
+			{changeAmount: -1000, transactionType: entities.TransactionTypeTransferOut}, // Donation
+			{changeAmount: 500, transactionType: entities.TransactionTypeTransferIn},    // Received
+			{changeAmount: -2000, transactionType: entities.TransactionTypeTransferOut}, // Donation
+			{changeAmount: -1500, transactionType: entities.TransactionTypeBetLoss},     // Not a donation
+		}
+
+		balance := int64(10000)
+		for _, entry := range entries {
+			history := &entities.BalanceHistory{
+				DiscordID:           userID,
+				GuildID:             guildID,
+				BalanceBefore:       balance,
+				BalanceAfter:        balance + entry.changeAmount,
+				ChangeAmount:        entry.changeAmount,
+				TransactionType:     entry.transactionType,
+				TransactionMetadata: map[string]any{},
+			}
+			balance += entry.changeAmount
+			
+			err := repo.Record(ctx, history)
+			require.NoError(t, err)
+		}
+
+		// Get total donations - should only count transfer_out: |1000| + |2000| = 3000
+		donations, err := repo.GetTotalDonationsByUser(ctx, userID)
+		require.NoError(t, err)
+		assert.Equal(t, int64(3000), donations)
+	})
+}
