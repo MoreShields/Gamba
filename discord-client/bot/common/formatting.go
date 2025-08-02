@@ -28,6 +28,35 @@ func FormatBalance(balance int64) string {
 	return result.String()
 }
 
+// FormatBalanceCompact formats a balance amount in compact form (e.g. 100k, 1.5M)
+func FormatBalanceCompact(balance int64) string {
+	if balance < 1000 {
+		return fmt.Sprintf("%d", balance)
+	} else if balance < 1000000 {
+		// Format as k (thousands)
+		thousands := float64(balance) / 1000.0
+		if thousands == float64(int(thousands)) {
+			return fmt.Sprintf("%.0fk", thousands)
+		}
+		return fmt.Sprintf("%.1fk", thousands)
+	} else if balance < 1000000000 {
+		// Format as M (millions)
+		millions := float64(balance) / 1000000.0
+		if millions == float64(int(millions)) {
+			return fmt.Sprintf("%.0fM", millions)
+		}
+		return fmt.Sprintf("%.1fM", millions)
+	} else {
+		// Format as B (billions)
+		billions := float64(balance) / 1000000000.0
+		if billions == float64(int(billions)) {
+			return fmt.Sprintf("%.0fB", billions)
+		}
+		return fmt.Sprintf("%.1fB", billions)
+	}
+}
+
+
 // FormatBetResult formats the result of a bet
 func FormatBetResult(won bool, betAmount, winAmount, newBalance int64) string {
 	if won {
