@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"gambler/discord-client/models"
+	"gambler/discord-client/domain/entities"
 )
 
 // addAdminCommands adds admin commands to the shell
@@ -86,13 +86,13 @@ func (s *Shell) handleUpdateBalance(shell *Shell, args []string) error {
 	}
 
 	// Record balance history
-	history := &models.BalanceHistory{
+	history := &entities.BalanceHistory{
 		DiscordID:       userID,
 		GuildID:         guildID,
 		BalanceBefore:   user.Balance,
 		BalanceAfter:    newBalance,
 		ChangeAmount:    newBalance - user.Balance,
-		TransactionType: models.TransactionTypeTransferIn,
+		TransactionType: entities.TransactionTypeTransferIn,
 		TransactionMetadata: map[string]any{
 			"admin":  "true",
 			"source": "debug_shell",
@@ -198,13 +198,13 @@ func (s *Shell) handleAdjustBalance(shell *Shell, args []string) error {
 	}
 
 	// Determine transaction type
-	transactionType := models.TransactionTypeTransferIn
+	transactionType := entities.TransactionTypeTransferIn
 	if adjustment < 0 {
-		transactionType = models.TransactionTypeTransferOut
+		transactionType = entities.TransactionTypeTransferOut
 	}
 
 	// Record balance history
-	history := &models.BalanceHistory{
+	history := &entities.BalanceHistory{
 		DiscordID:       userID,
 		GuildID:         guildID,
 		BalanceBefore:   user.Balance,
@@ -287,13 +287,13 @@ func (s *Shell) handleResetUser(shell *Shell, args []string) error {
 	}
 
 	// Record balance history
-	history := &models.BalanceHistory{
+	history := &entities.BalanceHistory{
 		DiscordID:       userID,
 		GuildID:         guildID,
 		BalanceBefore:   user.Balance,
 		BalanceAfter:    startingBalance,
 		ChangeAmount:    startingBalance - user.Balance,
-		TransactionType: models.TransactionTypeTransferIn,
+		TransactionType: entities.TransactionTypeTransferIn,
 		TransactionMetadata: map[string]any{
 			"admin":  "true",
 			"source": "debug_shell",
@@ -432,13 +432,13 @@ func (s *Shell) handleAdminTransfer(shell *Shell, args []string) error {
 	}
 
 	// Record balance history for both users
-	fromHistory := &models.BalanceHistory{
+	fromHistory := &entities.BalanceHistory{
 		DiscordID:       fromUserID,
 		GuildID:         guildID,
 		BalanceBefore:   fromUser.Balance,
 		BalanceAfter:    newFromBalance,
 		ChangeAmount:    -amount,
-		TransactionType: models.TransactionTypeTransferOut,
+		TransactionType: entities.TransactionTypeTransferOut,
 		TransactionMetadata: map[string]any{
 			"admin":        "true",
 			"source":       "debug_shell",
@@ -447,13 +447,13 @@ func (s *Shell) handleAdminTransfer(shell *Shell, args []string) error {
 		},
 	}
 
-	toHistory := &models.BalanceHistory{
+	toHistory := &entities.BalanceHistory{
 		DiscordID:       toUserID,
 		GuildID:         guildID,
 		BalanceBefore:   toUser.Balance,
 		BalanceAfter:    newToBalance,
 		ChangeAmount:    amount,
-		TransactionType: models.TransactionTypeTransferIn,
+		TransactionType: entities.TransactionTypeTransferIn,
 		TransactionMetadata: map[string]any{
 			"admin":     "true",
 			"source":    "debug_shell",

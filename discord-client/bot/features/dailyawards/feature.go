@@ -8,7 +8,7 @@ import (
 	"gambler/discord-client/application"
 	"gambler/discord-client/application/dto"
 	"gambler/discord-client/bot/common"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/services"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -29,18 +29,18 @@ func NewFeature(session *discordgo.Session, uowFactory application.UnitOfWorkFac
 }
 
 // PostDailyAwardsSummary posts a daily awards summary to a Discord channel
-func (f *Feature) PostDailyAwardsSummary(ctx context.Context, guildID int64, channelID string, summary *service.DailyAwardsSummary) error {
+func (f *Feature) PostDailyAwardsSummary(ctx context.Context, guildID int64, channelID string, summary *services.DailyAwardsSummary) error {
 	// Create embed fields for different award types
 	var fields []*discordgo.MessageEmbedField
 
 	// Group awards by type
-	awardsByType := make(map[service.DailyAwardType][]service.DailyAward)
+	awardsByType := make(map[services.DailyAwardType][]services.DailyAward)
 	for _, award := range summary.Awards {
 		awardsByType[award.GetType()] = append(awardsByType[award.GetType()], award)
 	}
 
 	// Format Wordle awards if present
-	if wordleAwards, ok := awardsByType[service.DailyAwardTypeWordle]; ok && len(wordleAwards) > 0 {
+	if wordleAwards, ok := awardsByType[services.DailyAwardTypeWordle]; ok && len(wordleAwards) > 0 {
 		// Build the table content
 		var tableContent strings.Builder
 		tableContent.WriteString("```\n")
@@ -59,7 +59,7 @@ func (f *Feature) PostDailyAwardsSummary(ctx context.Context, guildID int64, cha
 
 			// Get streak info if available
 			streak := "1"
-			if wordleAward, ok := award.(service.WordleDailyAward); ok {
+			if wordleAward, ok := award.(services.WordleDailyAward); ok {
 				streak = fmt.Sprintf("%d", wordleAward.GetStreak())
 			}
 
@@ -130,7 +130,7 @@ func (f *Feature) PostDailyAwardsForGuild(ctx context.Context, guildID int64) er
 	defer uow.Rollback()
 
 	// Get guild settings to check for primary channel
-	guildSettingsService := service.NewGuildSettingsService(uow.GuildSettingsRepository())
+	guildSettingsService := services.NewGuildSettingsService(uow.GuildSettingsRepository())
 	settings, err := guildSettingsService.GetOrCreateSettings(ctx, guildID)
 	if err != nil {
 		return fmt.Errorf("failed to get guild settings: %w", err)
@@ -142,7 +142,7 @@ func (f *Feature) PostDailyAwardsForGuild(ctx context.Context, guildID int64) er
 	}
 
 	// Create daily awards service
-	dailyAwardsService := service.NewDailyAwardsService(
+	dailyAwardsService := services.NewDailyAwardsService(
 		uow.WordleCompletionRepo(),
 		uow.UserRepository(),
 		uow.WagerRepository(),

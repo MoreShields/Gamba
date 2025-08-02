@@ -9,8 +9,8 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"gambler/discord-client/bot/common"
-	"gambler/discord-client/models"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/entities"
+	"gambler/discord-client/domain/services"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -69,7 +69,7 @@ func (f *Feature) handleWagerPropose(s *discordgo.Session, i *discordgo.Interact
 	defer uow.Rollback()
 
 	// Instantiate user service with repositories from UnitOfWork
-	userService := service.NewUserService(
+	userService := services.NewUserService(
 		uow.UserRepository(),
 		uow.BalanceHistoryRepository(),
 		uow.EventBus(),
@@ -162,7 +162,7 @@ func (f *Feature) handleWagerConditionModal(s *discordgo.Session, i *discordgo.I
 	defer uow.Rollback()
 
 	// Instantiate wager service with repositories from UnitOfWork
-	wagerService := service.NewWagerService(
+	wagerService := services.NewWagerService(
 		uow.UserRepository(),
 		uow.WagerRepository(),
 		uow.WagerVoteRepository(),
@@ -245,7 +245,7 @@ func (f *Feature) handleWagerList(s *discordgo.Session, i *discordgo.Interaction
 	defer uow.Rollback()
 
 	// Instantiate wager service with repositories from UnitOfWork
-	wagerService := service.NewWagerService(
+	wagerService := services.NewWagerService(
 		uow.UserRepository(),
 		uow.WagerRepository(),
 		uow.WagerVoteRepository(),
@@ -317,7 +317,7 @@ func (f *Feature) handleWagerCancel(s *discordgo.Session, i *discordgo.Interacti
 	defer uow.Rollback()
 
 	// Instantiate wager service with repositories from UnitOfWork
-	wagerService := service.NewWagerService(
+	wagerService := services.NewWagerService(
 		uow.UserRepository(),
 		uow.WagerRepository(),
 		uow.WagerVoteRepository(),
@@ -356,7 +356,7 @@ func (f *Feature) handleWagerCancel(s *discordgo.Session, i *discordgo.Interacti
 		channelID := strconv.FormatInt(*wager.ChannelID, 10)
 
 		// Only unpin if the wager was accepted
-		if wager.State == models.WagerStateVoting {
+		if wager.State == entities.WagerStateVoting {
 			common.UnpinMessage(s, channelID, messageID)
 		}
 
@@ -447,12 +447,12 @@ func (f *Feature) handleWagerResponse(s *discordgo.Session, i *discordgo.Interac
 	defer uow.Rollback()
 
 	// Instantiate services with repositories from UnitOfWork
-	userService := service.NewUserService(
+	userService := services.NewUserService(
 		uow.UserRepository(),
 		uow.BalanceHistoryRepository(),
 		uow.EventBus(),
 	)
-	wagerService := service.NewWagerService(
+	wagerService := services.NewWagerService(
 		uow.UserRepository(),
 		uow.WagerRepository(),
 		uow.WagerVoteRepository(),
@@ -500,7 +500,7 @@ func (f *Feature) handleWagerResponse(s *discordgo.Session, i *discordgo.Interac
 		}
 
 		// Show voting interface
-		voteCounts := &models.VoteCount{} // Start with 0 votes
+		voteCounts := &entities.VoteCount{} // Start with 0 votes
 		embed = BuildWagerVotingEmbed(wager, proposerName, targetName, voteCounts)
 		components = BuildWagerVotingComponents(wager, proposerName, targetName)
 	} else {
@@ -572,12 +572,12 @@ func (f *Feature) handleWagerVote(s *discordgo.Session, i *discordgo.Interaction
 	defer uow.Rollback()
 
 	// Instantiate services with repositories from UnitOfWork
-	userService := service.NewUserService(
+	userService := services.NewUserService(
 		uow.UserRepository(),
 		uow.BalanceHistoryRepository(),
 		uow.EventBus(),
 	)
-	wagerService := service.NewWagerService(
+	wagerService := services.NewWagerService(
 		uow.UserRepository(),
 		uow.WagerRepository(),
 		uow.WagerVoteRepository(),
@@ -622,7 +622,7 @@ func (f *Feature) handleWagerVote(s *discordgo.Session, i *discordgo.Interaction
 	var embed *discordgo.MessageEmbed
 	var components []discordgo.MessageComponent
 
-	if wager.State == models.WagerStateResolved {
+	if wager.State == entities.WagerStateResolved {
 		// Wager has been resolved - unpin the message and send notification
 		if wager.MessageID != nil && wager.ChannelID != nil {
 			messageID := strconv.FormatInt(*wager.MessageID, 10)

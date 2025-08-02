@@ -9,9 +9,9 @@ import (
 
 	"gambler/discord-client/application"
 	"gambler/discord-client/config"
-	"gambler/discord-client/events"
+	"gambler/discord-client/domain/events"
 	"gambler/discord-client/infrastructure"
-	"gambler/discord-client/models"
+	"gambler/discord-client/domain/entities"
 	"gambler/discord-client/repository/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,7 +62,7 @@ func setupWordleGuild(t *testing.T, ctx context.Context, uowFactory application.
 	}()
 
 	// Create guild settings with Wordle channel
-	guildSettings := &models.GuildSettings{
+	guildSettings := &entities.GuildSettings{
 		GuildID:         guildID,
 		WordleChannelID: &channelID,
 	}
@@ -158,7 +158,7 @@ func TestWordleHandler_EndToEndFlow(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, history, 1)
 			
-			assert.Equal(t, models.TransactionTypeWordleReward, history[0].TransactionType)
+			assert.Equal(t, entities.TransactionTypeWordleReward, history[0].TransactionType)
 			assert.Equal(t, expectedReward, history[0].ChangeAmount)
 			assert.Equal(t, int64(0), history[0].BalanceBefore)
 			assert.Equal(t, expectedReward, history[0].BalanceAfter)

@@ -6,7 +6,8 @@ import (
 	"strconv"
 
 	"gambler/discord-client/bot/common"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/services"
+	"gambler/discord-client/domain/utils"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -23,7 +24,7 @@ func (f *Feature) processBetAndUpdateMessage(ctx context.Context, s *discordgo.S
 	defer uow.Rollback()
 
 	// Instantiate gambling service with repositories from UnitOfWork
-	gamblingService := service.NewGamblingService(
+	gamblingService := services.NewGamblingService(
 		uow.UserRepository(),
 		uow.BetRepository(),
 		uow.BalanceHistoryRepository(),
@@ -133,7 +134,7 @@ func (f *Feature) processRepeatBet(ctx context.Context, s *discordgo.Session, i 
 	defer uow.Rollback()
 
 	// Instantiate gambling service with repositories from UnitOfWork
-	gamblingService := service.NewGamblingService(
+	gamblingService := services.NewGamblingService(
 		uow.UserRepository(),
 		uow.BetRepository(),
 		uow.BalanceHistoryRepository(),
@@ -144,7 +145,7 @@ func (f *Feature) processRepeatBet(ctx context.Context, s *discordgo.Session, i 
 	remaining, err := gamblingService.CheckDailyLimit(ctx, discordID, newAmount)
 	if err != nil {
 		cfg := f.config
-		nextReset := service.GetNextResetTime(cfg.DailyLimitResetHour)
+		nextReset := utils.GetNextResetTime(cfg.DailyLimitResetHour)
 
 		var errorMsg string
 		if remaining <= 0 {

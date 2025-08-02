@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"gambler/discord-client/models"
+	"gambler/discord-client/domain/entities"
 	"gambler/discord-client/repository/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -49,7 +49,7 @@ func TestGroupWagerRepository_GetStats(t *testing.T) {
 		option1 := testutil.CreateTestGroupWagerOption(0, "Option A", 0)
 		option2 := testutil.CreateTestGroupWagerOption(0, "Option B", 1)
 
-		err := groupWagerRepo.CreateWithOptions(ctx, wager1, []*models.GroupWagerOption{option1, option2})
+		err := groupWagerRepo.CreateWithOptions(ctx, wager1, []*entities.GroupWagerOption{option1, option2})
 		require.NoError(t, err)
 
 		// Add participants (not including user1)
@@ -72,7 +72,7 @@ func TestGroupWagerRepository_GetStats(t *testing.T) {
 		option3 := testutil.CreateTestGroupWagerOption(0, "Option A", 0)
 		option4 := testutil.CreateTestGroupWagerOption(0, "Option B", 1)
 
-		err := groupWagerRepo.CreateWithOptions(ctx, wager2, []*models.GroupWagerOption{option3, option4})
+		err := groupWagerRepo.CreateWithOptions(ctx, wager2, []*entities.GroupWagerOption{option3, option4})
 		require.NoError(t, err)
 
 		// Add user1 as participant
@@ -92,7 +92,7 @@ func TestGroupWagerRepository_GetStats(t *testing.T) {
 	t.Run("resolved wager - user wins", func(t *testing.T) {
 		// Create balance history entries for payout tracking
 		balanceHistory1 := testutil.CreateTestBalanceHistoryWithAmounts(
-			user1.DiscordID, 100000, 103000, 3000, models.TransactionTypeGroupWagerWin)
+			user1.DiscordID, 100000, 103000, 3000, entities.TransactionTypeGroupWagerWin)
 		err := balanceHistoryRepo.Record(ctx, balanceHistory1)
 		require.NoError(t, err)
 
@@ -101,11 +101,11 @@ func TestGroupWagerRepository_GetStats(t *testing.T) {
 		option5 := testutil.CreateTestGroupWagerOption(0, "Winning Option", 0)
 		option6 := testutil.CreateTestGroupWagerOption(0, "Losing Option", 1)
 
-		err = groupWagerRepo.CreateWithOptions(ctx, wager3, []*models.GroupWagerOption{option5, option6})
+		err = groupWagerRepo.CreateWithOptions(ctx, wager3, []*entities.GroupWagerOption{option5, option6})
 		require.NoError(t, err)
 
 		// Now resolve the wager by updating to resolved state
-		wager3.State = models.GroupWagerStateResolved
+		wager3.State = entities.GroupWagerStateResolved
 		wager3.ResolverDiscordID = &user2.DiscordID
 		wager3.WinningOptionID = &option5.ID
 		resolvedAt := time.Now()
@@ -121,7 +121,7 @@ func TestGroupWagerRepository_GetStats(t *testing.T) {
 		// Now update the participant with payout information
 		winningParticipant.PayoutAmount = &[]int64{3000}[0]
 		winningParticipant.BalanceHistoryID = &balanceHistory1.ID
-		err = groupWagerRepo.UpdateParticipantPayouts(ctx, []*models.GroupWagerParticipant{winningParticipant})
+		err = groupWagerRepo.UpdateParticipantPayouts(ctx, []*entities.GroupWagerParticipant{winningParticipant})
 		require.NoError(t, err)
 
 		// Add losing participant
@@ -144,11 +144,11 @@ func TestGroupWagerRepository_GetStats(t *testing.T) {
 		option7 := testutil.CreateTestGroupWagerOption(0, "Losing Option", 0)
 		option8 := testutil.CreateTestGroupWagerOption(0, "Winning Option", 1)
 
-		err := groupWagerRepo.CreateWithOptions(ctx, wager4, []*models.GroupWagerOption{option7, option8})
+		err := groupWagerRepo.CreateWithOptions(ctx, wager4, []*entities.GroupWagerOption{option7, option8})
 		require.NoError(t, err)
 
 		// Resolve the wager with option8 as winner
-		wager4.State = models.GroupWagerStateResolved
+		wager4.State = entities.GroupWagerStateResolved
 		wager4.ResolverDiscordID = &user3.DiscordID
 		wager4.WinningOptionID = &option8.ID
 		resolvedAt := time.Now()
@@ -163,7 +163,7 @@ func TestGroupWagerRepository_GetStats(t *testing.T) {
 
 		// Add winning participant (user3)
 		balanceHistory2 := testutil.CreateTestBalanceHistoryWithAmounts(
-			user3.DiscordID, 100000, 105000, 5000, models.TransactionTypeGroupWagerWin)
+			user3.DiscordID, 100000, 105000, 5000, entities.TransactionTypeGroupWagerWin)
 		err = balanceHistoryRepo.Record(ctx, balanceHistory2)
 		require.NoError(t, err)
 
@@ -174,7 +174,7 @@ func TestGroupWagerRepository_GetStats(t *testing.T) {
 		// Now update the participant with payout information
 		winningParticipant.PayoutAmount = &[]int64{5000}[0]
 		winningParticipant.BalanceHistoryID = &balanceHistory2.ID
-		err = groupWagerRepo.UpdateParticipantPayouts(ctx, []*models.GroupWagerParticipant{winningParticipant})
+		err = groupWagerRepo.UpdateParticipantPayouts(ctx, []*entities.GroupWagerParticipant{winningParticipant})
 		require.NoError(t, err)
 
 		stats, err := groupWagerRepo.GetStats(ctx, user1.DiscordID)
@@ -192,11 +192,11 @@ func TestGroupWagerRepository_GetStats(t *testing.T) {
 		option9 := testutil.CreateTestGroupWagerOption(0, "Winning Option", 0)
 		option10 := testutil.CreateTestGroupWagerOption(0, "Losing Option", 1)
 
-		err := groupWagerRepo.CreateWithOptions(ctx, wager5, []*models.GroupWagerOption{option9, option10})
+		err := groupWagerRepo.CreateWithOptions(ctx, wager5, []*entities.GroupWagerOption{option9, option10})
 		require.NoError(t, err)
 
 		// Resolve the wager with option9 as winner
-		wager5.State = models.GroupWagerStateResolved
+		wager5.State = entities.GroupWagerStateResolved
 		wager5.ResolverDiscordID = &user2.DiscordID
 		wager5.WinningOptionID = &option9.ID
 		resolvedAt := time.Now()
@@ -206,7 +206,7 @@ func TestGroupWagerRepository_GetStats(t *testing.T) {
 
 		// Create another balance history for second win
 		balanceHistory3 := testutil.CreateTestBalanceHistoryWithAmounts(
-			user1.DiscordID, 103000, 108000, 5000, models.TransactionTypeGroupWagerWin)
+			user1.DiscordID, 103000, 108000, 5000, entities.TransactionTypeGroupWagerWin)
 		err = balanceHistoryRepo.Record(ctx, balanceHistory3)
 		require.NoError(t, err)
 
@@ -218,7 +218,7 @@ func TestGroupWagerRepository_GetStats(t *testing.T) {
 		// Now update the participant with payout information
 		winningParticipant2.PayoutAmount = &[]int64{5000}[0]
 		winningParticipant2.BalanceHistoryID = &balanceHistory3.ID
-		err = groupWagerRepo.UpdateParticipantPayouts(ctx, []*models.GroupWagerParticipant{winningParticipant2})
+		err = groupWagerRepo.UpdateParticipantPayouts(ctx, []*entities.GroupWagerParticipant{winningParticipant2})
 		require.NoError(t, err)
 
 		stats, err := groupWagerRepo.GetStats(ctx, user1.DiscordID)
@@ -288,7 +288,7 @@ func TestGroupWagerRepository_GetGroupWagerPredictions(t *testing.T) {
 		option1 := testutil.CreateTestGroupWagerOption(0, "Win", 0)
 		option2 := testutil.CreateTestGroupWagerOption(0, "Loss", 1)
 
-		err := groupWagerRepo.CreateWithOptions(ctx, activeWager, []*models.GroupWagerOption{option1, option2})
+		err := groupWagerRepo.CreateWithOptions(ctx, activeWager, []*entities.GroupWagerOption{option1, option2})
 		require.NoError(t, err)
 
 		// Add participant
@@ -307,11 +307,11 @@ func TestGroupWagerRepository_GetGroupWagerPredictions(t *testing.T) {
 		option1 := testutil.CreateTestGroupWagerOption(0, "Win", 0)
 		option2 := testutil.CreateTestGroupWagerOption(0, "Loss", 1)
 
-		err := groupWagerRepo.CreateWithOptions(ctx, wager, []*models.GroupWagerOption{option1, option2})
+		err := groupWagerRepo.CreateWithOptions(ctx, wager, []*entities.GroupWagerOption{option1, option2})
 		require.NoError(t, err)
 
 		// Resolve the wager
-		wager.State = models.GroupWagerStateResolved
+		wager.State = entities.GroupWagerStateResolved
 		wager.ResolverDiscordID = &user1.DiscordID
 		wager.WinningOptionID = &option1.ID
 		resolvedAt := time.Now()
@@ -362,18 +362,18 @@ func TestGroupWagerRepository_GetGroupWagerPredictions(t *testing.T) {
 	t.Run("resolved wager with external system - League of Legends", func(t *testing.T) {
 		// Create a LoL wager
 		lolWager := testutil.CreateTestGroupWager(user2.DiscordID, "LoL game wager")
-		lolWager.ExternalRef = &models.ExternalReference{
-			System: models.SystemLeagueOfLegends,
+		lolWager.ExternalRef = &entities.ExternalReference{
+			System: entities.SystemLeagueOfLegends,
 			ID:     "RIOT_12345",
 		}
 		option3 := testutil.CreateTestGroupWagerOption(0, "Win", 0)
 		option4 := testutil.CreateTestGroupWagerOption(0, "Loss", 1)
 
-		err := groupWagerRepo.CreateWithOptions(ctx, lolWager, []*models.GroupWagerOption{option3, option4})
+		err := groupWagerRepo.CreateWithOptions(ctx, lolWager, []*entities.GroupWagerOption{option3, option4})
 		require.NoError(t, err)
 
 		// Resolve the wager
-		lolWager.State = models.GroupWagerStateResolved
+		lolWager.State = entities.GroupWagerStateResolved
 		lolWager.ResolverDiscordID = &user2.DiscordID
 		lolWager.WinningOptionID = &option4.ID
 		resolvedAt := time.Now()
@@ -390,7 +390,7 @@ func TestGroupWagerRepository_GetGroupWagerPredictions(t *testing.T) {
 		require.NoError(t, err)
 
 		// Test filtering by external system
-		lolSystem := models.SystemLeagueOfLegends
+		lolSystem := entities.SystemLeagueOfLegends
 		predictions, err := groupWagerRepo.GetGroupWagerPredictions(ctx, &lolSystem)
 		require.NoError(t, err)
 		require.Len(t, predictions, 2)
@@ -409,7 +409,7 @@ func TestGroupWagerRepository_GetGroupWagerPredictions(t *testing.T) {
 		assert.Equal(t, int64(2000), predictions[0].Amount)
 		assert.False(t, predictions[0].WasCorrect)
 		assert.NotNil(t, predictions[0].ExternalSystem)
-		assert.Equal(t, models.SystemLeagueOfLegends, *predictions[0].ExternalSystem)
+		assert.Equal(t, entities.SystemLeagueOfLegends, *predictions[0].ExternalSystem)
 		assert.NotNil(t, predictions[0].ExternalID)
 		assert.Equal(t, "RIOT_12345", *predictions[0].ExternalID)
 
@@ -422,7 +422,7 @@ func TestGroupWagerRepository_GetGroupWagerPredictions(t *testing.T) {
 		assert.Equal(t, int64(2500), predictions[1].Amount)
 		assert.True(t, predictions[1].WasCorrect)
 		assert.NotNil(t, predictions[1].ExternalSystem)
-		assert.Equal(t, models.SystemLeagueOfLegends, *predictions[1].ExternalSystem)
+		assert.Equal(t, entities.SystemLeagueOfLegends, *predictions[1].ExternalSystem)
 		assert.NotNil(t, predictions[1].ExternalID)
 		assert.Equal(t, "RIOT_12345", *predictions[1].ExternalID)
 	})
@@ -430,18 +430,18 @@ func TestGroupWagerRepository_GetGroupWagerPredictions(t *testing.T) {
 	t.Run("filtering by external system excludes other systems", func(t *testing.T) {
 		// Create a TFT wager
 		tftWager := testutil.CreateTestGroupWager(user3.DiscordID, "TFT game wager")
-		tftWager.ExternalRef = &models.ExternalReference{
-			System: models.SystemTFT,
+		tftWager.ExternalRef = &entities.ExternalReference{
+			System: entities.SystemTFT,
 			ID:     "TFT_67890",
 		}
 		option5 := testutil.CreateTestGroupWagerOption(0, "Top 4", 0)
 		option6 := testutil.CreateTestGroupWagerOption(0, "Bottom 4", 1)
 
-		err := groupWagerRepo.CreateWithOptions(ctx, tftWager, []*models.GroupWagerOption{option5, option6})
+		err := groupWagerRepo.CreateWithOptions(ctx, tftWager, []*entities.GroupWagerOption{option5, option6})
 		require.NoError(t, err)
 
 		// Resolve the TFT wager
-		tftWager.State = models.GroupWagerStateResolved
+		tftWager.State = entities.GroupWagerStateResolved
 		tftWager.ResolverDiscordID = &user3.DiscordID
 		tftWager.WinningOptionID = &option5.ID
 		resolvedAt := time.Now()
@@ -455,13 +455,13 @@ func TestGroupWagerRepository_GetGroupWagerPredictions(t *testing.T) {
 		require.NoError(t, err)
 
 		// Test filtering by LoL should not return TFT predictions
-		lolSystem := models.SystemLeagueOfLegends
+		lolSystem := entities.SystemLeagueOfLegends
 		lolPredictions, err := groupWagerRepo.GetGroupWagerPredictions(ctx, &lolSystem)
 		require.NoError(t, err)
 		require.Len(t, lolPredictions, 2) // Only the LoL predictions from previous test
 
 		// Test filtering by TFT should only return TFT predictions
-		tftSystem := models.SystemTFT
+		tftSystem := entities.SystemTFT
 		tftPredictions, err := groupWagerRepo.GetGroupWagerPredictions(ctx, &tftSystem)
 		require.NoError(t, err)
 		require.Len(t, tftPredictions, 1)
@@ -474,7 +474,7 @@ func TestGroupWagerRepository_GetGroupWagerPredictions(t *testing.T) {
 		assert.Equal(t, option5.ID, tftPredictions[0].WinningOptionID)
 		assert.True(t, tftPredictions[0].WasCorrect)
 		assert.NotNil(t, tftPredictions[0].ExternalSystem)
-		assert.Equal(t, models.SystemTFT, *tftPredictions[0].ExternalSystem)
+		assert.Equal(t, entities.SystemTFT, *tftPredictions[0].ExternalSystem)
 		assert.NotNil(t, tftPredictions[0].ExternalID)
 		assert.Equal(t, "TFT_67890", *tftPredictions[0].ExternalID)
 
@@ -490,11 +490,11 @@ func TestGroupWagerRepository_GetGroupWagerPredictions(t *testing.T) {
 		option7 := testutil.CreateTestGroupWagerOption(0, "Option A", 0)
 		option8 := testutil.CreateTestGroupWagerOption(0, "Option B", 1)
 
-		err := groupWagerRepo.CreateWithOptions(ctx, cancelledWager, []*models.GroupWagerOption{option7, option8})
+		err := groupWagerRepo.CreateWithOptions(ctx, cancelledWager, []*entities.GroupWagerOption{option7, option8})
 		require.NoError(t, err)
 
 		// Resolve without winner (simulates cancellation)
-		cancelledWager.State = models.GroupWagerStateResolved
+		cancelledWager.State = entities.GroupWagerStateResolved
 		cancelledWager.ResolverDiscordID = &user1.DiscordID
 		// Don't set WinningOptionID - leave it nil
 		resolvedAt := time.Now()

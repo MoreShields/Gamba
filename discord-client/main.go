@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"gambler/discord-client/config"
 	"gambler/discord-client/database"
-	"gambler/discord-client/events"
+	"gambler/discord-client/domain/events"
 	"gambler/discord-client/infrastructure"
-	"gambler/discord-client/models"
+	"gambler/discord-client/domain/entities"
 	"log"
 	"os"
 	"os/signal"
@@ -121,13 +121,13 @@ func handleBalanceAdjustment() error {
 	initialBalance := user.Balance
 	uow.UserRepository().UpdateBalance(ctx, userId, int64(balance))
 
-	history := &models.BalanceHistory{
+	history := &entities.BalanceHistory{
 		DiscordID:       userId,
 		GuildID:         0, // Will be set by repository from UoW's guild scope
 		BalanceBefore:   initialBalance,
 		BalanceAfter:    balance,
 		ChangeAmount:    balance - initialBalance,
-		TransactionType: models.TransactionTypeTransferIn,
+		TransactionType: entities.TransactionTypeTransferIn,
 		TransactionMetadata: map[string]any{
 			"admin": "true",
 		},

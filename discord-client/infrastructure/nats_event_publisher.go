@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"gambler/discord-client/events"
+	"gambler/discord-client/domain/events"
 	"gambler/discord-client/proto/models"
 
 	"github.com/google/uuid"

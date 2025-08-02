@@ -3,13 +3,13 @@ package testutil
 import (
 	"time"
 
-	"gambler/discord-client/models"
+	"gambler/discord-client/domain/entities"
 )
 
 // CreateTestUser creates a test user with default values
-func CreateTestUser(discordID int64, username string) *models.User {
+func CreateTestUser(discordID int64, username string) *entities.User {
 	now := time.Now()
-	return &models.User{
+	return &entities.User{
 		DiscordID: discordID,
 		Username:  username,
 		Balance:   100000,
@@ -19,15 +19,15 @@ func CreateTestUser(discordID int64, username string) *models.User {
 }
 
 // CreateTestUserWithBalance creates a test user with a specific balance
-func CreateTestUserWithBalance(discordID int64, username string, balance int64) *models.User {
+func CreateTestUserWithBalance(discordID int64, username string, balance int64) *entities.User {
 	user := CreateTestUser(discordID, username)
 	user.Balance = balance
 	return user
 }
 
 // CreateTestBalanceHistory creates a test balance history entry
-func CreateTestBalanceHistory(discordID int64, transactionType models.TransactionType) *models.BalanceHistory {
-	return &models.BalanceHistory{
+func CreateTestBalanceHistory(discordID int64, transactionType entities.TransactionType) *entities.BalanceHistory {
+	return &entities.BalanceHistory{
 		DiscordID:       discordID,
 		BalanceBefore:   100000,
 		BalanceAfter:    90000,
@@ -41,7 +41,7 @@ func CreateTestBalanceHistory(discordID int64, transactionType models.Transactio
 }
 
 // CreateTestBalanceHistoryWithAmounts creates a test balance history with specific amounts
-func CreateTestBalanceHistoryWithAmounts(discordID int64, before, after, change int64, transactionType models.TransactionType) *models.BalanceHistory {
+func CreateTestBalanceHistoryWithAmounts(discordID int64, before, after, change int64, transactionType entities.TransactionType) *entities.BalanceHistory {
 	history := CreateTestBalanceHistory(discordID, transactionType)
 	history.BalanceBefore = before
 	history.BalanceAfter = after
@@ -50,13 +50,13 @@ func CreateTestBalanceHistoryWithAmounts(discordID int64, before, after, change 
 }
 
 // CreateTestGroupWager creates a test group wager with sensible defaults
-func CreateTestGroupWager(creatorID int64, condition string) *models.GroupWager {
+func CreateTestGroupWager(creatorID int64, condition string) *entities.GroupWager {
 	futureTime := time.Now().Add(24 * time.Hour)
-	return &models.GroupWager{
+	return &entities.GroupWager{
 		CreatorDiscordID:    &creatorID,
 		Condition:           condition,
-		State:               models.GroupWagerStateActive,
-		WagerType:           models.GroupWagerTypePool, // Default to pool
+		State:               entities.GroupWagerStateActive,
+		WagerType:           entities.GroupWagerTypePool, // Default to pool
 		TotalPot:            0,
 		MinParticipants:     2,
 		VotingPeriodMinutes: 60,
@@ -69,21 +69,21 @@ func CreateTestGroupWager(creatorID int64, condition string) *models.GroupWager 
 }
 
 // CreateTestGroupWagerWithType creates a test group wager with specific type
-func CreateTestGroupWagerWithType(creatorID int64, condition string, wagerType models.GroupWagerType) *models.GroupWager {
+func CreateTestGroupWagerWithType(creatorID int64, condition string, wagerType entities.GroupWagerType) *entities.GroupWager {
 	wager := CreateTestGroupWager(creatorID, condition)
 	wager.WagerType = wagerType
 	return wager
 }
 
 // CreateTestHouseWager creates a test house group wager
-func CreateTestHouseWager(creatorID int64, condition string) *models.GroupWager {
-	return CreateTestGroupWagerWithType(creatorID, condition, models.GroupWagerTypeHouse)
+func CreateTestHouseWager(creatorID int64, condition string) *entities.GroupWager {
+	return CreateTestGroupWagerWithType(creatorID, condition, entities.GroupWagerTypeHouse)
 }
 
 // CreateTestGroupWagerResolved creates a resolved test group wager
-func CreateTestGroupWagerResolved(creatorID int64, condition string, resolverID int64) *models.GroupWager {
+func CreateTestGroupWagerResolved(creatorID int64, condition string, resolverID int64) *entities.GroupWager {
 	wager := CreateTestGroupWager(creatorID, condition)
-	wager.State = models.GroupWagerStateResolved
+	wager.State = entities.GroupWagerStateResolved
 	wager.ResolverDiscordID = &resolverID
 	resolvedAt := time.Now()
 	wager.ResolvedAt = &resolvedAt
@@ -91,8 +91,8 @@ func CreateTestGroupWagerResolved(creatorID int64, condition string, resolverID 
 }
 
 // CreateTestGroupWagerOption creates a test group wager option
-func CreateTestGroupWagerOption(groupWagerID int64, text string, order int16) *models.GroupWagerOption {
-	return &models.GroupWagerOption{
+func CreateTestGroupWagerOption(groupWagerID int64, text string, order int16) *entities.GroupWagerOption {
+	return &entities.GroupWagerOption{
 		GroupWagerID:   groupWagerID,
 		OptionText:     text,
 		OptionOrder:    order,
@@ -103,15 +103,15 @@ func CreateTestGroupWagerOption(groupWagerID int64, text string, order int16) *m
 }
 
 // CreateTestGroupWagerOptionWithOdds creates a test group wager option with specific odds
-func CreateTestGroupWagerOptionWithOdds(groupWagerID int64, text string, order int16, oddsMultiplier float64) *models.GroupWagerOption {
+func CreateTestGroupWagerOptionWithOdds(groupWagerID int64, text string, order int16, oddsMultiplier float64) *entities.GroupWagerOption {
 	option := CreateTestGroupWagerOption(groupWagerID, text, order)
 	option.OddsMultiplier = oddsMultiplier
 	return option
 }
 
 // CreateTestGroupWagerParticipant creates a test group wager participant
-func CreateTestGroupWagerParticipant(groupWagerID, discordID, optionID int64, amount int64) *models.GroupWagerParticipant {
-	return &models.GroupWagerParticipant{
+func CreateTestGroupWagerParticipant(groupWagerID, discordID, optionID int64, amount int64) *entities.GroupWagerParticipant {
+	return &entities.GroupWagerParticipant{
 		GroupWagerID: groupWagerID,
 		DiscordID:    discordID,
 		OptionID:     optionID,
@@ -122,7 +122,7 @@ func CreateTestGroupWagerParticipant(groupWagerID, discordID, optionID int64, am
 }
 
 // CreateTestGroupWagerParticipantWithPayout creates a test participant with payout info
-func CreateTestGroupWagerParticipantWithPayout(groupWagerID, discordID, optionID int64, amount, payout int64, balanceHistoryID int64) *models.GroupWagerParticipant {
+func CreateTestGroupWagerParticipantWithPayout(groupWagerID, discordID, optionID int64, amount, payout int64, balanceHistoryID int64) *entities.GroupWagerParticipant {
 	participant := CreateTestGroupWagerParticipant(groupWagerID, discordID, optionID, amount)
 	participant.PayoutAmount = &payout
 	participant.BalanceHistoryID = &balanceHistoryID
@@ -130,9 +130,9 @@ func CreateTestGroupWagerParticipantWithPayout(groupWagerID, discordID, optionID
 }
 
 // CreateTestSummoner creates a test summoner with default values
-func CreateTestSummoner(summonerName, tagLine string) *models.Summoner {
+func CreateTestSummoner(summonerName, tagLine string) *entities.Summoner {
 	now := time.Now()
-	return &models.Summoner{
+	return &entities.Summoner{
 		SummonerName: summonerName,
 		TagLine:      tagLine,
 		CreatedAt:    now,
@@ -141,8 +141,8 @@ func CreateTestSummoner(summonerName, tagLine string) *models.Summoner {
 }
 
 // CreateTestGuildSummonerWatch creates a test guild summoner watch
-func CreateTestGuildSummonerWatch(guildID, summonerID int64) *models.GuildSummonerWatch {
-	return &models.GuildSummonerWatch{
+func CreateTestGuildSummonerWatch(guildID, summonerID int64) *entities.GuildSummonerWatch {
+	return &entities.GuildSummonerWatch{
 		GuildID:    guildID,
 		SummonerID: summonerID,
 		CreatedAt:  time.Now(),
@@ -150,9 +150,9 @@ func CreateTestGuildSummonerWatch(guildID, summonerID int64) *models.GuildSummon
 }
 
 // CreateTestSummonerWatchDetail creates a test summoner watch detail
-func CreateTestSummonerWatchDetail(guildID int64, summonerName, tagLine string) *models.SummonerWatchDetail {
+func CreateTestSummonerWatchDetail(guildID int64, summonerName, tagLine string) *entities.SummonerWatchDetail {
 	now := time.Now()
-	return &models.SummonerWatchDetail{
+	return &entities.SummonerWatchDetail{
 		GuildID:      guildID,
 		WatchedAt:    now,
 		SummonerName: summonerName,

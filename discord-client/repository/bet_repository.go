@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"gambler/discord-client/database"
-	"gambler/discord-client/models"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/entities"
+	"gambler/discord-client/domain/interfaces"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -17,24 +17,24 @@ type betRepository struct {
 }
 
 // NewBetRepository creates a new bet repository
-func NewBetRepository(db *database.DB) service.BetRepository {
+func NewBetRepository(db *database.DB) interfaces.BetRepository {
 	return &betRepository{q: db.Pool}
 }
 
 // newBetRepositoryWithTx creates a new bet repository with a transaction
-func newBetRepositoryWithTx(tx Queryable) service.BetRepository {
+func newBetRepositoryWithTx(tx Queryable) interfaces.BetRepository {
 	return &betRepository{q: tx}
 }
 
 // newBetRepository creates a new bet repository with a transaction and guild scope
-func NewBetRepositoryScoped(tx Queryable, guildID int64) service.BetRepository {
+func NewBetRepositoryScoped(tx Queryable, guildID int64) interfaces.BetRepository {
 	return &betRepository{
 		q:       tx,
 		guildID: guildID,
 	}
 }
 
-func (r *betRepository) Create(ctx context.Context, bet *models.Bet) error {
+func (r *betRepository) Create(ctx context.Context, bet *entities.Bet) error {
 	query := `
 		INSERT INTO bets (discord_id, guild_id, amount, win_probability, won, win_amount, balance_history_id)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -57,13 +57,13 @@ func (r *betRepository) Create(ctx context.Context, bet *models.Bet) error {
 	return nil
 }
 
-func (r *betRepository) GetByID(ctx context.Context, id int64) (*models.Bet, error) {
+func (r *betRepository) GetByID(ctx context.Context, id int64) (*entities.Bet, error) {
 	query := `
 		SELECT id, discord_id, guild_id, amount, win_probability, won, win_amount, balance_history_id, created_at
 		FROM bets
 		WHERE id = $1 AND guild_id = $2`
 
-	var bet models.Bet
+	var bet entities.Bet
 	err := r.q.QueryRow(ctx, query, id, r.guildID).Scan(
 		&bet.ID,
 		&bet.DiscordID,
@@ -86,7 +86,7 @@ func (r *betRepository) GetByID(ctx context.Context, id int64) (*models.Bet, err
 	return &bet, nil
 }
 
-func (r *betRepository) GetByUser(ctx context.Context, discordID int64, limit int) ([]*models.Bet, error) {
+func (r *betRepository) GetByUser(ctx context.Context, discordID int64, limit int) ([]*entities.Bet, error) {
 	query := `
 		SELECT id, discord_id, guild_id, amount, win_probability, won, win_amount, balance_history_id, created_at
 		FROM bets
@@ -100,9 +100,9 @@ func (r *betRepository) GetByUser(ctx context.Context, discordID int64, limit in
 	}
 	defer rows.Close()
 
-	var bets []*models.Bet
+	var bets []*entities.Bet
 	for rows.Next() {
-		var bet models.Bet
+		var bet entities.Bet
 		err := rows.Scan(
 			&bet.ID,
 			&bet.DiscordID,
@@ -123,7 +123,7 @@ func (r *betRepository) GetByUser(ctx context.Context, discordID int64, limit in
 	return bets, nil
 }
 
-func (r *betRepository) GetStats(ctx context.Context, discordID int64) (*models.BetStats, error) {
+func (r *betRepository) GetStats(ctx context.Context, discordID int64) (*entities.BetStats, error) {
 	query := `
 		SELECT 
 			COUNT(*) as total_bets,
@@ -137,7 +137,7 @@ func (r *betRepository) GetStats(ctx context.Context, discordID int64) (*models.
 		FROM bets
 		WHERE discord_id = $1 AND guild_id = $2`
 
-	var stats models.BetStats
+	var stats entities.BetStats
 	err := r.q.QueryRow(ctx, query, discordID, r.guildID).Scan(
 		&stats.TotalBets,
 		&stats.TotalWins,
@@ -156,7 +156,7 @@ func (r *betRepository) GetStats(ctx context.Context, discordID int64) (*models.
 	return &stats, nil
 }
 
-func (r *betRepository) GetByUserSince(ctx context.Context, discordID int64, since time.Time) ([]*models.Bet, error) {
+func (r *betRepository) GetByUserSince(ctx context.Context, discordID int64, since time.Time) ([]*entities.Bet, error) {
 	query := `
 		SELECT id, discord_id, guild_id, amount, win_probability, won, win_amount, balance_history_id, created_at
 		FROM bets
@@ -169,9 +169,9 @@ func (r *betRepository) GetByUserSince(ctx context.Context, discordID int64, sin
 	}
 	defer rows.Close()
 
-	var bets []*models.Bet
+	var bets []*entities.Bet
 	for rows.Next() {
-		var bet models.Bet
+		var bet entities.Bet
 		err := rows.Scan(
 			&bet.ID,
 			&bet.DiscordID,

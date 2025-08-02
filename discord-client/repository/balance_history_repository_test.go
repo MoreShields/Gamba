@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"gambler/discord-client/models"
+	"gambler/discord-client/domain/entities"
 	"gambler/discord-client/repository/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -25,7 +25,7 @@ func TestBalanceHistoryRepository_Record(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("successful record creation", func(t *testing.T) {
-		history := testutil.CreateTestBalanceHistory(testUser.DiscordID, models.TransactionTypeBetLoss)
+		history := testutil.CreateTestBalanceHistory(testUser.DiscordID, entities.TransactionTypeBetLoss)
 
 		err := repo.Record(ctx, history)
 		require.NoError(t, err)
@@ -35,7 +35,7 @@ func TestBalanceHistoryRepository_Record(t *testing.T) {
 
 	t.Run("record with metadata", func(t *testing.T) {
 		history := testutil.CreateTestBalanceHistoryWithAmounts(
-			testUser.DiscordID, 100000, 150000, 50000, models.TransactionTypeBetWin)
+			testUser.DiscordID, 100000, 150000, 50000, entities.TransactionTypeBetWin)
 		history.TransactionMetadata = map[string]interface{}{
 			"bet_amount":     10000,
 			"bet_odds":       0.5,
@@ -50,7 +50,7 @@ func TestBalanceHistoryRepository_Record(t *testing.T) {
 	})
 
 	t.Run("record with nil metadata", func(t *testing.T) {
-		history := testutil.CreateTestBalanceHistory(testUser.DiscordID, models.TransactionTypeBetLoss)
+		history := testutil.CreateTestBalanceHistory(testUser.DiscordID, entities.TransactionTypeBetLoss)
 		history.TransactionMetadata = nil
 
 		err := repo.Record(ctx, history)
@@ -88,7 +88,7 @@ func TestBalanceHistoryRepository_GetByUser(t *testing.T) {
 				int64(100000-i*10000),
 				int64(90000-i*10000),
 				-10000,
-				models.TransactionTypeBetLoss,
+				entities.TransactionTypeBetLoss,
 			)
 			err := repo.Record(ctx, history)
 			require.NoError(t, err)
@@ -98,7 +98,7 @@ func TestBalanceHistoryRepository_GetByUser(t *testing.T) {
 		}
 
 		// Create one entry for user2 to ensure isolation
-		history2 := testutil.CreateTestBalanceHistory(user2.DiscordID, models.TransactionTypeBetWin)
+		history2 := testutil.CreateTestBalanceHistory(user2.DiscordID, entities.TransactionTypeBetWin)
 		err := repo.Record(ctx, history2)
 		require.NoError(t, err)
 
@@ -122,7 +122,7 @@ func TestBalanceHistoryRepository_GetByUser(t *testing.T) {
 
 		// Create more entries than limit
 		for i := 0; i < 10; i++ {
-			history := testutil.CreateTestBalanceHistory(user3.DiscordID, models.TransactionTypeTransferIn)
+			history := testutil.CreateTestBalanceHistory(user3.DiscordID, entities.TransactionTypeTransferIn)
 			err := repo.Record(ctx, history)
 			require.NoError(t, err)
 			time.Sleep(time.Millisecond)
@@ -149,7 +149,7 @@ func TestBalanceHistoryRepository_GetByUser(t *testing.T) {
 			},
 		}
 
-		history := testutil.CreateTestBalanceHistory(user4.DiscordID, models.TransactionTypeBetWin)
+		history := testutil.CreateTestBalanceHistory(user4.DiscordID, entities.TransactionTypeBetWin)
 		history.TransactionMetadata = originalMetadata
 		err = repo.Record(ctx, history)
 		require.NoError(t, err)
@@ -194,13 +194,13 @@ func TestBalanceHistoryRepository_GetByDateRange(t *testing.T) {
 
 	t.Run("entries within range", func(t *testing.T) {
 		// Create entries at different times
-		history1 := testutil.CreateTestBalanceHistory(user.DiscordID, models.TransactionTypeBetLoss)
+		history1 := testutil.CreateTestBalanceHistory(user.DiscordID, entities.TransactionTypeBetLoss)
 		err := repo.Record(ctx, history1)
 		require.NoError(t, err)
 
 		time.Sleep(10 * time.Millisecond)
 
-		history2 := testutil.CreateTestBalanceHistory(user.DiscordID, models.TransactionTypeBetWin)
+		history2 := testutil.CreateTestBalanceHistory(user.DiscordID, entities.TransactionTypeBetWin)
 		err = repo.Record(ctx, history2)
 		require.NoError(t, err)
 
@@ -220,7 +220,7 @@ func TestBalanceHistoryRepository_GetByDateRange(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create an entry
-		history := testutil.CreateTestBalanceHistory(user2.DiscordID, models.TransactionTypeBetWin)
+		history := testutil.CreateTestBalanceHistory(user2.DiscordID, entities.TransactionTypeBetWin)
 		err = repo.Record(ctx, history)
 		require.NoError(t, err)
 
@@ -240,7 +240,7 @@ func TestBalanceHistoryRepository_GetByDateRange(t *testing.T) {
 
 		// Create an entry with buffer time
 		beforeCreate := time.Now().Add(-time.Second)
-		history := testutil.CreateTestBalanceHistory(user3.DiscordID, models.TransactionTypeTransferOut)
+		history := testutil.CreateTestBalanceHistory(user3.DiscordID, entities.TransactionTypeTransferOut)
 		err = repo.Record(ctx, history)
 		require.NoError(t, err)
 		afterCreate := time.Now().Add(time.Second)

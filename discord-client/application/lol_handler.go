@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"gambler/discord-client/application/dto"
-	"gambler/discord-client/models"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/entities"
+	"gambler/discord-client/domain/services"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -104,8 +104,8 @@ func (h *LoLHandlerImpl) HandleGameEnded(ctx context.Context, gameEnded dto.Game
 	}
 
 	// Create external reference for this game
-	externalRef := models.ExternalReference{
-		System: models.SystemLeagueOfLegends,
+	externalRef := entities.ExternalReference{
+		System: entities.SystemLeagueOfLegends,
 		ID:     gameEnded.GameID,
 	}
 
@@ -182,7 +182,7 @@ func (h *LoLHandlerImpl) HandleGameEnded(ctx context.Context, gameEnded dto.Game
 // createHouseWagerForGuild creates a house wager for a specific guild
 func (h *LoLHandlerImpl) createHouseWagerForGuild(
 	ctx context.Context,
-	guild *models.GuildSummonerWatch,
+	guild *entities.GuildSummonerWatch,
 	gameStarted dto.GameStartedDTO,
 ) error {
 	// Create UoW for this guild
@@ -205,7 +205,7 @@ func (h *LoLHandlerImpl) createHouseWagerForGuild(
 	}
 
 	// Create group wager service
-	groupWagerService := service.NewGroupWagerService(
+	groupWagerService := services.NewGroupWagerService(
 		uow.GroupWagerRepository(),
 		uow.UserRepository(),
 		uow.BalanceHistoryRepository(),
@@ -233,7 +233,7 @@ func (h *LoLHandlerImpl) createHouseWagerForGuild(
 		votingPeriodMinutes,
 		0, // Message ID will be set after posting
 		0, // Channel ID will be set after posting
-		models.GroupWagerTypeHouse,
+		entities.GroupWagerTypeHouse,
 		oddsMultipliers,
 	)
 	if err != nil {
@@ -242,13 +242,13 @@ func (h *LoLHandlerImpl) createHouseWagerForGuild(
 	}
 
 	// Set the external reference for this game
-	wagerDetail.Wager.SetExternalReference(models.SystemLeagueOfLegends, gameStarted.GameID)
+	wagerDetail.Wager.SetExternalReference(entities.SystemLeagueOfLegends, gameStarted.GameID)
 
 	log.WithFields(log.Fields{
 		"guild":          guild.GuildID,
 		"wagerID":        wagerDetail.Wager.ID,
 		"gameID":         gameStarted.GameID,
-		"externalSystem": models.SystemLeagueOfLegends,
+		"externalSystem": entities.SystemLeagueOfLegends,
 	}).Debug("Setting external reference for house wager")
 
 	// Update the wager with the external reference
@@ -374,7 +374,7 @@ func (h *LoLHandlerImpl) resolveHouseWager(ctx context.Context, guildID, wagerID
 	}
 
 	// Create group wager service once
-	groupWagerService := service.NewGroupWagerService(
+	groupWagerService := services.NewGroupWagerService(
 		uow.GroupWagerRepository(),
 		uow.UserRepository(),
 		uow.BalanceHistoryRepository(),

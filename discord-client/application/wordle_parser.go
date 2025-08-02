@@ -46,16 +46,23 @@ func parseWordleResults(ctx context.Context, content string, guildID int64, user
 			return nil, fmt.Errorf("failed to parse max guesses: %w", err)
 		}
 
+		// Track users already processed for this line to avoid duplicates
+		processedUsers := make(map[string]bool)
+
 		// Find all user mentions in the line
 		userMatches := userPattern.FindAllStringSubmatch(line, -1)
 
 		// Create a result for each user ID mention
 		for _, userMatch := range userMatches {
-			results = append(results, WordleResult{
-				UserID:     userMatch[1],
-				GuessCount: guessCount,
-				MaxGuesses: maxGuesses,
-			})
+			userID := userMatch[1]
+			if !processedUsers[userID] {
+				results = append(results, WordleResult{
+					UserID:     userID,
+					GuessCount: guessCount,
+					MaxGuesses: maxGuesses,
+				})
+				processedUsers[userID] = true
+			}
 		}
 
 		// If we have a userResolver, also look for @nickname mentions
@@ -118,13 +125,17 @@ func parseWordleResults(ctx context.Context, content string, guildID int64, user
 					}).Debug("Resolved nickname to users")
 				}
 
-				// Create a result for each resolved user
+				// Create a result for each resolved user (skip if already processed)
 				for _, userID := range userIDs {
-					results = append(results, WordleResult{
-						UserID:     strconv.FormatInt(userID, 10),
-						GuessCount: guessCount,
-						MaxGuesses: maxGuesses,
-					})
+					userIDStr := strconv.FormatInt(userID, 10)
+					if !processedUsers[userIDStr] {
+						results = append(results, WordleResult{
+							UserID:     userIDStr,
+							GuessCount: guessCount,
+							MaxGuesses: maxGuesses,
+						})
+						processedUsers[userIDStr] = true
+					}
 				}
 			}
 		}

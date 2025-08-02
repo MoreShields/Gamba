@@ -6,7 +6,8 @@ import (
 	"strconv"
 
 	"gambler/discord-client/bot/common"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/services"
+	"gambler/discord-client/domain/utils"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -30,12 +31,12 @@ func (f *Feature) prepareGambleData(ctx context.Context, s *discordgo.Session, i
 	defer uow.Rollback()
 
 	// Instantiate services with repositories from UnitOfWork
-	userService := service.NewUserService(
+	userService := services.NewUserService(
 		uow.UserRepository(),
 		uow.BalanceHistoryRepository(),
 		uow.EventBus(),
 	)
-	gamblingService := service.NewGamblingService(
+	gamblingService := services.NewGamblingService(
 		uow.UserRepository(),
 		uow.BetRepository(),
 		uow.BalanceHistoryRepository(),
@@ -54,7 +55,7 @@ func (f *Feature) prepareGambleData(ctx context.Context, s *discordgo.Session, i
 	if remaining == 0 {
 		// Format error message with Discord timestamp for reset time
 		cfg := f.config
-		nextReset := service.GetNextResetTime(cfg.DailyLimitResetHour)
+		nextReset := utils.GetNextResetTime(cfg.DailyLimitResetHour)
 		return nil, nil, 0, fmt.Errorf("daily gambling limit of %s bits reached. Try again %s",
 			common.FormatBalance(cfg.DailyGambleLimit),
 			common.FormatDiscordTimestamp(nextReset, "R"))
@@ -178,12 +179,12 @@ func (f *Feature) handleOddsSelection(s *discordgo.Session, i *discordgo.Interac
 	defer uow.Rollback()
 
 	// Instantiate services with repositories from UnitOfWork
-	userService := service.NewUserService(
+	userService := services.NewUserService(
 		uow.UserRepository(),
 		uow.BalanceHistoryRepository(),
 		uow.EventBus(),
 	)
-	gamblingService := service.NewGamblingService(
+	gamblingService := services.NewGamblingService(
 		uow.UserRepository(),
 		uow.BetRepository(),
 		uow.BalanceHistoryRepository(),
@@ -277,7 +278,7 @@ func (f *Feature) handleBetModal(s *discordgo.Session, i *discordgo.InteractionC
 	defer uow.Rollback()
 
 	// Instantiate gambling service with repositories from UnitOfWork
-	gamblingService := service.NewGamblingService(
+	gamblingService := services.NewGamblingService(
 		uow.UserRepository(),
 		uow.BetRepository(),
 		uow.BalanceHistoryRepository(),
@@ -289,7 +290,7 @@ func (f *Feature) handleBetModal(s *discordgo.Session, i *discordgo.InteractionC
 	if err != nil {
 		// Format error message with Discord timestamp for reset time
 		cfg := f.config
-		nextReset := service.GetNextResetTime(cfg.DailyLimitResetHour)
+		nextReset := utils.GetNextResetTime(cfg.DailyLimitResetHour)
 
 		if remaining <= 0 {
 			common.RespondWithError(s, i, fmt.Sprintf("Daily gambling limit of %s bits reached. Try again %s",
@@ -345,12 +346,12 @@ func (f *Feature) handleNewBet(s *discordgo.Session, i *discordgo.InteractionCre
 	defer uow.Rollback()
 
 	// Instantiate services with repositories from UnitOfWork
-	userService := service.NewUserService(
+	userService := services.NewUserService(
 		uow.UserRepository(),
 		uow.BalanceHistoryRepository(),
 		uow.EventBus(),
 	)
-	gamblingService := service.NewGamblingService(
+	gamblingService := services.NewGamblingService(
 		uow.UserRepository(),
 		uow.BetRepository(),
 		uow.BalanceHistoryRepository(),

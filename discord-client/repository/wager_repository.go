@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"gambler/discord-client/database"
-	"gambler/discord-client/models"
+	"gambler/discord-client/domain/entities"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -34,7 +34,7 @@ func NewWagerRepositoryScoped(tx Queryable, guildID int64) *WagerRepository {
 }
 
 // Create creates a new wager
-func (r *WagerRepository) Create(ctx context.Context, wager *models.Wager) error {
+func (r *WagerRepository) Create(ctx context.Context, wager *entities.Wager) error {
 	query := `
 		INSERT INTO wagers (
 			proposer_discord_id, target_discord_id, guild_id, amount, condition, 
@@ -63,7 +63,7 @@ func (r *WagerRepository) Create(ctx context.Context, wager *models.Wager) error
 }
 
 // GetByID retrieves a wager by its ID
-func (r *WagerRepository) GetByID(ctx context.Context, id int64) (*models.Wager, error) {
+func (r *WagerRepository) GetByID(ctx context.Context, id int64) (*entities.Wager, error) {
 	query := `
 		SELECT 
 			id, proposer_discord_id, target_discord_id, guild_id, amount, condition,
@@ -73,7 +73,7 @@ func (r *WagerRepository) GetByID(ctx context.Context, id int64) (*models.Wager,
 		WHERE id = $1
 	`
 
-	var wager models.Wager
+	var wager entities.Wager
 	err := r.q.QueryRow(ctx, query, id).Scan(
 		&wager.ID,
 		&wager.ProposerDiscordID,
@@ -103,7 +103,7 @@ func (r *WagerRepository) GetByID(ctx context.Context, id int64) (*models.Wager,
 }
 
 // GetByMessageID retrieves a wager by its Discord message ID
-func (r *WagerRepository) GetByMessageID(ctx context.Context, messageID int64) (*models.Wager, error) {
+func (r *WagerRepository) GetByMessageID(ctx context.Context, messageID int64) (*entities.Wager, error) {
 	query := `
 		SELECT 
 			id, proposer_discord_id, target_discord_id, guild_id, amount, condition,
@@ -113,7 +113,7 @@ func (r *WagerRepository) GetByMessageID(ctx context.Context, messageID int64) (
 		WHERE message_id = $1
 	`
 
-	var wager models.Wager
+	var wager entities.Wager
 	err := r.q.QueryRow(ctx, query, messageID).Scan(
 		&wager.ID,
 		&wager.ProposerDiscordID,
@@ -143,7 +143,7 @@ func (r *WagerRepository) GetByMessageID(ctx context.Context, messageID int64) (
 }
 
 // Update updates a wager's state and related fields
-func (r *WagerRepository) Update(ctx context.Context, wager *models.Wager) error {
+func (r *WagerRepository) Update(ctx context.Context, wager *entities.Wager) error {
 	query := `
 		UPDATE wagers
 		SET state = $2, 
@@ -181,7 +181,7 @@ func (r *WagerRepository) Update(ctx context.Context, wager *models.Wager) error
 }
 
 // GetActiveByUser returns all active wagers for a user (as proposer or target)
-func (r *WagerRepository) GetActiveByUser(ctx context.Context, discordID int64) ([]*models.Wager, error) {
+func (r *WagerRepository) GetActiveByUser(ctx context.Context, discordID int64) ([]*entities.Wager, error) {
 	query := `
 		SELECT 
 			id, proposer_discord_id, target_discord_id, guild_id, amount, condition,
@@ -200,9 +200,9 @@ func (r *WagerRepository) GetActiveByUser(ctx context.Context, discordID int64) 
 	}
 	defer rows.Close()
 
-	var wagers []*models.Wager
+	var wagers []*entities.Wager
 	for rows.Next() {
-		var wager models.Wager
+		var wager entities.Wager
 		err := rows.Scan(
 			&wager.ID,
 			&wager.ProposerDiscordID,
@@ -234,7 +234,7 @@ func (r *WagerRepository) GetActiveByUser(ctx context.Context, discordID int64) 
 }
 
 // GetAllByUser returns all wagers for a user (including resolved)
-func (r *WagerRepository) GetAllByUser(ctx context.Context, discordID int64, limit int) ([]*models.Wager, error) {
+func (r *WagerRepository) GetAllByUser(ctx context.Context, discordID int64, limit int) ([]*entities.Wager, error) {
 	query := `
 		SELECT 
 			id, proposer_discord_id, target_discord_id, guild_id, amount, condition,
@@ -253,9 +253,9 @@ func (r *WagerRepository) GetAllByUser(ctx context.Context, discordID int64, lim
 	}
 	defer rows.Close()
 
-	var wagers []*models.Wager
+	var wagers []*entities.Wager
 	for rows.Next() {
-		var wager models.Wager
+		var wager entities.Wager
 		err := rows.Scan(
 			&wager.ID,
 			&wager.ProposerDiscordID,
@@ -287,7 +287,7 @@ func (r *WagerRepository) GetAllByUser(ctx context.Context, discordID int64, lim
 }
 
 // GetStats returns wager statistics for a user
-func (r *WagerRepository) GetStats(ctx context.Context, discordID int64) (*models.WagerStats, error) {
+func (r *WagerRepository) GetStats(ctx context.Context, discordID int64) (*entities.WagerStats, error) {
 	query := `
 		SELECT 
 			COUNT(*) as total_wagers,
@@ -305,7 +305,7 @@ func (r *WagerRepository) GetStats(ctx context.Context, discordID int64) (*model
 		WHERE (proposer_discord_id = $1 OR target_discord_id = $1)
 		  AND guild_id = $2`
 
-	var stats models.WagerStats
+	var stats entities.WagerStats
 	err := r.q.QueryRow(ctx, query, discordID, r.guildID).Scan(
 		&stats.TotalWagers,
 		&stats.TotalProposed,

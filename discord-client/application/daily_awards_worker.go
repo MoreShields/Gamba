@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"gambler/discord-client/application/dto"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/services"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -132,7 +132,7 @@ func (w *DailyAwardsWorkerImpl) processGuildAwards(ctx context.Context, guild dt
 	defer uow.Rollback()
 
 	// Create daily awards service
-	dailyAwardsService := service.NewDailyAwardsService(
+	dailyAwardsService := services.NewDailyAwardsService(
 		uow.WordleCompletionRepo(),
 		uow.UserRepository(),
 		uow.WagerRepository(),
@@ -178,7 +178,7 @@ func (w *DailyAwardsWorkerImpl) processGuildAwards(ctx context.Context, guild dt
 }
 
 // convertSummaryToDTO converts service summary to application DTO
-func (w *DailyAwardsWorkerImpl) convertSummaryToDTO(summary *service.DailyAwardsSummary) *dto.DailyAwardsSummaryDTO {
+func (w *DailyAwardsWorkerImpl) convertSummaryToDTO(summary *services.DailyAwardsSummary) *dto.DailyAwardsSummaryDTO {
 	awards := make([]dto.DailyAwardDTO, len(summary.Awards))
 	for i, award := range summary.Awards {
 		awardDTO := dto.DailyAwardDTO{
@@ -189,7 +189,7 @@ func (w *DailyAwardsWorkerImpl) convertSummaryToDTO(summary *service.DailyAwards
 		}
 		
 		// If it's a wordle award, include the streak
-		if wordleAward, ok := award.(service.WordleDailyAward); ok {
+		if wordleAward, ok := award.(services.WordleDailyAward); ok {
 			awardDTO.Streak = wordleAward.GetStreak()
 		}
 		

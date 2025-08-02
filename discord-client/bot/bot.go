@@ -20,8 +20,9 @@ import (
 	"gambler/discord-client/bot/features/summoner"
 	"gambler/discord-client/bot/features/transfer"
 	"gambler/discord-client/bot/features/wagers"
-	"gambler/discord-client/models"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/entities"
+	"gambler/discord-client/domain/interfaces"
+	"gambler/discord-client/domain/services"
 
 	summoner_pb "gambler/discord-client/proto/services"
 
@@ -45,7 +46,7 @@ type Bot struct {
 	summonerClient summoner_pb.SummonerTrackingServiceClient
 
 	// Event publishing
-	eventPublisher service.EventPublisher
+	eventPublisher interfaces.EventPublisher
 
 	// High roller tracking
 	lastHighRollerID int64
@@ -68,7 +69,7 @@ type Bot struct {
 }
 
 // New creates a new bot instance with all features
-func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory application.UnitOfWorkFactory, summonerClient summoner_pb.SummonerTrackingServiceClient, eventPublisher service.EventPublisher) (*Bot, error) {
+func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory application.UnitOfWorkFactory, summonerClient summoner_pb.SummonerTrackingServiceClient, eventPublisher interfaces.EventPublisher) (*Bot, error) {
 	// Create Discord session
 	dg, err := discordgo.New("Bot " + config.Token)
 	if err != nil {
@@ -203,10 +204,10 @@ func (b *Bot) UpdateHighRollerRole(ctx context.Context, guildID int64) error {
 	defer uow.Rollback()
 
 	// Instantiate services with repositories from UnitOfWork
-	guildSettingsService := service.NewGuildSettingsService(
+	guildSettingsService := services.NewGuildSettingsService(
 		uow.GuildSettingsRepository(),
 	)
-	userService := service.NewUserService(
+	userService := services.NewUserService(
 		uow.UserRepository(),
 		uow.BalanceHistoryRepository(),
 		uow.EventBus(),
@@ -302,7 +303,7 @@ func (b *Bot) UpdateHighRollerRole(ctx context.Context, guildID int64) error {
 }
 
 // postHighRollerChangeMessage posts a message to the gamba channel when the high roller changes
-func (b *Bot) postHighRollerChangeMessage(ctx context.Context, guildID int64, newHighRoller *models.User) {
+func (b *Bot) postHighRollerChangeMessage(ctx context.Context, guildID int64, newHighRoller *entities.User) {
 	if b.config.GambaChannelID == "" {
 		return
 	}
@@ -316,7 +317,7 @@ func (b *Bot) postHighRollerChangeMessage(ctx context.Context, guildID int64, ne
 	defer uow.Rollback()
 
 	// Instantiate service with repositories from UnitOfWork
-	metricsService := service.NewUserMetricsService(
+	metricsService := services.NewUserMetricsService(
 		uow.UserRepository(),
 		uow.WagerRepository(),
 		uow.BetRepository(),
@@ -453,7 +454,7 @@ func (b *Bot) handleGuildCreate(s *discordgo.Session, g *discordgo.GuildCreate) 
 	defer uow.Rollback()
 
 	// Instantiate service with repositories from UnitOfWork
-	guildSettingsService := service.NewGuildSettingsService(
+	guildSettingsService := services.NewGuildSettingsService(
 		uow.GuildSettingsRepository(),
 	)
 

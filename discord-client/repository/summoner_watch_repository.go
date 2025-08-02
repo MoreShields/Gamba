@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"gambler/discord-client/database"
-	"gambler/discord-client/models"
+	"gambler/discord-client/domain/entities"
 )
 
 // SummonerWatchRepository implements the SummonerWatchRepository interface
@@ -29,7 +29,7 @@ func NewSummonerWatchRepositoryScoped(tx Queryable, guildID int64) *SummonerWatc
 
 // CreateWatch creates a new summoner watch for a guild
 // Handles upsert of summoner and creation of watch relationship
-func (r *SummonerWatchRepository) CreateWatch(ctx context.Context, guildID int64, summonerName, tagLine string) (*models.SummonerWatchDetail, error) {
+func (r *SummonerWatchRepository) CreateWatch(ctx context.Context, guildID int64, summonerName, tagLine string) (*entities.SummonerWatchDetail, error) {
 	// First, upsert the summoner
 	summonerQuery := `
 		INSERT INTO summoners (game_name, tag_line)
@@ -38,7 +38,7 @@ func (r *SummonerWatchRepository) CreateWatch(ctx context.Context, guildID int64
 		DO UPDATE SET updated_at = NOW()
 		RETURNING id, game_name, tag_line, created_at, updated_at`
 
-	var summoner models.Summoner
+	var summoner entities.Summoner
 	err := r.q.QueryRow(ctx, summonerQuery, summonerName, tagLine).Scan(
 		&summoner.ID, &summoner.SummonerName, &summoner.TagLine,
 		&summoner.CreatedAt, &summoner.UpdatedAt,
@@ -55,7 +55,7 @@ func (r *SummonerWatchRepository) CreateWatch(ctx context.Context, guildID int64
 		DO UPDATE SET created_at = guild_summoner_watches.created_at
 		RETURNING id, guild_id, summoner_id, created_at`
 
-	var watch models.GuildSummonerWatch
+	var watch entities.GuildSummonerWatch
 	err = r.q.QueryRow(ctx, watchQuery, guildID, summoner.ID).Scan(
 		&watch.ID, &watch.GuildID, &watch.SummonerID, &watch.CreatedAt,
 	)
@@ -64,7 +64,7 @@ func (r *SummonerWatchRepository) CreateWatch(ctx context.Context, guildID int64
 	}
 
 	// Return the combined detail view
-	return &models.SummonerWatchDetail{
+	return &entities.SummonerWatchDetail{
 		GuildID:      watch.GuildID,
 		WatchedAt:    watch.CreatedAt,
 		SummonerName: summoner.SummonerName,
@@ -75,7 +75,7 @@ func (r *SummonerWatchRepository) CreateWatch(ctx context.Context, guildID int64
 }
 
 // GetWatchesByGuild returns all summoner watches for a specific guild
-func (r *SummonerWatchRepository) GetWatchesByGuild(ctx context.Context, guildID int64) ([]*models.SummonerWatchDetail, error) {
+func (r *SummonerWatchRepository) GetWatchesByGuild(ctx context.Context, guildID int64) ([]*entities.SummonerWatchDetail, error) {
 	query := `
 		SELECT 
 			gsw.guild_id,
@@ -95,9 +95,9 @@ func (r *SummonerWatchRepository) GetWatchesByGuild(ctx context.Context, guildID
 	}
 	defer rows.Close()
 
-	var watches []*models.SummonerWatchDetail
+	var watches []*entities.SummonerWatchDetail
 	for rows.Next() {
-		var watch models.SummonerWatchDetail
+		var watch entities.SummonerWatchDetail
 		err := rows.Scan(
 			&watch.GuildID, &watch.WatchedAt,
 			&watch.SummonerName, &watch.TagLine,
@@ -117,7 +117,7 @@ func (r *SummonerWatchRepository) GetWatchesByGuild(ctx context.Context, guildID
 }
 
 // GetGuildsWatchingSummoner returns all guild-summoner watch relationships for a specific summoner
-func (r *SummonerWatchRepository) GetGuildsWatchingSummoner(ctx context.Context, summonerName, tagLine string) ([]*models.GuildSummonerWatch, error) {
+func (r *SummonerWatchRepository) GetGuildsWatchingSummoner(ctx context.Context, summonerName, tagLine string) ([]*entities.GuildSummonerWatch, error) {
 	query := `
 		SELECT gsw.id, gsw.guild_id, gsw.summoner_id, gsw.created_at
 		FROM guild_summoner_watches gsw
@@ -131,9 +131,9 @@ func (r *SummonerWatchRepository) GetGuildsWatchingSummoner(ctx context.Context,
 	}
 	defer rows.Close()
 
-	var watches []*models.GuildSummonerWatch
+	var watches []*entities.GuildSummonerWatch
 	for rows.Next() {
-		var watch models.GuildSummonerWatch
+		var watch entities.GuildSummonerWatch
 		err := rows.Scan(&watch.ID, &watch.GuildID, &watch.SummonerID, &watch.CreatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan guild summoner watch: %w", err)
@@ -171,7 +171,7 @@ func (r *SummonerWatchRepository) DeleteWatch(ctx context.Context, guildID int64
 }
 
 // GetWatch retrieves a specific summoner watch for a guild
-func (r *SummonerWatchRepository) GetWatch(ctx context.Context, guildID int64, summonerName, tagLine string) (*models.SummonerWatchDetail, error) {
+func (r *SummonerWatchRepository) GetWatch(ctx context.Context, guildID int64, summonerName, tagLine string) (*entities.SummonerWatchDetail, error) {
 	query := `
 		SELECT 
 			gsw.guild_id,
@@ -184,7 +184,7 @@ func (r *SummonerWatchRepository) GetWatch(ctx context.Context, guildID int64, s
 		JOIN summoners s ON gsw.summoner_id = s.id
 		WHERE gsw.guild_id = $1 AND LOWER(s.game_name) = LOWER($2) AND LOWER(s.tag_line) = LOWER($3)`
 
-	var watch models.SummonerWatchDetail
+	var watch entities.SummonerWatchDetail
 	err := r.q.QueryRow(ctx, query, guildID, summonerName, tagLine).Scan(
 		&watch.GuildID, &watch.WatchedAt,
 		&watch.SummonerName, &watch.TagLine,

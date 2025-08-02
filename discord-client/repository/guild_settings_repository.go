@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"gambler/discord-client/database"
-	"gambler/discord-client/models"
+	"gambler/discord-client/domain/entities"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -25,7 +25,7 @@ func NewGuildSettingsRepositoryWithTx(tx Queryable) *GuildSettingsRepository {
 }
 
 // GetOrCreateGuildSettings retrieves guild settings or creates default ones if not found
-func (r *GuildSettingsRepository) GetOrCreateGuildSettings(ctx context.Context, guildID int64) (*models.GuildSettings, error) {
+func (r *GuildSettingsRepository) GetOrCreateGuildSettings(ctx context.Context, guildID int64) (*entities.GuildSettings, error) {
 	// First try to get existing settings
 	query := `
 		SELECT guild_id, primary_channel_id, lol_channel_id, high_roller_role_id, wordle_channel_id
@@ -33,7 +33,7 @@ func (r *GuildSettingsRepository) GetOrCreateGuildSettings(ctx context.Context, 
 		WHERE guild_id = $1
 	`
 
-	var settings models.GuildSettings
+	var settings entities.GuildSettings
 	err := r.q.QueryRow(ctx, query, guildID).Scan(
 		&settings.GuildID,
 		&settings.PrimaryChannelID,
@@ -73,7 +73,7 @@ func (r *GuildSettingsRepository) GetOrCreateGuildSettings(ctx context.Context, 
 }
 
 // UpdateGuildSettings updates guild settings
-func (r *GuildSettingsRepository) UpdateGuildSettings(ctx context.Context, settings *models.GuildSettings) error {
+func (r *GuildSettingsRepository) UpdateGuildSettings(ctx context.Context, settings *entities.GuildSettings) error {
 	query := `
 		UPDATE guild_settings
 		SET primary_channel_id = $2,

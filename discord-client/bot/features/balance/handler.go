@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"gambler/discord-client/bot/common"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/services"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -41,7 +41,7 @@ func (f *Feature) handleBalance(s *discordgo.Session, i *discordgo.InteractionCr
 	defer uow.Rollback()
 
 	// Instantiate user service with repositories from UnitOfWork
-	userService := service.NewUserService(
+	userService := services.NewUserService(
 		uow.UserRepository(),
 		uow.BalanceHistoryRepository(),
 		uow.EventBus(),

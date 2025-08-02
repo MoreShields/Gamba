@@ -3,7 +3,7 @@ package domain
 import (
 	"context"
 
-	"gambler/discord-client/events"
+	"gambler/discord-client/domain/events"
 )
 
 // EventSubscriber is an interface for subscribing to domain events

@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"gambler/discord-client/database"
-	"gambler/discord-client/models"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/entities"
+	"gambler/discord-client/domain/interfaces"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -23,7 +23,7 @@ func NewGroupWagerRepository(db *database.DB) *GroupWagerRepository {
 }
 
 // newGroupWagerRepository creates a new group wager repository with a transaction and guild scope
-func NewGroupWagerRepositoryScoped(tx Queryable, guildID int64) service.GroupWagerRepository {
+func NewGroupWagerRepositoryScoped(tx Queryable, guildID int64) interfaces.GroupWagerRepository {
 	return &GroupWagerRepository{
 		q:       tx,
 		guildID: guildID,
@@ -31,7 +31,7 @@ func NewGroupWagerRepositoryScoped(tx Queryable, guildID int64) service.GroupWag
 }
 
 // CreateWithOptions creates a new group wager with its options atomically
-func (r *GroupWagerRepository) CreateWithOptions(ctx context.Context, wager *models.GroupWager, options []*models.GroupWagerOption) error {
+func (r *GroupWagerRepository) CreateWithOptions(ctx context.Context, wager *entities.GroupWager, options []*entities.GroupWagerOption) error {
 	// Create the group wager
 	query := `
 		INSERT INTO group_wagers (
@@ -118,7 +118,7 @@ func (r *GroupWagerRepository) CreateWithOptions(ctx context.Context, wager *mod
 }
 
 // GetDetailByID retrieves a group wager with all its options and participants
-func (r *GroupWagerRepository) GetDetailByID(ctx context.Context, id int64) (*models.GroupWagerDetail, error) {
+func (r *GroupWagerRepository) GetDetailByID(ctx context.Context, id int64) (*entities.GroupWagerDetail, error) {
 	// Get the wager
 	wager, err := r.GetByID(ctx, id)
 	if err != nil {
@@ -140,7 +140,7 @@ func (r *GroupWagerRepository) GetDetailByID(ctx context.Context, id int64) (*mo
 		return nil, fmt.Errorf("failed to get participants: %w", err)
 	}
 
-	return &models.GroupWagerDetail{
+	return &entities.GroupWagerDetail{
 		Wager:        wager,
 		Options:      options,
 		Participants: participants,
@@ -148,7 +148,7 @@ func (r *GroupWagerRepository) GetDetailByID(ctx context.Context, id int64) (*mo
 }
 
 // GetDetailByMessageID retrieves a group wager detail by its Discord message ID
-func (r *GroupWagerRepository) GetDetailByMessageID(ctx context.Context, messageID int64) (*models.GroupWagerDetail, error) {
+func (r *GroupWagerRepository) GetDetailByMessageID(ctx context.Context, messageID int64) (*entities.GroupWagerDetail, error) {
 	wager, err := r.GetByMessageID(ctx, messageID)
 	if err != nil {
 		return nil, err
@@ -161,7 +161,7 @@ func (r *GroupWagerRepository) GetDetailByMessageID(ctx context.Context, message
 }
 
 // GetByID retrieves a group wager by its ID
-func (r *GroupWagerRepository) GetByID(ctx context.Context, id int64) (*models.GroupWager, error) {
+func (r *GroupWagerRepository) GetByID(ctx context.Context, id int64) (*entities.GroupWager, error) {
 	query := `
 		SELECT 
 			id, creator_discord_id, guild_id, condition, state, wager_type, resolver_discord_id,
@@ -172,7 +172,7 @@ func (r *GroupWagerRepository) GetByID(ctx context.Context, id int64) (*models.G
 		WHERE id = $1
 	`
 
-	var wager models.GroupWager
+	var wager entities.GroupWager
 	var externalID, externalSystem *string
 
 	err := r.q.QueryRow(ctx, query, id).Scan(
@@ -206,8 +206,8 @@ func (r *GroupWagerRepository) GetByID(ctx context.Context, id int64) (*models.G
 
 	// Set the external reference if both fields are present
 	if externalID != nil && externalSystem != nil {
-		wager.ExternalRef = &models.ExternalReference{
-			System: models.ExternalSystem(*externalSystem),
+		wager.ExternalRef = &entities.ExternalReference{
+			System: entities.ExternalSystem(*externalSystem),
 			ID:     *externalID,
 		}
 	}
@@ -216,7 +216,7 @@ func (r *GroupWagerRepository) GetByID(ctx context.Context, id int64) (*models.G
 }
 
 // GetByMessageID retrieves a group wager by its Discord message ID
-func (r *GroupWagerRepository) GetByMessageID(ctx context.Context, messageID int64) (*models.GroupWager, error) {
+func (r *GroupWagerRepository) GetByMessageID(ctx context.Context, messageID int64) (*entities.GroupWager, error) {
 	query := `
 		SELECT 
 			id, creator_discord_id, guild_id, condition, state, wager_type, resolver_discord_id,
@@ -227,7 +227,7 @@ func (r *GroupWagerRepository) GetByMessageID(ctx context.Context, messageID int
 		WHERE message_id = $1
 	`
 
-	var wager models.GroupWager
+	var wager entities.GroupWager
 	var externalID, externalSystem *string
 
 	err := r.q.QueryRow(ctx, query, messageID).Scan(
@@ -261,8 +261,8 @@ func (r *GroupWagerRepository) GetByMessageID(ctx context.Context, messageID int
 
 	// Set the external reference if both fields are present
 	if externalID != nil && externalSystem != nil {
-		wager.ExternalRef = &models.ExternalReference{
-			System: models.ExternalSystem(*externalSystem),
+		wager.ExternalRef = &entities.ExternalReference{
+			System: entities.ExternalSystem(*externalSystem),
 			ID:     *externalID,
 		}
 	}
@@ -271,7 +271,7 @@ func (r *GroupWagerRepository) GetByMessageID(ctx context.Context, messageID int
 }
 
 // GetByExternalReference retrieves a group wager by its external reference
-func (r *GroupWagerRepository) GetByExternalReference(ctx context.Context, ref models.ExternalReference) (*models.GroupWager, error) {
+func (r *GroupWagerRepository) GetByExternalReference(ctx context.Context, ref entities.ExternalReference) (*entities.GroupWager, error) {
 	query := `
 		SELECT 
 			id, creator_discord_id, guild_id, condition, state, wager_type, resolver_discord_id,
@@ -282,7 +282,7 @@ func (r *GroupWagerRepository) GetByExternalReference(ctx context.Context, ref m
 		WHERE external_id = $1 AND external_system = $2 AND guild_id = $3
 	`
 
-	var wager models.GroupWager
+	var wager entities.GroupWager
 	var externalID, externalSystem *string
 
 	err := r.q.QueryRow(ctx, query, ref.ID, string(ref.System), r.guildID).Scan(
@@ -316,8 +316,8 @@ func (r *GroupWagerRepository) GetByExternalReference(ctx context.Context, ref m
 
 	// Set the external reference if both fields are present
 	if externalID != nil && externalSystem != nil {
-		wager.ExternalRef = &models.ExternalReference{
-			System: models.ExternalSystem(*externalSystem),
+		wager.ExternalRef = &entities.ExternalReference{
+			System: entities.ExternalSystem(*externalSystem),
 			ID:     *externalID,
 		}
 	}
@@ -326,7 +326,7 @@ func (r *GroupWagerRepository) GetByExternalReference(ctx context.Context, ref m
 }
 
 // Update updates a group wager's state and related fields
-func (r *GroupWagerRepository) Update(ctx context.Context, wager *models.GroupWager) error {
+func (r *GroupWagerRepository) Update(ctx context.Context, wager *entities.GroupWager) error {
 	query := `
 		UPDATE group_wagers
 		SET state = $2, resolver_discord_id = $3, winning_option_id = $4,
@@ -364,7 +364,7 @@ func (r *GroupWagerRepository) Update(ctx context.Context, wager *models.GroupWa
 }
 
 // GetActiveByUser returns all active group wagers where the user is participating
-func (r *GroupWagerRepository) GetActiveByUser(ctx context.Context, discordID int64) ([]*models.GroupWager, error) {
+func (r *GroupWagerRepository) GetActiveByUser(ctx context.Context, discordID int64) ([]*entities.GroupWager, error) {
 	query := `
 		SELECT DISTINCT
 			gw.id, gw.creator_discord_id, gw.guild_id, gw.condition, gw.state, gw.wager_type, gw.resolver_discord_id,
@@ -383,9 +383,9 @@ func (r *GroupWagerRepository) GetActiveByUser(ctx context.Context, discordID in
 	}
 	defer rows.Close()
 
-	var wagers []*models.GroupWager
+	var wagers []*entities.GroupWager
 	for rows.Next() {
-		var wager models.GroupWager
+		var wager entities.GroupWager
 		err := rows.Scan(
 			&wager.ID,
 			&wager.CreatorDiscordID,
@@ -415,7 +415,7 @@ func (r *GroupWagerRepository) GetActiveByUser(ctx context.Context, discordID in
 }
 
 // GetAll returns all group wagers with optional state filter
-func (r *GroupWagerRepository) GetAll(ctx context.Context, state *models.GroupWagerState) ([]*models.GroupWager, error) {
+func (r *GroupWagerRepository) GetAll(ctx context.Context, state *entities.GroupWagerState) ([]*entities.GroupWager, error) {
 	var query string
 	var args []interface{}
 
@@ -451,9 +451,9 @@ func (r *GroupWagerRepository) GetAll(ctx context.Context, state *models.GroupWa
 	}
 	defer rows.Close()
 
-	var wagers []*models.GroupWager
+	var wagers []*entities.GroupWager
 	for rows.Next() {
-		var wager models.GroupWager
+		var wager entities.GroupWager
 		err := rows.Scan(
 			&wager.ID,
 			&wager.CreatorDiscordID,
@@ -485,7 +485,7 @@ func (r *GroupWagerRepository) GetAll(ctx context.Context, state *models.GroupWa
 // Participant operations
 
 // SaveParticipant creates or updates a participant entry based on whether ID is set
-func (r *GroupWagerRepository) SaveParticipant(ctx context.Context, participant *models.GroupWagerParticipant) error {
+func (r *GroupWagerRepository) SaveParticipant(ctx context.Context, participant *entities.GroupWagerParticipant) error {
 	if participant.ID > 0 {
 		// Update existing participant
 		query := `
@@ -530,7 +530,7 @@ func (r *GroupWagerRepository) SaveParticipant(ctx context.Context, participant 
 }
 
 // GetParticipant returns a participant entry for a specific user in a group wager
-func (r *GroupWagerRepository) GetParticipant(ctx context.Context, groupWagerID int64, discordID int64) (*models.GroupWagerParticipant, error) {
+func (r *GroupWagerRepository) GetParticipant(ctx context.Context, groupWagerID int64, discordID int64) (*entities.GroupWagerParticipant, error) {
 	query := `
 		SELECT 
 			id, group_wager_id, discord_id, option_id, amount,
@@ -539,7 +539,7 @@ func (r *GroupWagerRepository) GetParticipant(ctx context.Context, groupWagerID 
 		WHERE group_wager_id = $1 AND discord_id = $2
 	`
 
-	var participant models.GroupWagerParticipant
+	var participant entities.GroupWagerParticipant
 	err := r.q.QueryRow(ctx, query, groupWagerID, discordID).Scan(
 		&participant.ID,
 		&participant.GroupWagerID,
@@ -563,7 +563,7 @@ func (r *GroupWagerRepository) GetParticipant(ctx context.Context, groupWagerID 
 }
 
 // GetActiveParticipationsByUser returns all active group wager participations for a user
-func (r *GroupWagerRepository) GetActiveParticipationsByUser(ctx context.Context, discordID int64) ([]*models.GroupWagerParticipant, error) {
+func (r *GroupWagerRepository) GetActiveParticipationsByUser(ctx context.Context, discordID int64) ([]*entities.GroupWagerParticipant, error) {
 	query := `
 		SELECT 
 			gwp.id, gwp.group_wager_id, gwp.discord_id, gwp.option_id, gwp.amount,
@@ -580,9 +580,9 @@ func (r *GroupWagerRepository) GetActiveParticipationsByUser(ctx context.Context
 	}
 	defer rows.Close()
 
-	var participants []*models.GroupWagerParticipant
+	var participants []*entities.GroupWagerParticipant
 	for rows.Next() {
-		var participant models.GroupWagerParticipant
+		var participant entities.GroupWagerParticipant
 		err := rows.Scan(
 			&participant.ID,
 			&participant.GroupWagerID,
@@ -605,7 +605,7 @@ func (r *GroupWagerRepository) GetActiveParticipationsByUser(ctx context.Context
 
 
 // UpdateParticipantPayouts updates payout amounts and balance history IDs for multiple participants
-func (r *GroupWagerRepository) UpdateParticipantPayouts(ctx context.Context, participants []*models.GroupWagerParticipant) error {
+func (r *GroupWagerRepository) UpdateParticipantPayouts(ctx context.Context, participants []*entities.GroupWagerParticipant) error {
 	if len(participants) == 0 {
 		return nil
 	}
@@ -705,7 +705,7 @@ func (r *GroupWagerRepository) UpdateAllOptionOdds(ctx context.Context, groupWag
 // Internal helper methods
 
 // getOptionsByGroupWager returns all options for a group wager
-func (r *GroupWagerRepository) getOptionsByGroupWager(ctx context.Context, groupWagerID int64) ([]*models.GroupWagerOption, error) {
+func (r *GroupWagerRepository) getOptionsByGroupWager(ctx context.Context, groupWagerID int64) ([]*entities.GroupWagerOption, error) {
 	query := `
 		SELECT 
 			id, group_wager_id, option_text, option_order, 
@@ -721,9 +721,9 @@ func (r *GroupWagerRepository) getOptionsByGroupWager(ctx context.Context, group
 	}
 	defer rows.Close()
 
-	var options []*models.GroupWagerOption
+	var options []*entities.GroupWagerOption
 	for rows.Next() {
-		var option models.GroupWagerOption
+		var option entities.GroupWagerOption
 		err := rows.Scan(
 			&option.ID,
 			&option.GroupWagerID,
@@ -743,7 +743,7 @@ func (r *GroupWagerRepository) getOptionsByGroupWager(ctx context.Context, group
 }
 
 // getParticipantsByGroupWager returns all participants for a group wager
-func (r *GroupWagerRepository) getParticipantsByGroupWager(ctx context.Context, groupWagerID int64) ([]*models.GroupWagerParticipant, error) {
+func (r *GroupWagerRepository) getParticipantsByGroupWager(ctx context.Context, groupWagerID int64) ([]*entities.GroupWagerParticipant, error) {
 	query := `
 		SELECT 
 			id, group_wager_id, discord_id, option_id, amount,
@@ -759,9 +759,9 @@ func (r *GroupWagerRepository) getParticipantsByGroupWager(ctx context.Context, 
 	}
 	defer rows.Close()
 
-	var participants []*models.GroupWagerParticipant
+	var participants []*entities.GroupWagerParticipant
 	for rows.Next() {
-		var participant models.GroupWagerParticipant
+		var participant entities.GroupWagerParticipant
 		err := rows.Scan(
 			&participant.ID,
 			&participant.GroupWagerID,
@@ -784,7 +784,7 @@ func (r *GroupWagerRepository) getParticipantsByGroupWager(ctx context.Context, 
 
 // GetGroupWagerPredictions returns all group wager predictions for resolved wagers in the guild
 // Can optionally filter by external system (pass nil for all wagers)
-func (r *GroupWagerRepository) GetGroupWagerPredictions(ctx context.Context, externalSystem *models.ExternalSystem) ([]*models.GroupWagerPrediction, error) {
+func (r *GroupWagerRepository) GetGroupWagerPredictions(ctx context.Context, externalSystem *entities.ExternalSystem) ([]*entities.GroupWagerPrediction, error) {
 	query := `
 		SELECT 
 			gwp.discord_id,
@@ -820,9 +820,9 @@ func (r *GroupWagerRepository) GetGroupWagerPredictions(ctx context.Context, ext
 	}
 	defer rows.Close()
 
-	var predictions []*models.GroupWagerPrediction
+	var predictions []*entities.GroupWagerPrediction
 	for rows.Next() {
-		var prediction models.GroupWagerPrediction
+		var prediction entities.GroupWagerPrediction
 		var externalSystem *string
 		var externalID *string
 
@@ -843,7 +843,7 @@ func (r *GroupWagerRepository) GetGroupWagerPredictions(ctx context.Context, ext
 
 		// Convert external system string to ExternalSystem type
 		if externalSystem != nil {
-			system := models.ExternalSystem(*externalSystem)
+			system := entities.ExternalSystem(*externalSystem)
 			prediction.ExternalSystem = &system
 		}
 		prediction.ExternalID = externalID
@@ -855,7 +855,7 @@ func (r *GroupWagerRepository) GetGroupWagerPredictions(ctx context.Context, ext
 }
 
 // GetExpiredActiveWagers returns all active group wagers where voting period has expired
-func (r *GroupWagerRepository) GetExpiredActiveWagers(ctx context.Context) ([]*models.GroupWager, error) {
+func (r *GroupWagerRepository) GetExpiredActiveWagers(ctx context.Context) ([]*entities.GroupWager, error) {
 	query := `
 		SELECT 
 			id, creator_discord_id, guild_id, condition, state, wager_type, resolver_discord_id,
@@ -876,9 +876,9 @@ func (r *GroupWagerRepository) GetExpiredActiveWagers(ctx context.Context) ([]*m
 	}
 	defer rows.Close()
 
-	var wagers []*models.GroupWager
+	var wagers []*entities.GroupWager
 	for rows.Next() {
-		var wager models.GroupWager
+		var wager entities.GroupWager
 		var externalID, externalSystem *string
 
 		err := rows.Scan(
@@ -908,8 +908,8 @@ func (r *GroupWagerRepository) GetExpiredActiveWagers(ctx context.Context) ([]*m
 
 		// Set the external reference if both fields are present
 		if externalID != nil && externalSystem != nil {
-			wager.ExternalRef = &models.ExternalReference{
-				System: models.ExternalSystem(*externalSystem),
+			wager.ExternalRef = &entities.ExternalReference{
+				System: entities.ExternalSystem(*externalSystem),
 				ID:     *externalID,
 			}
 		}
@@ -921,7 +921,7 @@ func (r *GroupWagerRepository) GetExpiredActiveWagers(ctx context.Context) ([]*m
 }
 
 // GetWagersPendingResolution returns all group wagers in pending_resolution state
-func (r *GroupWagerRepository) GetWagersPendingResolution(ctx context.Context) ([]*models.GroupWager, error) {
+func (r *GroupWagerRepository) GetWagersPendingResolution(ctx context.Context) ([]*entities.GroupWager, error) {
 	query := `
 		SELECT 
 			id, creator_discord_id, guild_id, condition, state, wager_type, resolver_discord_id,
@@ -939,9 +939,9 @@ func (r *GroupWagerRepository) GetWagersPendingResolution(ctx context.Context) (
 	}
 	defer rows.Close()
 
-	var wagers []*models.GroupWager
+	var wagers []*entities.GroupWager
 	for rows.Next() {
-		var wager models.GroupWager
+		var wager entities.GroupWager
 		err := rows.Scan(
 			&wager.ID,
 			&wager.CreatorDiscordID,
@@ -971,7 +971,7 @@ func (r *GroupWagerRepository) GetWagersPendingResolution(ctx context.Context) (
 }
 
 // GetStats returns group wager statistics for a user
-func (r *GroupWagerRepository) GetStats(ctx context.Context, discordID int64) (*models.GroupWagerStats, error) {
+func (r *GroupWagerRepository) GetStats(ctx context.Context, discordID int64) (*entities.GroupWagerStats, error) {
 	// Get participation stats
 	participationQuery := `
 		SELECT 
@@ -1006,7 +1006,7 @@ func (r *GroupWagerRepository) GetStats(ctx context.Context, discordID int64) (*
 		return nil, fmt.Errorf("failed to get creation stats: %w", err)
 	}
 
-	return &models.GroupWagerStats{
+	return &entities.GroupWagerStats{
 		TotalGroupWagers: totalGroupWagers,
 		TotalProposed:    totalProposed,
 		TotalWon:         totalWon,

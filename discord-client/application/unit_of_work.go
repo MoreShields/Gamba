@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/interfaces"
 )
 
 // UnitOfWork defines the interface for transactional repository operations
@@ -18,16 +18,16 @@ type UnitOfWork interface {
 	Rollback() error
 
 	// Repository getters
-	UserRepository() service.UserRepository
-	BalanceHistoryRepository() service.BalanceHistoryRepository
-	BetRepository() service.BetRepository
-	WagerRepository() service.WagerRepository
-	WagerVoteRepository() service.WagerVoteRepository
-	GroupWagerRepository() service.GroupWagerRepository
-	GuildSettingsRepository() service.GuildSettingsRepository
-	SummonerWatchRepository() service.SummonerWatchRepository
-	WordleCompletionRepo() service.WordleCompletionRepository
-	EventBus() service.EventPublisher
+	UserRepository() interfaces.UserRepository
+	BalanceHistoryRepository() interfaces.BalanceHistoryRepository
+	BetRepository() interfaces.BetRepository
+	WagerRepository() interfaces.WagerRepository
+	WagerVoteRepository() interfaces.WagerVoteRepository
+	GroupWagerRepository() interfaces.GroupWagerRepository
+	GuildSettingsRepository() interfaces.GuildSettingsRepository
+	SummonerWatchRepository() interfaces.SummonerWatchRepository
+	WordleCompletionRepo() interfaces.WordleCompletionRepository
+	EventBus() interfaces.EventPublisher
 }
 
 // UnitOfWorkFactory defines the interface for creating UnitOfWork instances

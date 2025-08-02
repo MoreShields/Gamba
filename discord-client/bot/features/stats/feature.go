@@ -6,7 +6,7 @@ import (
 
 	"gambler/discord-client/application"
 	"gambler/discord-client/bot/common"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/services"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -122,7 +122,7 @@ func (f *Feature) updateScoreboardPage(s *discordgo.Session, channelID, messageI
 	defer uow.Rollback()
 
 	// Instantiate user metrics service
-	metricsService := service.NewUserMetricsService(
+	metricsService := services.NewUserMetricsService(
 		uow.UserRepository(),
 		uow.WagerRepository(),
 		uow.BetRepository(),

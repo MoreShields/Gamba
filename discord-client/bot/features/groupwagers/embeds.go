@@ -3,7 +3,7 @@ package groupwagers
 import (
 	"fmt"
 	"gambler/discord-client/bot/common"
-	"gambler/discord-client/models"
+	"gambler/discord-client/domain/entities"
 	"sort"
 	"strings"
 
@@ -51,7 +51,7 @@ func formatCompactAmount(amount int64) string {
 }
 
 // CreateGroupWagerEmbed creates an embed for a group wager
-func CreateGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEmbed {
+func CreateGroupWagerEmbed(detail *entities.GroupWagerDetail) *discordgo.MessageEmbed {
 	embed := &discordgo.MessageEmbed{
 		Title: detail.Wager.Condition,
 		Color: common.ColorWarning,
@@ -69,7 +69,7 @@ func CreateGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEm
 	})
 
 	// Add voting period information for active wagers
-	if detail.Wager.State == models.GroupWagerStateActive && detail.Wager.VotingEndsAt != nil {
+	if detail.Wager.State == entities.GroupWagerStateActive && detail.Wager.VotingEndsAt != nil {
 		if detail.Wager.IsVotingPeriodActive() {
 			embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
 				Name:   "🟢 Voting Open",
@@ -89,7 +89,7 @@ func CreateGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEm
 	participantsByOption := detail.GetParticipantsByOption()
 
 	// Sort options by order for consistent display
-	sortedOptions := make([]*models.GroupWagerOption, len(detail.Options))
+	sortedOptions := make([]*entities.GroupWagerOption, len(detail.Options))
 	copy(sortedOptions, detail.Options)
 	sort.Slice(sortedOptions, func(i, j int) bool {
 		return sortedOptions[i].OptionOrder < sortedOptions[j].OptionOrder
@@ -123,7 +123,7 @@ func CreateGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEm
 		var participantInfo string
 		if len(participants) > 0 {
 			// Sort participants by amount (highest first)
-			sortedParticipants := make([]*models.GroupWagerParticipant, len(participants))
+			sortedParticipants := make([]*entities.GroupWagerParticipant, len(participants))
 			copy(sortedParticipants, participants)
 			sort.Slice(sortedParticipants, func(i, j int) bool {
 				return sortedParticipants[i].Amount > sortedParticipants[j].Amount
@@ -172,7 +172,7 @@ func CreateGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEm
 
 	// Update color based on state
 	switch detail.Wager.State {
-	case models.GroupWagerStateResolved:
+	case entities.GroupWagerStateResolved:
 		embed.Color = common.ColorPrimary
 		embed.Description += "\n**RESOLVED**"
 		if detail.Wager.WinningOptionID != nil {
@@ -183,10 +183,10 @@ func CreateGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEm
 				}
 			}
 		}
-	case models.GroupWagerStateCancelled:
+	case entities.GroupWagerStateCancelled:
 		embed.Color = common.ColorDanger
 		embed.Description += "\n**CANCELLED**"
-	case models.GroupWagerStatePendingResolution:
+	case entities.GroupWagerStatePendingResolution:
 		embed.Color = common.ColorPrimary
 		embed.Description += "\n**⏳ AWAITING RESOLUTION**"
 		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
@@ -194,7 +194,7 @@ func CreateGroupWagerEmbed(detail *models.GroupWagerDetail) *discordgo.MessageEm
 			Value:  "Voting has ended.",
 			Inline: false,
 		})
-	case models.GroupWagerStateActive:
+	case entities.GroupWagerStateActive:
 		// For active wagers, change color based on voting period status
 		if detail.Wager.IsVotingPeriodExpired() {
 			embed.Color = common.ColorPrimary // voting ended, waiting for resolution
@@ -233,7 +233,7 @@ func truncateButtonLabel(text string, maxLength int) string {
 }
 
 // createGroupWagerComponents creates the button components for a group wager
-func CreateGroupWagerComponents(detail *models.GroupWagerDetail) []discordgo.MessageComponent {
+func CreateGroupWagerComponents(detail *entities.GroupWagerDetail) []discordgo.MessageComponent {
 	// Only show components for active wagers that haven't expired
 	if detail.Wager.IsActive() && detail.Wager.IsVotingPeriodActive() {
 		return createActiveWagerComponents(detail)
@@ -244,12 +244,12 @@ func CreateGroupWagerComponents(detail *models.GroupWagerDetail) []discordgo.Mes
 }
 
 // createActiveWagerComponents creates betting option buttons for active wagers
-func createActiveWagerComponents(detail *models.GroupWagerDetail) []discordgo.MessageComponent {
+func createActiveWagerComponents(detail *entities.GroupWagerDetail) []discordgo.MessageComponent {
 	var rows []discordgo.MessageComponent
 	var currentRow []discordgo.MessageComponent
 
 	// Sort options by order
-	options := make([]*models.GroupWagerOption, len(detail.Options))
+	options := make([]*entities.GroupWagerOption, len(detail.Options))
 	copy(options, detail.Options)
 	sort.Slice(options, func(i, j int) bool {
 		return options[i].OptionOrder < options[j].OptionOrder

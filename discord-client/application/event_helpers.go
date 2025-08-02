@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"gambler/discord-client/events"
+	"gambler/discord-client/domain/events"
 )
 
 // AssertEventType safely asserts an event to a specific type with detailed error messages

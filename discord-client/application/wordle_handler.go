@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"gambler/discord-client/config"
-	"gambler/discord-client/events"
-	"gambler/discord-client/models"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/events"
+	"gambler/discord-client/domain/entities"
+	"gambler/discord-client/domain/services"
 
 	"github.com/jackc/pgx/v5"
 
@@ -76,7 +76,7 @@ func (h *wordleHandler) HandleDiscordMessage(ctx context.Context, event interfac
 	}
 	defer uow.Rollback()
 
-	guildSettingsService := service.NewGuildSettingsService(uow.GuildSettingsRepository())
+	guildSettingsService := services.NewGuildSettingsService(uow.GuildSettingsRepository())
 	settings, err := guildSettingsService.GetOrCreateSettings(ctx, guildID)
 	if err != nil {
 		return fmt.Errorf("failed to get guild settings: %w", err)
@@ -165,13 +165,13 @@ func (h *wordleHandler) processWordleResult(ctx context.Context, result WordleRe
 	}
 
 	// Create WordleScore
-	score, err := models.NewWordleScore(result.GuessCount)
+	score, err := entities.NewWordleScore(result.GuessCount)
 	if err != nil {
 		return fmt.Errorf("failed to create WordleScore: %w", err)
 	}
 
 	// Create WordleCompletion
-	completion, err := models.NewWordleCompletion(userID, guildID, score, time.Now())
+	completion, err := entities.NewWordleCompletion(userID, guildID, score, time.Now().UTC())
 	if err != nil {
 		return fmt.Errorf("failed to create WordleCompletion: %w", err)
 	}
@@ -182,7 +182,7 @@ func (h *wordleHandler) processWordleResult(ctx context.Context, result WordleRe
 	}
 
 	// Create DailyAwardsService with guild-scoped repositories
-	dailyAwardsService := service.NewDailyAwardsService(
+	dailyAwardsService := services.NewDailyAwardsService(
 		uow.WordleCompletionRepo(),
 		uow.UserRepository(),
 		uow.WagerRepository(),
@@ -221,18 +221,18 @@ func (h *wordleHandler) processWordleResult(ctx context.Context, result WordleRe
 	}
 
 	// Record balance history
-	balanceHistory := &models.BalanceHistory{
+	balanceHistory := &entities.BalanceHistory{
 		DiscordID:       userID,
 		GuildID:         guildID,
 		BalanceBefore:   balanceBefore,
 		BalanceAfter:    user.Balance,
 		ChangeAmount:    reward,
-		TransactionType: models.TransactionTypeWordleReward,
+		TransactionType: entities.TransactionTypeWordleReward,
 		TransactionMetadata: map[string]any{
 			"guess_count":  result.GuessCount,
 			"final_reward": reward,
 		},
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
 	}
 
 	if err := uow.BalanceHistoryRepository().Record(ctx, balanceHistory); err != nil {

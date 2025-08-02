@@ -6,7 +6,7 @@ import (
 
 	"gambler/discord-client/application"
 	"gambler/discord-client/application/dto"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/services"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -66,7 +66,7 @@ func (g *GuildDiscoveryServiceImpl) getPrimaryChannelID(ctx context.Context, gui
 	}
 	defer uow.Rollback()
 
-	guildSettingsService := service.NewGuildSettingsService(uow.GuildSettingsRepository())
+	guildSettingsService := services.NewGuildSettingsService(uow.GuildSettingsRepository())
 	settings, err := guildSettingsService.GetOrCreateSettings(ctx, guildID)
 	if err != nil {
 		return nil, err

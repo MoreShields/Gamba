@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/services"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -43,7 +43,7 @@ func (b *Bot) StartGroupWagerExpirationWorker(ctx context.Context) func() {
 			}
 
 			// Instantiate service with repositories from UnitOfWork
-			groupWagerService := service.NewGroupWagerService(
+			groupWagerService := services.NewGroupWagerService(
 				uow.GroupWagerRepository(),
 				uow.UserRepository(),
 				uow.BalanceHistoryRepository(),

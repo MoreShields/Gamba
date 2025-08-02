@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"gambler/discord-client/bot/common"
-	"gambler/discord-client/models"
-	"gambler/discord-client/service"
+	"gambler/discord-client/domain/entities"
+	"gambler/discord-client/domain/interfaces"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -50,7 +50,7 @@ func formatProfitLoss(amount int64) string {
 }
 
 // BuildScoreboardEmbed creates the scoreboard embed with pagination support
-func BuildScoreboardEmbed(ctx context.Context, metricsService service.UserMetricsService, entry []*models.ScoreboardEntry, totalBits int64, session *discordgo.Session, guildID string, currentPage string) *discordgo.MessageEmbed {
+func BuildScoreboardEmbed(ctx context.Context, metricsService interfaces.UserMetricsService, entry []*entities.ScoreboardEntry, totalBits int64, session *discordgo.Session, guildID string, currentPage string) *discordgo.MessageEmbed {
 	// Default to first page if invalid
 	if currentPage != PageBits && currentPage != PageLoL {
 		currentPage = PageBits
@@ -89,7 +89,7 @@ func buildFooter(currentPage string) *discordgo.MessageEmbedFooter {
 }
 
 // buildBitsPage populates the embed with bits scoreboard data
-func buildBitsPage(embed *discordgo.MessageEmbed, entry []*models.ScoreboardEntry, totalBits int64) {
+func buildBitsPage(embed *discordgo.MessageEmbed, entry []*entities.ScoreboardEntry, totalBits int64) {
 	// Add page description
 	embed.Description = "**Current Balance Rankings**\n\n"
 
@@ -111,7 +111,7 @@ func buildBitsPage(embed *discordgo.MessageEmbed, entry []*models.ScoreboardEntr
 }
 
 // buildLoLPage populates the embed with LoL wager leaderboard using real data
-func buildLoLPage(ctx context.Context, embed *discordgo.MessageEmbed, metricsService service.UserMetricsService, session *discordgo.Session, guildID string) {
+func buildLoLPage(ctx context.Context, embed *discordgo.MessageEmbed, metricsService interfaces.UserMetricsService, session *discordgo.Session, guildID string) {
 	// Add page description with table header
 	embed.Description = "**LoL Wager Stats**\n" +
 		"*Rank User | Win% (W/L) | Total Wagered (P/L)*\n\n"
@@ -185,7 +185,7 @@ func GetPreviousPage(currentPage string) string {
 }
 
 // BuildUserStatsEmbed creates the user statistics embed
-func BuildUserStatsEmbed(userStats *models.UserStats, targetName string) *discordgo.MessageEmbed {
+func BuildUserStatsEmbed(userStats *entities.UserStats, targetName string) *discordgo.MessageEmbed {
 	embed := &discordgo.MessageEmbed{
 		Title:     fmt.Sprintf("📊 Stats for %s", targetName),
 		Color:     common.ColorPrimary,

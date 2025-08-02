@@ -5,14 +5,14 @@ import (
 	"time"
 
 	"gambler/discord-client/bot/common"
-	"gambler/discord-client/models"
+	"gambler/discord-client/domain/entities"
 	summoner_pb "gambler/discord-client/proto/services"
 
 	"github.com/bwmarrin/discordgo"
 )
 
 // createSuccessEmbed creates a success embed for a newly tracked summoner
-func createSuccessEmbed(watchDetail *models.SummonerWatchDetail, summonerDetails *summoner_pb.SummonerDetails) *discordgo.MessageEmbed {
+func createSuccessEmbed(watchDetail *entities.SummonerWatchDetail, summonerDetails *summoner_pb.SummonerDetails) *discordgo.MessageEmbed {
 	embed := &discordgo.MessageEmbed{
 		Title: "✅ Summoner Tracking Started",
 		Color: common.ColorSuccess,

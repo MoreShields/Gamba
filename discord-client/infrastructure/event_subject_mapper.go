@@ -3,7 +3,7 @@ package infrastructure
 import (
 	"fmt"
 
-	"gambler/discord-client/events"
+	"gambler/discord-client/domain/events"
 )
 
 // EventSubjectMapper handles mapping between domain events and NATS subjects
