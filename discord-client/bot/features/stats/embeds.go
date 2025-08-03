@@ -3,9 +3,11 @@ package stats
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
+	"gambler/discord-client/application"
 	"gambler/discord-client/bot/common"
 	"gambler/discord-client/domain/entities"
 	"gambler/discord-client/domain/interfaces"
@@ -49,8 +51,9 @@ func formatProfitLoss(amount int64) string {
 	return fmt.Sprintf("*%s*", common.FormatBalanceCompact(amount))
 }
 
+
 // BuildScoreboardEmbed creates the scoreboard embed with pagination support
-func BuildScoreboardEmbed(ctx context.Context, metricsService interfaces.UserMetricsService, entry []*entities.ScoreboardEntry, totalBits int64, session *discordgo.Session, guildID string, currentPage string) *discordgo.MessageEmbed {
+func BuildScoreboardEmbed(ctx context.Context, metricsService interfaces.UserMetricsService, entry []*entities.ScoreboardEntry, totalBits int64, session *discordgo.Session, guildID string, currentPage string, userResolver application.UserResolver) *discordgo.MessageEmbed {
 	// Default to first page if invalid
 	if currentPage != PageBits && currentPage != PageLoL {
 		currentPage = PageBits
@@ -64,9 +67,9 @@ func BuildScoreboardEmbed(ctx context.Context, metricsService interfaces.UserMet
 
 	switch currentPage {
 	case PageBits:
-		buildBitsPage(embed, entry, totalBits)
+		buildBitsPage(ctx, embed, entry, totalBits, guildID, userResolver)
 	case PageLoL:
-		buildLoLPage(ctx, embed, metricsService, session, guildID)
+		buildLoLPage(ctx, embed, metricsService, session, guildID, userResolver)
 	}
 
 	return embed
@@ -89,7 +92,7 @@ func buildFooter(currentPage string) *discordgo.MessageEmbedFooter {
 }
 
 // buildBitsPage populates the embed with bits scoreboard data
-func buildBitsPage(embed *discordgo.MessageEmbed, entry []*entities.ScoreboardEntry, totalBits int64) {
+func buildBitsPage(ctx context.Context, embed *discordgo.MessageEmbed, entry []*entities.ScoreboardEntry, totalBits int64, guildID string, userResolver application.UserResolver) {
 	// Add page description
 	embed.Description = ""
 
@@ -111,55 +114,61 @@ func buildBitsPage(embed *discordgo.MessageEmbed, entry []*entities.ScoreboardEn
 		}
 	}
 
-	// Build field values
-	var userLines []string
-	var statsLines []string
+	// Build the formatted table
+	var tableContent strings.Builder
+	tableContent.WriteString("```\n")
+	tableContent.WriteString("User               Balance   Volume     Donated\n")
+	tableContent.WriteString("─────────────────  ────────  ─────────  ─────────\n")
 
 	for i, user := range entry {
 		medal := getMedalForRank(i + 1)
-
-		// User field
-		userLines = append(userLines, fmt.Sprintf("%s <@%d>", medal, user.DiscordID))
-
-		// Stats field - format values compactly
+		
+		// Get username instead of using mention
+		guildIDInt, _ := strconv.ParseInt(guildID, 10, 64)
+		username, err := userResolver.GetUsernameByID(ctx, guildIDInt, user.DiscordID)
+		if err != nil {
+			username = fmt.Sprintf("User%d", user.DiscordID)
+		}
+		if len(username) > 15 {
+			username = username[:12] + "..."
+		}
+		
+		// Format values
 		balanceStr := common.FormatBalanceCompact(user.TotalBalance)
 		volumeStr := common.FormatBalanceCompact(user.TotalVolume)
 		donationStr := common.FormatBalanceCompact(user.TotalDonations)
-
-		// Build the stats line
-		statsLine := fmt.Sprintf("%s | %s | %s", balanceStr, volumeStr, donationStr)
-
+		
 		// Add icons for highest values
 		if user.TotalVolume == highestVolume && highestVolume > 0 {
-			statsLine += " 🎲"
+			volumeStr = "🎲" + volumeStr
 		}
 		if user.TotalDonations == highestDonations && highestDonations > 0 {
-			statsLine += " 🎁"
+			donationStr = "🎁" + donationStr
 		}
-
-		statsLines = append(statsLines, statsLine)
+		
+		// Format the row with medal right next to username
+		userWithMedal := fmt.Sprintf("%s %s", medal, username)
+		tableContent.WriteString(fmt.Sprintf("%-17s  %8s  %9s  %9s\n",
+			userWithMedal, balanceStr, volumeStr, donationStr))
 	}
+	
+	tableContent.WriteString("```")
 
-	// Add fields
+	// Add the table as a single field
 	embed.Fields = []*discordgo.MessageEmbedField{
 		{
-			Name:   "Rank & User",
-			Value:  strings.Join(userLines, "\n"),
-			Inline: true,
-		},
-		{
-			Name:   "Balance | Volume | Donated",
-			Value:  strings.Join(statsLines, "\n"),
-			Inline: true,
+			Name:   "Leaderboard",
+			Value:  tableContent.String(),
+			Inline: false,
 		},
 	}
 
 	// Add total server bits to description
-	embed.Description += fmt.Sprintf("**Total Server Bits: %s**", common.FormatBalance(totalBits))
+	embed.Description = fmt.Sprintf("**Total Server Bits: %s**", common.FormatBalance(totalBits))
 }
 
 // buildLoLPage populates the embed with LoL wager leaderboard using real data
-func buildLoLPage(ctx context.Context, embed *discordgo.MessageEmbed, metricsService interfaces.UserMetricsService, session *discordgo.Session, guildID string) {
+func buildLoLPage(ctx context.Context, embed *discordgo.MessageEmbed, metricsService interfaces.UserMetricsService, session *discordgo.Session, guildID string, userResolver application.UserResolver) {
 	// Clear description
 	embed.Description = ""
 
@@ -176,38 +185,51 @@ func buildLoLPage(ctx context.Context, embed *discordgo.MessageEmbed, metricsSer
 		return
 	}
 
-	// Build field values
-	var userLines []string
-	var statsLines []string
+	// Build the formatted table
+	var tableContent strings.Builder
+	tableContent.WriteString("```\n")
+	tableContent.WriteString("User               P/L       Wagered   Win%\n")
+	tableContent.WriteString("─────────────────  ────────  ────────  ────────────\n")
 
 	for _, entry := range entries {
 		medal := getMedalForRank(entry.Rank)
-
-		// User field
-		userLines = append(userLines, fmt.Sprintf("%s <@%d>", medal, entry.DiscordID))
-
-		// Stats field - format values
-		profitLossStr := formatProfitLoss(entry.ProfitLoss)
+		
+		// Get username instead of using mention
+		guildIDInt, _ := strconv.ParseInt(guildID, 10, 64)
+		username, err := userResolver.GetUsernameByID(ctx, guildIDInt, entry.DiscordID)
+		if err != nil {
+			username = fmt.Sprintf("User%d", entry.DiscordID)
+		}
+		if len(username) > 15 {
+			username = username[:12] + "..."
+		}
+		
+		// Format values
+		profitLossStr := ""
+		if entry.ProfitLoss >= 0 {
+			profitLossStr = fmt.Sprintf("+%s", common.FormatBalanceCompact(entry.ProfitLoss))
+		} else {
+			profitLossStr = common.FormatBalanceCompact(entry.ProfitLoss)
+		}
+		
 		wageredStr := common.FormatBalanceCompact(entry.TotalAmountWagered)
-		winRateStr := fmt.Sprintf("%.1f%%", entry.AccuracyPercentage)
-		winsLossesStr := fmt.Sprintf("(%d/%d)", entry.CorrectPredictions, entry.TotalPredictions)
-
-		// Build the stats line: P/L | Wagered | Win%
-		statsLine := fmt.Sprintf("%s | %s | %s %s", profitLossStr, wageredStr, winRateStr, winsLossesStr)
-		statsLines = append(statsLines, statsLine)
+		winRateStr := fmt.Sprintf("%.1f%% (%d/%d)", entry.AccuracyPercentage, entry.CorrectPredictions, entry.TotalPredictions)
+		
+		// Format the row with medal right next to username
+		userWithMedal := fmt.Sprintf("%s %s", medal, username)
+		tableContent.WriteString(fmt.Sprintf("%-17s  %8s  %8s  %12s\n",
+			userWithMedal, profitLossStr, wageredStr, winRateStr))
 	}
+	
+	tableContent.WriteString("```")
+	tableContent.WriteString(fmt.Sprintf("\n*Minimum %d wagers to qualify*", MinLoLWagersForLeaderboard))
 
-	// Add fields
+	// Add the table as a single field
 	embed.Fields = []*discordgo.MessageEmbedField{
 		{
-			Name:   "Rank & User",
-			Value:  strings.Join(userLines, "\n") + fmt.Sprintf("\n\n*Minimum %d wagers to qualify*", MinLoLWagersForLeaderboard),
-			Inline: true,
-		},
-		{
-			Name:   "P/L | Wagered | Win%",
-			Value:  strings.Join(statsLines, "\n"),
-			Inline: true,
+			Name:   "LoL Wager Leaderboard",
+			Value:  tableContent.String(),
+			Inline: false,
 		},
 	}
 

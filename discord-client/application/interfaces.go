@@ -59,4 +59,9 @@ type UserResolver interface {
 	// Returns a slice since nicknames may not be unique
 	// Returns empty slice if no users found with the given nickname
 	ResolveUsersByNick(ctx context.Context, guildID int64, nickname string) ([]int64, error)
+	
+	// GetUsernameByID returns the display name for a user in a guild
+	// Priority: server nickname > global display name > username
+	// Returns empty string if user not found
+	GetUsernameByID(ctx context.Context, guildID int64, userID int64) (string, error)
 }

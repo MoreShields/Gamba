@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -16,6 +17,11 @@ func (m *mockUserResolver) ResolveUsersByNick(ctx context.Context, guildID int64
 		return ids, nil
 	}
 	return nil, nil
+}
+
+func (m *mockUserResolver) GetUsernameByID(ctx context.Context, guildID int64, userID int64) (string, error) {
+	// For testing, just return a simple username
+	return fmt.Sprintf("User%d", userID), nil
 }
 
 func TestParseWordleResults(t *testing.T) {

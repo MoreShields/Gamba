@@ -14,17 +14,19 @@ import (
 
 // Feature represents the stats feature
 type Feature struct {
-	session    *discordgo.Session
-	uowFactory application.UnitOfWorkFactory
-	guildID    string
+	session      *discordgo.Session
+	uowFactory   application.UnitOfWorkFactory
+	guildID      string
+	userResolver application.UserResolver
 }
 
 // NewFeature creates a new stats feature instance
-func NewFeature(session *discordgo.Session, uowFactory application.UnitOfWorkFactory, guildID string) *Feature {
+func NewFeature(session *discordgo.Session, uowFactory application.UnitOfWorkFactory, guildID string, userResolver application.UserResolver) *Feature {
 	return &Feature{
-		session:    session,
-		uowFactory: uowFactory,
-		guildID:    guildID,
+		session:      session,
+		uowFactory:   uowFactory,
+		guildID:      guildID,
+		userResolver: userResolver,
 	}
 }
 
@@ -138,7 +140,7 @@ func (f *Feature) updateScoreboardPage(s *discordgo.Session, channelID, messageI
 	}
 
 	// Create updated embed with the new page
-	embed := BuildScoreboardEmbed(ctx, metricsService, entries, totalBits, s, guildIDStr, page)
+	embed := BuildScoreboardEmbed(ctx, metricsService, entries, totalBits, s, guildIDStr, page, f.userResolver)
 
 	// Commit the transaction after building the embed
 	if err := uow.Commit(); err != nil {

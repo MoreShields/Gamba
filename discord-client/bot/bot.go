@@ -9,7 +9,6 @@ import (
 
 	"gambler/discord-client/application"
 	"gambler/discord-client/application/dto"
-	"gambler/discord-client/bot/common"
 	"gambler/discord-client/bot/features/balance"
 	"gambler/discord-client/bot/features/betting"
 	"gambler/discord-client/bot/features/dailyawards"
@@ -20,7 +19,6 @@ import (
 	"gambler/discord-client/bot/features/summoner"
 	"gambler/discord-client/bot/features/transfer"
 	"gambler/discord-client/bot/features/wagers"
-	"gambler/discord-client/domain/entities"
 	"gambler/discord-client/domain/interfaces"
 	"gambler/discord-client/domain/services"
 
@@ -44,6 +42,7 @@ type Bot struct {
 	session        *discordgo.Session
 	uowFactory     application.UnitOfWorkFactory
 	summonerClient summoner_pb.SummonerTrackingServiceClient
+	userResolver   application.UserResolver
 
 	// Event publishing
 	eventPublisher interfaces.EventPublisher
@@ -77,6 +76,9 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory appli
 	}
 	dg.Identify.Intents = discordgo.IntentsAll
 
+	// Create shared components
+	userResolver := NewUserResolver(dg)
+
 	// Create bot instance
 	bot := &Bot{
 		config:         config,
@@ -84,6 +86,7 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory appli
 		uowFactory:     uowFactory,
 		summonerClient: summonerClient,
 		eventPublisher: eventPublisher,
+		userResolver:   userResolver,
 	}
 
 	// Create feature modules
@@ -91,7 +94,7 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory appli
 	bot.wagers = wagers.NewFeature(dg, uowFactory, config.GuildID)
 	bot.groupWagers = groupwagers.NewFeature(dg, uowFactory)
 	bot.houseWagers = housewagers.NewFeature(dg, uowFactory)
-	bot.stats = stats.NewFeature(dg, uowFactory, config.GuildID)
+	bot.stats = stats.NewFeature(dg, uowFactory, config.GuildID, userResolver)
 	bot.balance = balance.New(uowFactory)
 	bot.transfer = transfer.New(uowFactory)
 	bot.settings = settings.NewFeature(dg, uowFactory)
@@ -240,13 +243,6 @@ func (b *Bot) UpdateHighRollerRole(ctx context.Context, guildID int64) error {
 		return nil
 	}
 
-	// Check if the high roller has changed
-	hasChanged := b.lastHighRollerID != highRoller.DiscordID
-	if hasChanged && b.lastHighRollerID != 0 {
-		// Post notification message in the gamba channel
-		b.postHighRollerChangeMessage(ctx, guildID, highRoller)
-	}
-
 	// Update the tracked high roller
 	b.lastHighRollerID = highRoller.DiscordID
 
@@ -300,67 +296,6 @@ func (b *Bot) UpdateHighRollerRole(ctx context.Context, guildID int64) error {
 	}
 
 	return nil
-}
-
-// postHighRollerChangeMessage posts a message to the gamba channel when the high roller changes
-func (b *Bot) postHighRollerChangeMessage(ctx context.Context, guildID int64, newHighRoller *entities.User) {
-	if b.config.GambaChannelID == "" {
-		return
-	}
-
-	// Create guild-scoped unit of work
-	uow := b.uowFactory.CreateForGuild(guildID)
-	if err := uow.Begin(ctx); err != nil {
-		log.Errorf("Failed to begin transaction for scoreboard: %v", err)
-		return
-	}
-	defer uow.Rollback()
-
-	// Instantiate service with repositories from UnitOfWork
-	metricsService := services.NewUserMetricsService(
-		uow.UserRepository(),
-		uow.WagerRepository(),
-		uow.BetRepository(),
-		uow.GroupWagerRepository(),
-		uow.BalanceHistoryRepository(),
-	)
-
-	// Get the scoreboard
-	entries, totalBits, err := metricsService.GetScoreboard(ctx, 10)
-	if err != nil {
-		log.Errorf("Failed to get scoreboard for high roller notification: %v", err)
-		return
-	}
-
-	// Create the scoreboard embed
-	guildIDStr := strconv.FormatInt(guildID, 10)
-	embed := stats.BuildScoreboardEmbed(ctx, metricsService, entries, totalBits, b.session, guildIDStr, stats.PageBits)
-
-	// Commit the transaction after building the embed
-	if err := uow.Commit(); err != nil {
-		log.Errorf("Failed to commit transaction: %v", err)
-		return
-	}
-
-	// Update the title to indicate a new high roller
-	embed.Title = "👑 NEW HIGH ROLLER! 👑"
-
-	// Create the message content with mention
-	highRollerDiscordID := strconv.FormatInt(newHighRoller.DiscordID, 10)
-	content := fmt.Sprintf("🎉 Congratulations <@%s>! You are now the high roller with **%s bits**! 🎉",
-		highRollerDiscordID, common.FormatBalance(newHighRoller.Balance))
-
-	// Send the message
-	_, err = b.session.ChannelMessageSendComplex(b.config.GambaChannelID, &discordgo.MessageSend{
-		Content: content,
-		Embeds:  []*discordgo.MessageEmbed{embed},
-	})
-
-	if err != nil {
-		log.Errorf("Failed to send high roller change message to channel %s: %v", b.config.GambaChannelID, err)
-	} else {
-		log.Infof("Posted high roller change notification for user %d", newHighRoller.DiscordID)
-	}
 }
 
 // handleCommands routes slash commands to appropriate handlers
@@ -624,4 +559,3 @@ func (b *Bot) PostDailyAwardsForGuild(guildIDStr string) error {
 	ctx := context.Background()
 	return b.dailyAwards.PostDailyAwardsForGuild(ctx, guildID)
 }
-
