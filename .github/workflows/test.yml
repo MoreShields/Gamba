@@ -9,6 +9,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/moreshields/gamba-base:latest
     strategy:
       fail-fast: false
       matrix:
@@ -30,27 +32,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Set up Go
-      if: matrix.test-suite.working-dir == 'discord-client'
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.24.4'
-
-    - name: Set up Python
-      if: matrix.test-suite.working-dir == 'lol-tracker'
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-
-    - name: Install protobuf compiler
-      if: matrix.test-suite.needs-protobuf
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y protobuf-compiler
-
-    - name: Install protobuf tools
-      if: matrix.test-suite.needs-protobuf
-      run: make -C api install-tools
+    # Go, Python, and protobuf are pre-installed in the base image
 
     - name: Cache Go modules
       if: matrix.test-suite.working-dir == 'discord-client'
@@ -76,7 +58,7 @@ jobs:
       if: matrix.test-suite.working-dir == 'lol-tracker'
       run: |
         if [ ! -d "venv" ]; then
-          python -m venv venv
+          python3.11 -m venv venv
         fi
         ./venv/bin/pip install --upgrade pip
 
