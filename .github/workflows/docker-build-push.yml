@@ -15,8 +15,9 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/moreshields/gamba-base:latest
+    # TODO: Use base image once available
+    # container:
+    #   image: ghcr.io/moreshields/gamba-base:latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     permissions:
       contents: read
@@ -37,16 +38,29 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    # Go, Python, and protobuf are pre-installed in the base image
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.4'
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install protobuf compiler
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y protobuf-compiler
+
+    - name: Install protobuf tools
+      run: make -C api install-tools
 
     - name: Generate protobuf code
       run: make proto
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
-      with:
-        # Need to use docker driver when running in container
-        driver: docker
 
     - name: Log in to Container Registry
       if: github.event_name != 'pull_request'
