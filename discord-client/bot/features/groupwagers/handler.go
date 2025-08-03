@@ -413,17 +413,6 @@ func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Int
 		channelIDStr := strconv.FormatInt(result.GroupWager.ChannelID, 10)
 		common.UnpinMessage(s, channelIDStr, messageIDStr)
 
-		// Send notification message with link to resolved group wager
-		notificationContent := fmt.Sprintf("🏆 **Group Wager Resolved!** %s won with %s!\n[View resolved wager](https://discord.com/channels/%s/%s/%s)",
-			result.WinningOption.OptionText, common.FormatBalance(result.TotalPot), i.GuildID, channelIDStr, messageIDStr)
-
-		log.Printf("Discord link: https://discord.com/channels/%s/%s/%s", i.GuildID, channelIDStr, messageIDStr)
-
-		_, err = s.ChannelMessageSend(channelIDStr, notificationContent)
-		if err != nil {
-			log.Printf("Error sending group wager resolution notification: %v", err)
-		}
-
 		// Create updated embed and components if we have the updated detail
 		if updatedDetail != nil {
 			embed := CreateGroupWagerEmbed(updatedDetail)
