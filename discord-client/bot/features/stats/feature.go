@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"bytes"
 	"context"
 	"strconv"
 
@@ -140,7 +141,7 @@ func (f *Feature) updateScoreboardPage(s *discordgo.Session, channelID, messageI
 	}
 
 	// Create updated embed with the new page
-	embed := BuildScoreboardEmbed(ctx, metricsService, entries, totalBits, s, guildIDStr, page, f.userResolver)
+	embed, imageData := BuildScoreboardEmbed(ctx, metricsService, entries, totalBits, s, guildIDStr, page, f.userResolver)
 
 	// Commit the transaction after building the embed
 	if err := uow.Commit(); err != nil {
@@ -149,7 +150,25 @@ func (f *Feature) updateScoreboardPage(s *discordgo.Session, channelID, messageI
 	}
 
 	// Update the message
-	_, err = s.ChannelMessageEditEmbed(channelID, messageID, embed)
+	editData := &discordgo.MessageEdit{
+		Channel: channelID,
+		ID:      messageID,
+		Embeds:  &[]*discordgo.MessageEmbed{embed},
+	}
+	
+	// Add image if generated
+	if imageData != nil {
+		// Clear existing attachments and add new one
+		editData.Attachments = &[]*discordgo.MessageAttachment{}
+		editData.Files = []*discordgo.File{
+			{
+				Name:   "scoreboard.png",
+				Reader: bytes.NewReader(imageData),
+			},
+		}
+	}
+	
+	_, err = s.ChannelMessageEditComplex(editData)
 	if err != nil {
 		log.Errorf("Error updating scoreboard embed: %v", err)
 	}

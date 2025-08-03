@@ -51,28 +51,30 @@ func formatProfitLoss(amount int64) string {
 	return fmt.Sprintf("*%s*", common.FormatBalanceCompact(amount))
 }
 
-
 // BuildScoreboardEmbed creates the scoreboard embed with pagination support
-func BuildScoreboardEmbed(ctx context.Context, metricsService interfaces.UserMetricsService, entry []*entities.ScoreboardEntry, totalBits int64, session *discordgo.Session, guildID string, currentPage string, userResolver application.UserResolver) *discordgo.MessageEmbed {
+func BuildScoreboardEmbed(ctx context.Context, metricsService interfaces.UserMetricsService, entry []*entities.ScoreboardEntry, totalBits int64, session *discordgo.Session, guildID string, currentPage string, userResolver application.UserResolver) (*discordgo.MessageEmbed, []byte) {
 	// Default to first page if invalid
 	if currentPage != PageBits && currentPage != PageLoL {
 		currentPage = PageBits
 	}
 
 	embed := &discordgo.MessageEmbed{
-		Title:  "🏆 Scoreboard 🏆",
-		Color:  common.ColorPrimary,
-		Footer: buildFooter(currentPage),
+		Title: "🏆 Scoreboard 🏆",
+		Color: common.ColorPrimary,
 	}
 
+	var imageData []byte
 	switch currentPage {
 	case PageBits:
-		buildBitsPage(ctx, embed, entry, totalBits, guildID, userResolver)
+		imageData = buildBitsPage(ctx, embed, entry, totalBits, guildID, userResolver)
 	case PageLoL:
-		buildLoLPage(ctx, embed, metricsService, session, guildID, userResolver)
+		imageData = buildLoLPage(ctx, embed, metricsService, session, guildID, userResolver)
 	}
 
-	return embed
+	// Set footer after page build (so LoL page can add extra text)
+	embed.Footer = buildFooter(currentPage)
+
+	return embed, imageData
 }
 
 // buildFooter creates the footer with page navigation indicators
@@ -91,84 +93,49 @@ func buildFooter(currentPage string) *discordgo.MessageEmbedFooter {
 	}
 }
 
-// buildBitsPage populates the embed with bits scoreboard data
-func buildBitsPage(ctx context.Context, embed *discordgo.MessageEmbed, entry []*entities.ScoreboardEntry, totalBits int64, guildID string, userResolver application.UserResolver) {
+// buildBitsPage populates the embed with bits scoreboard data and returns image data
+func buildBitsPage(ctx context.Context, embed *discordgo.MessageEmbed, entry []*entities.ScoreboardEntry, totalBits int64, guildID string, userResolver application.UserResolver) []byte {
 	// Add page description
 	embed.Description = ""
 
 	if len(entry) == 0 {
 		embed.Description += "No players found\n\n" +
 			fmt.Sprintf("**Total Server Bits: %s**", common.FormatBalance(totalBits))
-		return
+		return nil
 	}
 
-	// Find the highest volume and highest donations to mark with icons
-	var highestVolume int64
-	var highestDonations int64
+	// Populate usernames for the entries
+	guildIDInt, _ := strconv.ParseInt(guildID, 10, 64)
 	for _, user := range entry {
-		if user.TotalVolume > highestVolume {
-			highestVolume = user.TotalVolume
-		}
-		if user.TotalDonations > highestDonations {
-			highestDonations = user.TotalDonations
-		}
-	}
-
-	// Build the formatted table
-	var tableContent strings.Builder
-	tableContent.WriteString("```\n")
-	tableContent.WriteString("User               Balance   Volume     Donated\n")
-	tableContent.WriteString("─────────────────  ────────  ─────────  ─────────\n")
-
-	for i, user := range entry {
-		medal := getMedalForRank(i + 1)
-		
-		// Get username instead of using mention
-		guildIDInt, _ := strconv.ParseInt(guildID, 10, 64)
 		username, err := userResolver.GetUsernameByID(ctx, guildIDInt, user.DiscordID)
 		if err != nil {
 			username = fmt.Sprintf("User%d", user.DiscordID)
 		}
-		if len(username) > 15 {
-			username = username[:12] + "..."
-		}
-		
-		// Format values
-		balanceStr := common.FormatBalanceCompact(user.TotalBalance)
-		volumeStr := common.FormatBalanceCompact(user.TotalVolume)
-		donationStr := common.FormatBalanceCompact(user.TotalDonations)
-		
-		// Add icons for highest values
-		if user.TotalVolume == highestVolume && highestVolume > 0 {
-			volumeStr = "🎲" + volumeStr
-		}
-		if user.TotalDonations == highestDonations && highestDonations > 0 {
-			donationStr = "🎁" + donationStr
-		}
-		
-		// Format the row with medal right next to username
-		userWithMedal := fmt.Sprintf("%s %s", medal, username)
-		tableContent.WriteString(fmt.Sprintf("%-17s  %8s  %9s  %9s\n",
-			userWithMedal, balanceStr, volumeStr, donationStr))
+		user.Username = username
 	}
-	
-	tableContent.WriteString("```")
 
-	// Add the table as a single field
-	embed.Fields = []*discordgo.MessageEmbedField{
-		{
-			Name:   "Leaderboard",
-			Value:  tableContent.String(),
-			Inline: false,
-		},
+	// Generate the image
+	generator := NewScoreboardImageGenerator()
+	imageData, err := generator.GenerateBitsScoreboard(entry)
+	if err != nil {
+		log.WithError(err).Error("Failed to generate bits scoreboard image")
+		embed.Description = "⚠️ Error generating scoreboard image"
+		return nil
+	}
+
+	// Set the image
+	embed.Image = &discordgo.MessageEmbedImage{
+		URL: "attachment://scoreboard.png",
 	}
 
 	// Add total server bits to description
 	embed.Description = fmt.Sprintf("**Total Server Bits: %s**", common.FormatBalance(totalBits))
+
+	return imageData
 }
 
 // buildLoLPage populates the embed with LoL wager leaderboard using real data
-func buildLoLPage(ctx context.Context, embed *discordgo.MessageEmbed, metricsService interfaces.UserMetricsService, session *discordgo.Session, guildID string, userResolver application.UserResolver) {
+func buildLoLPage(ctx context.Context, embed *discordgo.MessageEmbed, metricsService interfaces.UserMetricsService, session *discordgo.Session, guildID string, userResolver application.UserResolver) []byte {
 	// Clear description
 	embed.Description = ""
 
@@ -177,64 +144,43 @@ func buildLoLPage(ctx context.Context, embed *discordgo.MessageEmbed, metricsSer
 	if err != nil {
 		log.WithError(err).Error("Failed to get LoL leaderboard data")
 		embed.Description = "⚠️ Error loading LoL wager data"
-		return
+		return nil
 	}
 
 	if len(entries) == 0 {
 		embed.Description = fmt.Sprintf("No LoL wager data available yet\n\n*Minimum %d LoL wagers to qualify*", MinLoLWagersForLeaderboard)
-		return
+		return nil
 	}
 
-	// Build the formatted table
-	var tableContent strings.Builder
-	tableContent.WriteString("```\n")
-	tableContent.WriteString("User               P/L       Wagered   Win%\n")
-	tableContent.WriteString("─────────────────  ────────  ────────  ────────────\n")
-
+	// Create username map for entries
+	guildIDInt, _ := strconv.ParseInt(guildID, 10, 64)
+	usernames := make(map[int64]string)
 	for _, entry := range entries {
-		medal := getMedalForRank(entry.Rank)
-		
-		// Get username instead of using mention
-		guildIDInt, _ := strconv.ParseInt(guildID, 10, 64)
 		username, err := userResolver.GetUsernameByID(ctx, guildIDInt, entry.DiscordID)
 		if err != nil {
 			username = fmt.Sprintf("User%d", entry.DiscordID)
 		}
-		if len(username) > 15 {
-			username = username[:12] + "..."
-		}
-		
-		// Format values
-		profitLossStr := ""
-		if entry.ProfitLoss >= 0 {
-			profitLossStr = fmt.Sprintf("+%s", common.FormatBalanceCompact(entry.ProfitLoss))
-		} else {
-			profitLossStr = common.FormatBalanceCompact(entry.ProfitLoss)
-		}
-		
-		wageredStr := common.FormatBalanceCompact(entry.TotalAmountWagered)
-		winRateStr := fmt.Sprintf("%.1f%% (%d/%d)", entry.AccuracyPercentage, entry.CorrectPredictions, entry.TotalPredictions)
-		
-		// Format the row with medal right next to username
-		userWithMedal := fmt.Sprintf("%s %s", medal, username)
-		tableContent.WriteString(fmt.Sprintf("%-17s  %8s  %8s  %12s\n",
-			userWithMedal, profitLossStr, wageredStr, winRateStr))
-	}
-	
-	tableContent.WriteString("```")
-	tableContent.WriteString(fmt.Sprintf("\n*Minimum %d wagers to qualify*", MinLoLWagersForLeaderboard))
-
-	// Add the table as a single field
-	embed.Fields = []*discordgo.MessageEmbedField{
-		{
-			Name:   "LoL Wager Leaderboard",
-			Value:  tableContent.String(),
-			Inline: false,
-		},
+		usernames[entry.DiscordID] = username
 	}
 
-	// Add footer info to description
+	// Generate the image
+	generator := NewScoreboardImageGenerator()
+	imageData, err := generator.GenerateLoLScoreboard(entries, usernames)
+	if err != nil {
+		log.WithError(err).Error("Failed to generate LoL scoreboard image")
+		embed.Description = "⚠️ Error generating scoreboard image"
+		return nil
+	}
+
+	// Set the image
+	embed.Image = &discordgo.MessageEmbedImage{
+		URL: "attachment://scoreboard.png",
+	}
+
+	// Add total wagered to description
 	embed.Description = fmt.Sprintf("**Total LoL Bits Wagered: %s**", common.FormatBalance(totalBitsWagered))
+
+	return imageData
 }
 
 // GetPageFromFooter extracts the current page from the footer text

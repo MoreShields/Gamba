@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strconv"
@@ -69,7 +70,7 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 	}
 
 	// Create embed using the shared function (start with first page)
-	embed := BuildScoreboardEmbed(ctx, metricsService, entries, totalBits, s, i.GuildID, PageBits, f.userResolver)
+	embed, imageData := BuildScoreboardEmbed(ctx, metricsService, entries, totalBits, s, i.GuildID, PageBits, f.userResolver)
 
 	// Commit the transaction after building the embed
 	if err := uow.Commit(); err != nil {
@@ -79,11 +80,23 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 	}
 
 	// Send response
+	responseData := &discordgo.InteractionResponseData{
+		Embeds: []*discordgo.MessageEmbed{embed},
+	}
+	
+	// Add image if generated
+	if imageData != nil {
+		responseData.Files = []*discordgo.File{
+			{
+				Name:   "scoreboard.png",
+				Reader: bytes.NewReader(imageData),
+			},
+		}
+	}
+	
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Embeds: []*discordgo.MessageEmbed{embed},
-		},
+		Data: responseData,
 	})
 	if err != nil {
 		log.Printf("Error responding to scoreboard command: %v", err)
