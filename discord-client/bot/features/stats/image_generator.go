@@ -107,7 +107,7 @@ func (g *ScoreboardImageGenerator) GenerateBitsScoreboard(users []*entities.Scor
 			Data: []string{
 				fmt.Sprintf("%d", user.Rank),
 				username,
-				utils.FormatShortNotation(user.AvailableBalance),
+				utils.FormatShortNotation(user.TotalBalance),
 				utils.FormatShortNotation(user.TotalVolume),
 				utils.FormatShortNotation(user.TotalDonations),
 			},
