@@ -48,3 +48,6 @@ __pycache__/
 # Context
 CLAUDE.md
 .claude/
+
+# Local testing scripts
+scoreboard_test/
