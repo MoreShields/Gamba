@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"gambler/discord-client/domain/events"
 	"gambler/discord-client/proto/models"
@@ -39,7 +40,7 @@ func (p *NATSEventPublisher) Publish(event events.Event) error {
 		for _, handler := range handlers {
 			log.WithFields(log.Fields{
 				"eventType": eventType,
-			}).Info("Invoking local handler for event")
+			}).Debug("Invoking local handler for event")
 
 			if err := handler(ctx, event); err != nil {
 				log.WithFields(log.Fields{
@@ -77,6 +78,9 @@ func (p *NATSEventPublisher) Publish(event events.Event) error {
 
 	// Publish to NATS
 	if err := p.natsClient.Publish(ctx, subject, envelopeData); err != nil {
+		if strings.Contains(err.Error(), "no response from stream") {
+			return nil
+		}
 		return fmt.Errorf("failed to publish event to NATS: %w", err)
 	}
 

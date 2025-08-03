@@ -199,7 +199,6 @@ func (b *Bot) GetConfig() Config {
 // UpdateHighRollerRole updates the high roller role based on current balances
 func (b *Bot) UpdateHighRollerRole(ctx context.Context, guildID int64) error {
 	// Create guild-scoped unit of work
-	log.Infof("Updating high roller role for guild %d", guildID)
 	uow := b.uowFactory.CreateForGuild(guildID)
 	if err := uow.Begin(ctx); err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
