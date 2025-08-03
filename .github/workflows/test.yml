@@ -9,6 +9,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/moreshields/gamba-base:latest
     strategy:
       fail-fast: false
       matrix:
@@ -30,42 +32,19 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Set up Go
-      if: matrix.test-suite.working-dir == 'discord-client'
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.24.4'
-
-    - name: Set up Python
-      if: matrix.test-suite.working-dir == 'lol-tracker'
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-
-    - name: Cache protobuf installation
+    # Go, Python, and protobuf are pre-installed in the base image
+    
+    - name: Cache generated protobuf files
+      if: matrix.test-suite.needs-protobuf
       uses: actions/cache@v4
       with:
         path: |
-          /usr/bin/protoc
-          /usr/include/google
-          /usr/lib/x86_64-linux-gnu/libprotoc*
-          /usr/lib/x86_64-linux-gnu/libprotobuf*
-          ~/go/bin/protoc-gen-go*
-        key: ${{ runner.os }}-protobuf-3.21.12
+          api/gen/
+          discord-client/proto/
+          lol-tracker/api/gen/
+        key: ${{ runner.os }}-protobuf-gen-${{ hashFiles('api/proto/**/*.proto', 'api/Makefile') }}
         restore-keys: |
-          ${{ runner.os }}-protobuf-
-
-    - name: Install protobuf compiler
-      if: matrix.test-suite.needs-protobuf
-      run: |
-        if ! command -v protoc &> /dev/null; then
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
-        fi
-
-    - name: Install protobuf tools
-      if: matrix.test-suite.needs-protobuf
-      run: make -C api install-tools
+          ${{ runner.os }}-protobuf-gen-
 
     - name: Cache Go modules
       if: matrix.test-suite.working-dir == 'discord-client'
@@ -91,7 +70,7 @@ jobs:
       if: matrix.test-suite.working-dir == 'lol-tracker'
       run: |
         if [ ! -d "venv" ]; then
-          python -m venv venv
+          python3.11 -m venv venv
         fi
         ./venv/bin/pip install --upgrade pip
 
