@@ -27,6 +27,8 @@ func (m *EventSubjectMapper) MapEventToSubject(event events.Event) string {
 		return "betting.placed"
 	case events.EventTypeWagerResolved:
 		return "wagers.individual.resolved"
+	case events.EventTypeDiscordMessage:
+		return "discord.messages"
 	default:
 		// Fallback for unknown event types
 		return fmt.Sprintf("unknown.%s", event.Type())
@@ -46,6 +48,8 @@ func (m *EventSubjectMapper) MapSubjectToEventType(subject string) events.EventT
 		return events.EventTypeBetPlaced
 	case "wagers.individual.resolved":
 		return events.EventTypeWagerResolved
+	case "discord.messages":
+		return events.EventTypeDiscordMessage
 	default:
 		return events.EventType(subject)
 	}
@@ -59,5 +63,6 @@ func (m *EventSubjectMapper) GetAllSubjects() []string {
 		"users.created",
 		"betting.placed",
 		"wagers.individual.resolved",
+		"discord.messages",
 	}
 }

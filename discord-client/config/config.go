@@ -40,9 +40,6 @@ type Config struct {
 	// NATS configuration
 	NATSServers string // NATS server addresses (comma-separated)
 
-	// Message streaming configuration
-	StreamChannelTypes []string // Channel types to stream to NATS (e.g., ["lol_channel", "primary_channel"])
-
 	// Wordle configuration
 	WordleBotID        string // Discord ID of the Wordle bot to monitor
 	WordleRewardAmount int64  // Amount of bits to award for daily Wordle completion
@@ -155,16 +152,6 @@ func load() (*Config, error) {
 		}
 	}
 
-	// Parse stream channel types
-	if streamChannelTypes := os.Getenv("STREAM_CHANNEL_TYPES"); streamChannelTypes != "" {
-		channelTypes := strings.Split(streamChannelTypes, ",")
-		for _, channelType := range channelTypes {
-			channelType = strings.TrimSpace(channelType)
-			if channelType != "" {
-				config.StreamChannelTypes = append(config.StreamChannelTypes, channelType)
-			}
-		}
-	}
 
 	// Set default environment if not specified
 	if config.Environment == "" {

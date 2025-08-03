@@ -35,11 +35,20 @@ func (f *Feature) handleStatsCommand(s *discordgo.Session, i *discordgo.Interact
 func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	ctx := context.Background()
 
+	// Defer the response immediately to avoid timeout
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+	})
+	if err != nil {
+		log.Errorf("Error deferring interaction response: %v", err)
+		return
+	}
+
 	// Extract guild ID from interaction
 	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
 	if err != nil {
 		log.Errorf("Error parsing guild ID %s: %v", i.GuildID, err)
-		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		common.FollowUpWithError(s, i, "Unable to process request. Please try again.")
 		return
 	}
 
@@ -65,7 +74,7 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 	entries, totalBits, err := metricsService.GetScoreboard(ctx, 0)
 	if err != nil {
 		log.Printf("Error getting scoreboard: %v", err)
-		common.RespondWithError(s, i, "Unable to retrieve scoreboard. Please try again.")
+		common.FollowUpWithError(s, i, "Unable to retrieve scoreboard. Please try again.")
 		return
 	}
 
@@ -75,18 +84,18 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 	// Commit the transaction after building the embed
 	if err := uow.Commit(); err != nil {
 		log.Errorf("Error committing transaction: %v", err)
-		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		common.FollowUpWithError(s, i, "Unable to process request. Please try again.")
 		return
 	}
 
-	// Send response
-	responseData := &discordgo.InteractionResponseData{
-		Embeds: []*discordgo.MessageEmbed{embed},
+	// Send follow-up message with the actual content
+	webhookData := &discordgo.WebhookEdit{
+		Embeds: &[]*discordgo.MessageEmbed{embed},
 	}
 	
 	// Add image if generated
 	if imageData != nil {
-		responseData.Files = []*discordgo.File{
+		webhookData.Files = []*discordgo.File{
 			{
 				Name:   "scoreboard.png",
 				Reader: bytes.NewReader(imageData),
@@ -94,25 +103,17 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 		}
 	}
 	
-	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: responseData,
-	})
+	msg, err := s.InteractionResponseEdit(i.Interaction, webhookData)
 	if err != nil {
-		log.Printf("Error responding to scoreboard command: %v", err)
+		log.Printf("Error editing interaction response: %v", err)
 		return
 	}
 
-	// Get the created message to add reactions
-	msg, err := s.InteractionResponse(i.Interaction)
-	if err != nil {
-		log.Printf("Error getting interaction response: %v", err)
-		return
+	// Add navigation reactions to the message
+	if msg != nil {
+		_ = s.MessageReactionAdd(i.ChannelID, msg.ID, "⬅️")
+		_ = s.MessageReactionAdd(i.ChannelID, msg.ID, "➡️")
 	}
-
-	// Add navigation reactions
-	_ = s.MessageReactionAdd(i.ChannelID, msg.ID, "⬅️")
-	_ = s.MessageReactionAdd(i.ChannelID, msg.ID, "➡️")
 }
 
 // handleStatsBalance displays individual user statistics

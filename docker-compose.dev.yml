@@ -59,9 +59,6 @@ services:
       LOG_LEVEL: debug
       HIGH_ROLLER_ENABLED: true
       
-      # Message streaming configuration
-      STREAM_CHANNEL_TYPES: ${STREAM_CHANNEL_TYPES:-lol_channel}
-      
       # Message bus configuration
       MESSAGE_BUS_URL: nats://nats:4222
     volumes:
