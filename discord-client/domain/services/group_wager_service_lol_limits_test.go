@@ -1,8 +1,8 @@
 package services
 
 import (
-	"gambler/discord-client/domain/testhelpers"
 	"context"
+	"gambler/discord-client/domain/testhelpers"
 	"testing"
 	"time"
 
@@ -19,7 +19,6 @@ func TestGroupWagerService_PlaceBet_WithLolLimits(t *testing.T) {
 	cfg := config.NewTestConfig()
 	cfg.MaxLolWagerPerGame = 10000 // 10k max per game
 	config.SetTestConfig(cfg)
-	defer config.ResetConfig()
 
 	ctx := context.Background()
 
@@ -178,7 +177,7 @@ func TestGroupWagerService_PlaceBet_WithLolLimits(t *testing.T) {
 
 			// Set up wager detail
 			wagerDetail := tc.setupWager()
-			
+
 			// Mock GetDetailByID
 			mockGroupWagerRepo.On("GetDetailByID", ctx, int64(1)).
 				Return(wagerDetail, nil)
@@ -230,10 +229,10 @@ func TestGroupWagerService_PlaceBet_DifferentMaxLimits(t *testing.T) {
 	ctx := context.Background()
 
 	testCases := []struct {
-		name          string
-		maxLimit      int64
-		betAmount     int64
-		expectError   bool
+		name        string
+		maxLimit    int64
+		betAmount   int64
+		expectError bool
 	}{
 		{
 			name:        "5k limit - under",
@@ -267,7 +266,6 @@ func TestGroupWagerService_PlaceBet_DifferentMaxLimits(t *testing.T) {
 			cfg := config.NewTestConfig()
 			cfg.MaxLolWagerPerGame = tc.maxLimit
 			config.SetTestConfig(cfg)
-			defer config.ResetConfig()
 
 			// Set up mocks
 			mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)

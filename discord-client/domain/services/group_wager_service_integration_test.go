@@ -1,16 +1,16 @@
 package services_test
 
 import (
-	"gambler/discord-client/domain/testhelpers"
 	"context"
+	"gambler/discord-client/domain/testhelpers"
 	"testing"
 	"time"
 
 	"gambler/discord-client/config"
 	"gambler/discord-client/domain/entities"
+	"gambler/discord-client/domain/services"
 	"gambler/discord-client/repository"
 	"gambler/discord-client/repository/testutil"
-	"gambler/discord-client/domain/services"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -18,9 +18,7 @@ import (
 )
 
 func TestGroupWagerResolution_Integration(t *testing.T) {
-	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
-
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -36,13 +34,10 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 	// Allow any publish calls
 	eventPublisher.On("Publish", mock.Anything).Return(nil)
 
-	// Set up config with resolver IDs
+	// The config should already be set up by TestMain
+	// Just verify it exists
 	cfg := config.Get()
-	originalResolvers := cfg.ResolverDiscordIDs
-	cfg.ResolverDiscordIDs = []int64{999999, 999991}
-	defer func() {
-		cfg.ResolverDiscordIDs = originalResolvers
-	}()
+	require.NotNil(t, cfg)
 
 	// Create service
 	groupWagerService := services.NewGroupWagerService(
@@ -288,10 +283,9 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 		user9, err := userRepo.Create(ctx, 999111, "user9", 100000)
 		require.NoError(t, err)
 
-		// Create another resolver
+		// Create another resolver (999998 is already in test config)
 		resolver2, err := userRepo.Create(ctx, 999998, "resolver2", 100000)
 		require.NoError(t, err)
-		cfg.ResolverDiscordIDs = append(cfg.ResolverDiscordIDs, resolver2.DiscordID)
 
 		// Create group wager
 		votingEndsAt := time.Now().Add(24 * time.Hour)
@@ -344,9 +338,7 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 }
 
 func TestGroupWagerResolution_EdgeCases(t *testing.T) {
-	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
-
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -362,13 +354,10 @@ func TestGroupWagerResolution_EdgeCases(t *testing.T) {
 	// Allow any publish calls
 	eventPublisher.On("Publish", mock.Anything).Return(nil)
 
-	// Set up config with resolver IDs
+	// The config should already be set up by TestMain
+	// Just verify it exists
 	cfg := config.Get()
-	originalResolvers := cfg.ResolverDiscordIDs
-	cfg.ResolverDiscordIDs = []int64{999999, 999991}
-	defer func() {
-		cfg.ResolverDiscordIDs = originalResolvers
-	}()
+	require.NotNil(t, cfg)
 
 	// Create service
 	groupWagerService := services.NewGroupWagerService(

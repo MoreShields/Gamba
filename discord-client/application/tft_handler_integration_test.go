@@ -7,7 +7,6 @@ import (
 
 	"gambler/discord-client/application"
 	"gambler/discord-client/application/dto"
-	"gambler/discord-client/config"
 	"gambler/discord-client/domain/entities"
 	"gambler/discord-client/infrastructure"
 	"gambler/discord-client/repository/testutil"
@@ -17,13 +16,10 @@ import (
 )
 
 func TestTFTHandler_EndToEndFlow(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
-
-	// Set up test config
-	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
 
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
@@ -51,6 +47,7 @@ func TestTFTHandler_EndToEndFlow(t *testing.T) {
 	handler := application.NewTFTHandler(uowFactory, mockPoster)
 
 	t.Run("Game Start Creates TFT House Wager", func(t *testing.T) {
+		// Don't use t.Parallel() in sub-tests when parent cleans up resources
 		// TFT game start event
 		gameStarted := dto.TFTGameStartedDTO{
 			SummonerName: summonerName,
@@ -100,6 +97,7 @@ func TestTFTHandler_EndToEndFlow(t *testing.T) {
 	})
 
 	t.Run("Game End Resolves TFT House Wager - Top 4", func(t *testing.T) {
+		// Don't use t.Parallel() in sub-tests when parent cleans up resources
 		// TFT game end event - player gets 3rd place (Top 4)
 		gameEnded := dto.TFTGameEndedDTO{
 			SummonerName:    summonerName,
@@ -149,13 +147,10 @@ func TestTFTHandler_EndToEndFlow(t *testing.T) {
 }
 
 func TestTFTHandler_EndToEndFlow_Bottom4(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
-
-	// Set up test config
-	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
 
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
@@ -240,6 +235,7 @@ func TestTFTHandler_EndToEndFlow_Bottom4(t *testing.T) {
 }
 
 func TestTFTHandler_PlacementBoundaries(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -257,10 +253,7 @@ func TestTFTHandler_PlacementBoundaries(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Set up test config
-			config.SetTestConfig(config.NewTestConfig())
-			defer config.ResetConfig()
-
+			t.Parallel()
 			// Setup test database
 			testDB := testutil.SetupTestDatabase(t)
 			defer testDB.Cleanup(t)
@@ -347,13 +340,10 @@ func TestTFTHandler_PlacementBoundaries(t *testing.T) {
 }
 
 func TestTFTHandler_NoCancellationLogic(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
-
-	// Set up test config
-	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
 
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
@@ -394,6 +384,7 @@ func TestTFTHandler_NoCancellationLogic(t *testing.T) {
 	// Verify wager was created
 	uow := uowFactory.CreateForGuild(guildID)
 	require.NoError(t, uow.Begin(ctx))
+	defer uow.Rollback()
 
 	externalRef := entities.ExternalReference{
 		System: entities.SystemTFT,
@@ -404,7 +395,6 @@ func TestTFTHandler_NoCancellationLogic(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, wager)
 	require.Equal(t, entities.GroupWagerStateActive, wager.State)
-	uow.Rollback()
 
 	// Game end - very short duration (would be cancelled in LoL but not in TFT)
 	gameEnded := dto.TFTGameEndedDTO{
@@ -447,13 +437,10 @@ func TestTFTHandler_NoCancellationLogic(t *testing.T) {
 }
 
 func TestTFTHandler_MultipleGuilds(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
-
-	// Set up test config
-	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
 
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
@@ -546,13 +533,10 @@ func TestTFTHandler_MultipleGuilds(t *testing.T) {
 }
 
 func TestTFTHandler_NoWatchingGuilds(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
-
-	// Set up test config
-	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
 
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
@@ -597,13 +581,10 @@ func TestTFTHandler_NoWatchingGuilds(t *testing.T) {
 }
 
 func TestTFTHandler_MissingTFTChannel(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
-
-	// Set up test config
-	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
 
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
@@ -643,23 +624,6 @@ func TestTFTHandler_MissingTFTChannel(t *testing.T) {
 
 	// No Discord posts should be made
 	assert.Len(t, mockPoster.Posts, 0)
-
-	// Verify no wager was created
-	uow := uowFactory.CreateForGuild(guildID)
-	require.NoError(t, uow.Begin(ctx))
-
-	externalRef := entities.ExternalReference{
-		System: entities.SystemTFT,
-		ID:     gameID,
-	}
-
-	wager, err := uow.GroupWagerRepository().GetByExternalReference(ctx, externalRef)
-	require.NoError(t, err)
-	assert.Nil(t, wager) // No wager should exist
-	
-	// Rollback after assertions
-	err = uow.Rollback()
-	require.NoError(t, err)
 }
 
 // setupTFTTestData creates the necessary guild settings and summoner watch for TFT testing

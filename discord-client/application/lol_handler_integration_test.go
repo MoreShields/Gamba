@@ -6,7 +6,6 @@ import (
 
 	"gambler/discord-client/application"
 	"gambler/discord-client/application/dto"
-	"gambler/discord-client/config"
 	"gambler/discord-client/infrastructure"
 	"gambler/discord-client/domain/entities"
 	"gambler/discord-client/repository/testutil"
@@ -15,13 +14,10 @@ import (
 )
 
 func TestLoLHandler_EndToEndFlow(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
-
-	// Set up test config
-	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
 
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
@@ -50,6 +46,7 @@ func TestLoLHandler_EndToEndFlow(t *testing.T) {
 	handler := application.NewLoLHandler(uowFactory, mockPoster)
 
 	t.Run("Game Start Creates House Wager", func(t *testing.T) {
+		// Don't use t.Parallel() in sub-tests when parent cleans up resources
 		// Game start event
 		gameStarted := dto.GameStartedDTO{
 			SummonerName: summonerName,
@@ -92,6 +89,7 @@ func TestLoLHandler_EndToEndFlow(t *testing.T) {
 	})
 
 	t.Run("Game End Resolves House Wager - Win", func(t *testing.T) {
+		// Don't use t.Parallel() in sub-tests when parent cleans up resources
 		// Game end event - player wins
 		gameEnded := dto.GameEndedDTO{
 			SummonerName:    summonerName,
@@ -140,13 +138,11 @@ func TestLoLHandler_EndToEndFlow(t *testing.T) {
 }
 
 func TestLoLHandler_EndToEndFlow_Loss(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	// Set up test config
-	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
 
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
@@ -231,13 +227,11 @@ func TestLoLHandler_EndToEndFlow_Loss(t *testing.T) {
 }
 
 func TestLoLHandler_MultipleGuilds(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	// Set up test config
-	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
 
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
@@ -330,13 +324,11 @@ func TestLoLHandler_MultipleGuilds(t *testing.T) {
 }
 
 func TestLoLHandler_NoWatchingGuilds(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	// Set up test config
-	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
 
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
@@ -408,13 +400,11 @@ func setupTestData(t *testing.T, ctx context.Context, uowFactory application.Uni
 	require.NoError(t, err)
 }
 func TestLoLHandler_ForfeitRemake(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	// Set up test config
-	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
 
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)

@@ -15,6 +15,7 @@ import (
 // TestUserRepository_AvailableBalance tests all available balance calculation scenarios
 // using a single database container for performance
 func TestUserRepository_AvailableBalance(t *testing.T) {
+	t.Parallel()
 	testDB := testutil.SetupTestDatabase(t)
 	ctx := context.Background()
 	

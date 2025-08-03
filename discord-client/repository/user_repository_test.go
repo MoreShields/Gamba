@@ -11,6 +11,7 @@ import (
 )
 
 func TestUserRepository_GetByDiscordID(t *testing.T) {
+	t.Parallel()
 	testDB := testutil.SetupTestDatabase(t)
 
 	repo := NewUserRepository(testDB.DB)
@@ -42,6 +43,7 @@ func TestUserRepository_GetByDiscordID(t *testing.T) {
 }
 
 func TestUserRepository_Create(t *testing.T) {
+	t.Parallel()
 	testDB := testutil.SetupTestDatabase(t)
 
 	repo := NewUserRepository(testDB.DB)
@@ -89,6 +91,7 @@ func TestUserRepository_Create(t *testing.T) {
 }
 
 func TestUserRepository_UpdateBalance(t *testing.T) {
+	t.Parallel()
 	testDB := testutil.SetupTestDatabase(t)
 
 	repo := NewUserRepository(testDB.DB)
@@ -135,6 +138,7 @@ func TestUserRepository_UpdateBalance(t *testing.T) {
 }
 
 func TestUserRepository_GetUsersWithPositiveBalance(t *testing.T) {
+	t.Parallel()
 	testDB := testutil.SetupTestDatabase(t)
 
 	repo := NewUserRepository(testDB.DB)
@@ -170,6 +174,7 @@ func TestUserRepository_GetUsersWithPositiveBalance(t *testing.T) {
 }
 
 func TestUserRepository_GetAll(t *testing.T) {
+	t.Parallel()
 	testDB := testutil.SetupTestDatabase(t)
 
 	repo := NewUserRepository(testDB.DB)
