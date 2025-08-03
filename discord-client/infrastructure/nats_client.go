@@ -184,7 +184,7 @@ func (c *NATSClient) ensureStream(streamName string, subjects []string) error {
 		MaxMsgs:     1000000,
 		Storage:     nats.FileStorage,
 		Replicas:    1,
-		Description: "League of Legends game state events",
+		Description: fmt.Sprintf("%s game state events", streamName),
 	}
 
 	// Create the stream
@@ -204,6 +204,12 @@ func (c *NATSClient) ensureStream(streamName string, subjects []string) error {
 // This should be called after connection is established
 func (c *NATSClient) EnsureLoLEventStream() error {
 	return c.ensureStream("lol_events", []string{"lol.gamestate.*"})
+}
+
+// EnsureTFTEventStream ensures the tft_events stream exists
+// This should be called after connection is established
+func (c *NATSClient) EnsureTFTEventStream() error {
+	return c.ensureStream("tft_events", []string{"tft.gamestate.*"})
 }
 
 // Publish publishes a message to the specified subject using JetStream

@@ -22,3 +22,23 @@ type GameEndedDTO struct {
 	ChampionPlayed  string
 	EventTime       time.Time
 }
+
+// TFTGameStartedDTO represents a TFT game that has started
+type TFTGameStartedDTO struct {
+	GameID       string
+	SummonerName string
+	TagLine      string
+	QueueType    string
+	EventTime    time.Time
+}
+
+// TFTGameEndedDTO represents a TFT game that has ended
+type TFTGameEndedDTO struct {
+	GameID          string
+	SummonerName    string
+	TagLine         string
+	Placement       int32 // 1-8 placement
+	DurationSeconds int32
+	QueueType       string
+	EventTime       time.Time
+}

@@ -77,7 +77,7 @@ func Run(ctx context.Context) error {
 	}
 
 	// Initialize application handlers
-	lolHandler := initializeApplicationHandlers(uowFactory, discordBot)
+	lolHandler, tftHandler := initializeApplicationHandlers(uowFactory, discordBot)
 
 	// Initialize application workers
 	dailyAwardsWorker := initializeApplicationWorkers(uowFactory, discordBot)
@@ -88,7 +88,7 @@ func Run(ctx context.Context) error {
 	}
 
 	// Start background services
-	messageConsumer, cleanupFuncs := startBackgroundServices(ctx, cfg, lolHandler, dailyAwardsWorker, discordBot)
+	messageConsumer, cleanupFuncs := startBackgroundServices(ctx, cfg, lolHandler, tftHandler, dailyAwardsWorker, discordBot)
 
 	// Wait for shutdown signal
 	log.Printf("Bot is running in %s mode...", cfg.Environment)
@@ -177,11 +177,16 @@ func initializeDiscordBot(cfg *config.Config, uowFactory application.UnitOfWorkF
 }
 
 // creates application-level handlers
-func initializeApplicationHandlers(uowFactory application.UnitOfWorkFactory, discordBot *bot.Bot) *application.LoLHandlerImpl {
+func initializeApplicationHandlers(uowFactory application.UnitOfWorkFactory, discordBot *bot.Bot) (*application.LoLHandlerImpl, *application.TFTHandlerImpl) {
 	log.Println("Initializing LoL handler...")
 	lolHandler := application.NewLoLHandler(uowFactory, discordBot.GetDiscordPoster())
 	log.Println("LoL handler initialized successfully")
-	return lolHandler
+
+	log.Println("Initializing TFT handler...")
+	tftHandler := application.NewTFTHandler(uowFactory, discordBot.GetDiscordPoster())
+	log.Println("TFT handler initialized successfully")
+
+	return lolHandler, tftHandler
 }
 
 // creates application-level workers
@@ -223,11 +228,11 @@ func setupEventSubscriptions(natsClient *infrastructure.NATSClient, subjectMappe
 }
 
 // starts all background services
-func startBackgroundServices(ctx context.Context, cfg *config.Config, lolHandler *application.LoLHandlerImpl, dailyAwardsWorker *application.DailyAwardsWorkerImpl, discordBot *bot.Bot) (*infrastructure.MessageConsumer, []func()) {
+func startBackgroundServices(ctx context.Context, cfg *config.Config, lolHandler *application.LoLHandlerImpl, tftHandler *application.TFTHandlerImpl, dailyAwardsWorker *application.DailyAwardsWorkerImpl, discordBot *bot.Bot) (*infrastructure.MessageConsumer, []func()) {
 	var cleanupFuncs []func()
 
 	log.Printf("Initializing message consumer with NATS servers: %s...", cfg.NATSServers)
-	messageConsumer := infrastructure.NewMessageConsumer(cfg.NATSServers, lolHandler)
+	messageConsumer := infrastructure.NewMessageConsumer(cfg.NATSServers, lolHandler, tftHandler)
 
 	// Start message consumer in a goroutine
 	go func() {

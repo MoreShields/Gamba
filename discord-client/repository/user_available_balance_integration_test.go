@@ -12,11 +12,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestUserRepository_AvailableBalance_Integration tests the complex SQL query
-// that calculates available balance by considering various wager types and states
-func TestUserRepository_AvailableBalance_Integration(t *testing.T) {
+// TestUserRepository_AvailableBalance tests all available balance calculation scenarios
+// using a single database container for performance
+func TestUserRepository_AvailableBalance(t *testing.T) {
 	testDB := testutil.SetupTestDatabase(t)
 	ctx := context.Background()
+	
+	// Run all available balance tests with shared database
+	t.Run("Integration", func(t *testing.T) {
+		testAvailableBalanceIntegration(t, testDB, ctx)
+	})
+	
+	t.Run("GetUsersWithPositiveBalance", func(t *testing.T) {
+		testGetUsersWithPositiveBalanceAvailableBalance(t, testDB, ctx)
+	})
+	
+	t.Run("GetAll", func(t *testing.T) {
+		testGetAllAvailableBalance(t, testDB, ctx)
+	})
+}
+
+// testAvailableBalanceIntegration tests the complex SQL query
+// that calculates available balance by considering various wager types and states
+func testAvailableBalanceIntegration(t *testing.T, testDB *testutil.TestDatabase, ctx context.Context) {
 	guildID := int64(123456789)
 
 	// Create repositories
@@ -422,12 +440,10 @@ func TestUserRepository_AvailableBalance_Integration(t *testing.T) {
 	})
 }
 
-// TestUserRepository_GetUsersWithPositiveBalance_AvailableBalance tests that
+// testGetUsersWithPositiveBalanceAvailableBalance tests that
 // the GetUsersWithPositiveBalance method also correctly calculates available balance
-func TestUserRepository_GetUsersWithPositiveBalance_AvailableBalance(t *testing.T) {
-	testDB := testutil.SetupTestDatabase(t)
-	ctx := context.Background()
-	guildID := int64(123456789)
+func testGetUsersWithPositiveBalanceAvailableBalance(t *testing.T, testDB *testutil.TestDatabase, ctx context.Context) {
+	guildID := int64(223456789) // Different guild ID to avoid conflicts
 
 	// Create repositories
 	userRepo := NewUserRepositoryScoped(testDB.DB.Pool, guildID)
@@ -549,12 +565,10 @@ func TestUserRepository_GetUsersWithPositiveBalance_AvailableBalance(t *testing.
 	assert.Equal(t, int64(20000), result[2].AvailableBalance)
 }
 
-// TestUserRepository_GetAll_AvailableBalance tests that the GetAll method
+// testGetAllAvailableBalance tests that the GetAll method
 // also correctly calculates available balance
-func TestUserRepository_GetAll_AvailableBalance(t *testing.T) {
-	testDB := testutil.SetupTestDatabase(t)
-	ctx := context.Background()
-	guildID := int64(123456789)
+func testGetAllAvailableBalance(t *testing.T, testDB *testutil.TestDatabase, ctx context.Context) {
+	guildID := int64(323456789) // Different guild ID to avoid conflicts
 
 	// Create repositories
 	userRepo := NewUserRepositoryScoped(testDB.DB.Pool, guildID)

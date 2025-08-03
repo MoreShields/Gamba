@@ -2,6 +2,8 @@ package testutil
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,7 +35,13 @@ func SetupTestDatabase(t *testing.T) *TestDatabase {
 		"cleanup":   "auto",
 	}
 
-	// Create PostgreSQL container with labels
+	// Generate a container name based on the test name
+	// Replace any characters that aren't valid in container names
+	sanitizedTestName := strings.ReplaceAll(testName, "/", "-")
+	sanitizedTestName = strings.ReplaceAll(sanitizedTestName, " ", "_")
+	containerName := fmt.Sprintf("gambler-test-pg-%s-%s", sanitizedTestName, timestamp)
+
+	// Create PostgreSQL container with custom name and labels
 	postgresContainer, err := postgres.Run(ctx,
 		"postgres:16-alpine",
 		postgres.WithDatabase("gambler_test"),
@@ -41,8 +49,12 @@ func SetupTestDatabase(t *testing.T) *TestDatabase {
 		postgres.WithPassword("test_password"),
 		postgres.BasicWaitStrategies(),
 		testcontainers.WithLabels(labels),
+		testcontainers.WithName(containerName),
 	)
 	require.NoError(t, err)
+
+	// Log container information for debugging
+	t.Logf("Created PostgreSQL container '%s' for test '%s'", containerName, testName)
 
 	// Register cleanup immediately after successful container creation
 	testDB := &TestDatabase{

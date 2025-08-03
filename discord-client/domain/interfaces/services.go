@@ -107,6 +107,9 @@ type GuildSettingsService interface {
 	// UpdateLolChannel updates the LOL channel for a guild
 	UpdateLolChannel(ctx context.Context, guildID int64, channelID *int64) error
 
+	// UpdateTftChannel updates the TFT channel for a guild
+	UpdateTftChannel(ctx context.Context, guildID int64, channelID *int64) error
+
 	// UpdateWordleChannel updates the Wordle channel for a guild
 	UpdateWordleChannel(ctx context.Context, guildID int64, channelID *int64) error
 
