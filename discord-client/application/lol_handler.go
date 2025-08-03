@@ -59,16 +59,14 @@ func (h *LoLHandlerImpl) HandleGameStarted(ctx context.Context, gameStarted dto.
 
 	// Create a house wager for each watching guild
 	// Currently only creating wagers for ranked games.
-	if gameStarted.QueueType == "RANKED_SOLO_5x5" {
-		for _, guild := range guilds {
-			if err := h.createHouseWagerForGuild(ctx, guild, gameStarted); err != nil {
-				log.WithFields(log.Fields{
-					"guild":    guild.GuildID,
-					"summoner": fmt.Sprintf("%s#%s", gameStarted.SummonerName, gameStarted.TagLine),
-					"error":    err,
-				}).Error("Failed to create house wager for guild")
-				// Continue with other guilds
-			}
+	for _, guild := range guilds {
+		if err := h.createHouseWagerForGuild(ctx, guild, gameStarted); err != nil {
+			log.WithFields(log.Fields{
+				"guild":    guild.GuildID,
+				"summoner": fmt.Sprintf("%s#%s", gameStarted.SummonerName, gameStarted.TagLine),
+				"error":    err,
+			}).Error("Failed to create house wager for guild")
+			// Continue with other guilds
 		}
 	}
 
@@ -430,7 +428,7 @@ func (h *LoLHandlerImpl) resolveHouseWager(ctx context.Context, guildID, wagerID
 		if messageID != 0 && channelID != 0 {
 			// Update the state to cancelled since we know it was just cancelled
 			wagerDetail.Wager.State = entities.GroupWagerStateCancelled
-			
+
 			// Build DTO for Discord update using the helper function
 			updateDTO := h.buildHouseWagerDTO(wagerDetail)
 
