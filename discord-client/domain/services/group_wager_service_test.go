@@ -27,7 +27,6 @@ func createTestGroupWagerService() (interfaces.GroupWagerService, *testhelpers.M
 // Tests
 
 func TestGroupWagerService_IsResolver(t *testing.T) {
-	defer config.ResetConfig()
 
 	t.Run("user is resolver", func(t *testing.T) {
 		// Setup

@@ -11,6 +11,7 @@ import (
 )
 
 func TestSummonerWatchRepository_CreateWatch(t *testing.T) {
+	t.Parallel()
 	testDB := testutil.SetupTestDatabase(t)
 
 	repo := NewSummonerWatchRepository(testDB.DB)
@@ -86,6 +87,7 @@ func TestSummonerWatchRepository_CreateWatch(t *testing.T) {
 }
 
 func TestSummonerWatchRepository_GetWatchesByGuild(t *testing.T) {
+	t.Parallel()
 	testDB := testutil.SetupTestDatabase(t)
 
 	repo := NewSummonerWatchRepository(testDB.DB)
@@ -174,6 +176,7 @@ func TestSummonerWatchRepository_GetWatchesByGuild(t *testing.T) {
 }
 
 func TestSummonerWatchRepository_GetGuildsWatchingSummoner(t *testing.T) {
+	t.Parallel()
 	testDB := testutil.SetupTestDatabase(t)
 
 	repo := NewSummonerWatchRepository(testDB.DB)
@@ -249,6 +252,7 @@ func TestSummonerWatchRepository_GetGuildsWatchingSummoner(t *testing.T) {
 }
 
 func TestSummonerWatchRepository_DeleteWatch(t *testing.T) {
+	t.Parallel()
 	testDB := testutil.SetupTestDatabase(t)
 
 	repo := NewSummonerWatchRepository(testDB.DB)
@@ -318,6 +322,7 @@ func TestSummonerWatchRepository_DeleteWatch(t *testing.T) {
 }
 
 func TestSummonerWatchRepository_GetWatch(t *testing.T) {
+	t.Parallel()
 	testDB := testutil.SetupTestDatabase(t)
 
 	repo := NewSummonerWatchRepository(testDB.DB)

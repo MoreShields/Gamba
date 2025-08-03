@@ -13,6 +13,7 @@ import (
 )
 
 func TestGroupWagerRepository_GetStats(t *testing.T) {
+	t.Parallel()
 	testDB := testutil.SetupTestDatabase(t)
 
 	groupWagerRepo := NewGroupWagerRepository(testDB.DB)
@@ -258,6 +259,7 @@ func TestGroupWagerRepository_GetStats(t *testing.T) {
 }
 
 func TestGroupWagerRepository_GetGroupWagerPredictions(t *testing.T) {
+	t.Parallel()
 	testDB := testutil.SetupTestDatabase(t)
 
 	groupWagerRepo := NewGroupWagerRepository(testDB.DB)

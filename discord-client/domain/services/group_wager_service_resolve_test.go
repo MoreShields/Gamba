@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"gambler/discord-client/config"
-	"gambler/discord-client/domain/events"
 	"gambler/discord-client/domain/entities"
+	"gambler/discord-client/domain/events"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -16,7 +16,6 @@ import (
 
 func TestGroupWagerService_ResolveGroupWager_BothTypes(t *testing.T) {
 	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
 
 	ctx := context.Background()
 
@@ -151,7 +150,6 @@ func TestGroupWagerService_ResolveGroupWager_BothTypes(t *testing.T) {
 
 func TestGroupWagerService_ResolveGroupWager_ValidationErrors(t *testing.T) {
 	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
 
 	ctx := context.Background()
 
@@ -397,7 +395,6 @@ func setupResolutionMocks(t *testing.T, helper *MockHelper, mocks *TestMocks, sc
 
 func TestGroupWagerService_ResolveGroupWager_SystemUser(t *testing.T) {
 	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
 
 	fixture := NewGroupWagerTestFixture(t)
 
@@ -474,7 +471,6 @@ func TestGroupWagerService_ResolveGroupWager_SystemUser(t *testing.T) {
 
 func TestGroupWagerService_HouseWager_SpecificScenarios(t *testing.T) {
 	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
 
 	fixture := NewGroupWagerTestFixture(t)
 
@@ -593,7 +589,6 @@ func TestGroupWagerService_HouseWager_SpecificScenarios(t *testing.T) {
 
 func TestGroupWagerService_ResolveGroupWager_BalanceUpdateFailure(t *testing.T) {
 	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
 
 	ctx := context.Background()
 	mocks := NewTestMocks()

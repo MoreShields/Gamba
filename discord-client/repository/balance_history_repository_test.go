@@ -13,6 +13,7 @@ import (
 )
 
 func TestBalanceHistoryRepository_Record(t *testing.T) {
+	t.Parallel()
 	testDB := testutil.SetupTestDatabase(t)
 
 	repo := NewBalanceHistoryRepository(testDB.DB)
@@ -60,6 +61,7 @@ func TestBalanceHistoryRepository_Record(t *testing.T) {
 }
 
 func TestBalanceHistoryRepository_GetByUser(t *testing.T) {
+	t.Parallel()
 	testDB := testutil.SetupTestDatabase(t)
 
 	repo := NewBalanceHistoryRepository(testDB.DB)
@@ -171,6 +173,7 @@ func TestBalanceHistoryRepository_GetByUser(t *testing.T) {
 }
 
 func TestBalanceHistoryRepository_GetByDateRange(t *testing.T) {
+	t.Parallel()
 	testDB := testutil.SetupTestDatabase(t)
 
 	repo := NewBalanceHistoryRepository(testDB.DB)
@@ -253,6 +256,7 @@ func TestBalanceHistoryRepository_GetByDateRange(t *testing.T) {
 }
 
 func TestBalanceHistoryRepository_GetTotalVolumeByUser(t *testing.T) {
+	t.Parallel()
 	testDB := testutil.SetupTestDatabase(t)
 	userRepo := NewUserRepository(testDB.DB)
 
@@ -355,6 +359,7 @@ func TestBalanceHistoryRepository_GetTotalVolumeByUser(t *testing.T) {
 }
 
 func TestBalanceHistoryRepository_GetTotalDonationsByUser(t *testing.T) {
+	t.Parallel()
 	testDB := testutil.SetupTestDatabase(t)
 	userRepo := NewUserRepository(testDB.DB)
 

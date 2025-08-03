@@ -116,6 +116,7 @@ func (h *BaseHouseWagerHandler) CreateHouseWagerForGuild(
 	if channelIDPtr != nil {
 		channelID = *channelIDPtr
 	} else {
+		uow.Rollback()
 		return fmt.Errorf("failed to create group wager: %s is not set for guild %d", config.ChannelName, guild.GuildID)
 	}
 

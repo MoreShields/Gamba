@@ -54,10 +54,14 @@ type Config struct {
 var (
 	instance *Config
 	once     sync.Once
+	mu       sync.Mutex // Protects instance for test setup
 )
 
 // Get returns the global configuration instance
 func Get() *Config {
+	mu.Lock()
+	defer mu.Unlock()
+
 	// If instance is already set (e.g., by tests), return it
 	if instance != nil {
 		return instance
@@ -67,7 +71,13 @@ func Get() *Config {
 		var err error
 		instance, err = load()
 		if err != nil {
-			panic(fmt.Sprintf("failed to load config: %v", err))
+			// In test environment, use a default test config instead of panicking
+			if os.Getenv("GO_TEST") == "1" || os.Getenv("ENVIRONMENT") == "test" {
+				instance = NewTestConfig()
+				instance.DiscordToken = "test-token"
+			} else {
+				panic(fmt.Sprintf("failed to load config: %v", err))
+			}
 		}
 	})
 	return instance
@@ -152,7 +162,6 @@ func load() (*Config, error) {
 		}
 	}
 
-
 	// Set default environment if not specified
 	if config.Environment == "" {
 		config.Environment = "development"
@@ -188,12 +197,16 @@ func getEnvWithDefault(key, defaultValue string) string {
 // SetTestConfig overrides the global config instance for testing
 // This should only be called from test files
 func SetTestConfig(testConfig *Config) {
+	mu.Lock()
+	defer mu.Unlock()
 	instance = testConfig
 }
 
 // ResetConfig resets the global config instance and sync.Once for testing
 // This should only be called from test files
 func ResetConfig() {
+	mu.Lock()
+	defer mu.Unlock()
 	instance = nil
 	once = sync.Once{}
 }
@@ -202,7 +215,7 @@ func ResetConfig() {
 func NewTestConfig() *Config {
 	return &Config{
 		Environment:         "test",
-		ResolverDiscordIDs:  []int64{999999}, // Default test resolver ID
+		ResolverDiscordIDs:  []int64{999999, 999991, 999998}, // Default test resolver IDs
 		StartingBalance:     100000,
 		DailyGambleLimit:    10000,
 		DailyLimitResetHour: 0,

@@ -12,6 +12,7 @@ import (
 )
 
 func TestWagerRepository_UpdateMessageIDs(t *testing.T) {
+	t.Parallel()
 	testDB := testutil.SetupTestDatabase(t)
 	ctx := context.Background()
 	testGuildID := int64(1018733499869577296)

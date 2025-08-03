@@ -9,10 +9,11 @@ import (
 
 	"gambler/discord-client/application"
 	"gambler/discord-client/config"
+	"gambler/discord-client/domain/entities"
 	"gambler/discord-client/domain/events"
 	"gambler/discord-client/infrastructure"
-	"gambler/discord-client/domain/entities"
 	"gambler/discord-client/repository/testutil"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -81,13 +82,10 @@ func setupWordleGuild(t *testing.T, ctx context.Context, uowFactory application.
 }
 
 func TestWordleHandler_EndToEndFlow(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
-
-	// Set up test config
-	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
 
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
@@ -140,11 +138,11 @@ func TestWordleHandler_EndToEndFlow(t *testing.T) {
 
 		// Expected rewards based on guess count (from DailyAwardsService)
 		expectedRewards := map[int64]int64{
-			133008606202167296: 7000,  // 3/6
-			135678825894903808: 7000,  // 3/6 (Shid)
-			232153861941362688: 7000,  // 4/6
-			141402190152597504: 7000,  // 4/6 (Piplup)
-			217883936964083713: 5000,  // 5/6
+			133008606202167296: 7000, // 3/6
+			135678825894903808: 7000, // 3/6 (Shid)
+			232153861941362688: 7000, // 4/6
+			141402190152597504: 7000, // 4/6 (Piplup)
+			217883936964083713: 5000, // 5/6
 		}
 
 		for userID, expectedReward := range expectedRewards {
@@ -162,7 +160,7 @@ func TestWordleHandler_EndToEndFlow(t *testing.T) {
 			history, err := uow.BalanceHistoryRepository().GetByUser(ctx, userID, 1)
 			require.NoError(t, err)
 			require.Len(t, history, 1)
-			
+
 			assert.Equal(t, entities.TransactionTypeWordleReward, history[0].TransactionType)
 			assert.Equal(t, expectedReward, history[0].ChangeAmount)
 			assert.Equal(t, int64(0), history[0].BalanceBefore)
@@ -173,13 +171,10 @@ func TestWordleHandler_EndToEndFlow(t *testing.T) {
 }
 
 func TestWordleHandler_NicknameResolution(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
-
-	// Set up test config
-	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
 
 	// Setup test database
 	testDB := testutil.SetupTestDatabase(t)
@@ -239,12 +234,12 @@ func TestWordleHandler_NicknameResolution(t *testing.T) {
 }
 
 func TestWordleHandler_DuplicatePrevention(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
 
 	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
 
 	testDB := testutil.SetupTestDatabase(t)
 	defer testDB.Cleanup(t)
@@ -305,12 +300,12 @@ func TestWordleHandler_DuplicatePrevention(t *testing.T) {
 }
 
 func TestWordleHandler_ChannelFiltering(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
 
 	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
 
 	testDB := testutil.SetupTestDatabase(t)
 	defer testDB.Cleanup(t)
@@ -373,7 +368,7 @@ func TestWordleHandler_ChannelFiltering(t *testing.T) {
 
 	t.Run("Guild Without Wordle Channel", func(t *testing.T) {
 		noWordleGuildID := int64(101010)
-		
+
 		// Create guild without Wordle channel
 		uow := uowFactory.CreateForGuild(noWordleGuildID)
 		require.NoError(t, uow.Begin(ctx))
@@ -394,12 +389,12 @@ func TestWordleHandler_ChannelFiltering(t *testing.T) {
 }
 
 func TestWordleHandler_InvalidMessages(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
 
 	config.SetTestConfig(config.NewTestConfig())
-	defer config.ResetConfig()
 
 	testDB := testutil.SetupTestDatabase(t)
 	defer testDB.Cleanup(t)
