@@ -587,6 +587,83 @@ func TestGroupWagerService_HouseWager_SpecificScenarios(t *testing.T) {
 	})
 }
 
+func TestGroupWagerService_PoolWager_NoWinners(t *testing.T) {
+	config.SetTestConfig(config.NewTestConfig())
+
+	fixture := NewGroupWagerTestFixture(t)
+
+	t.Run("pool wager all bets on losing options", func(t *testing.T) {
+		fixture.Reset()
+		fixture.SetResolvers(TestResolverID)
+
+		// When all participants bet on losing options, everyone loses their bets
+		scenario := NewGroupWagerScenario().
+			WithPoolWager(TestResolverID, "Pool wager no winners").
+			WithOptions("Option A", "Option B", "Option C").
+			WithUser(TestUser1ID, "user1", TestInitialBalance).
+			WithUser(TestUser2ID, "user2", TestInitialBalance).
+			WithUser(TestUser3ID, "user3", TestInitialBalance).
+			WithParticipant(TestUser1ID, 0, 1000). // Bets on A
+			WithParticipant(TestUser2ID, 1, 2000). // Bets on B
+			WithParticipant(TestUser3ID, 1, 3000). // Also bets on B
+			Build()
+
+		// Option C wins, but nobody bet on it
+		winningOptionID := scenario.Options[2].ID
+
+		// Setup mocks - all participants are losers
+		fixture.Helper.ExpectWagerDetailLookup(TestWagerID, &entities.GroupWagerDetail{
+			Wager:        scenario.Wager,
+			Options:      scenario.Options,
+			Participants: scenario.Participants,
+		})
+
+		// User lookups
+		for _, p := range scenario.Participants {
+			if user, exists := scenario.GetUser(p.DiscordID); exists {
+				fixture.Helper.ExpectUserLookup(p.DiscordID, user)
+			}
+		}
+
+		// All participants lose their bets
+		fixture.Helper.ExpectBalanceUpdate(TestUser1ID, TestInitialBalance-1000)
+		fixture.Helper.ExpectBalanceHistoryRecordSimple(TestUser1ID, TestInitialBalance-1000, entities.TransactionTypeGroupWagerLoss)
+		fixture.Helper.ExpectEventPublish(events.EventTypeBalanceChange)
+
+		fixture.Helper.ExpectBalanceUpdate(TestUser2ID, TestInitialBalance-2000)
+		fixture.Helper.ExpectBalanceHistoryRecordSimple(TestUser2ID, TestInitialBalance-2000, entities.TransactionTypeGroupWagerLoss)
+		fixture.Helper.ExpectEventPublish(events.EventTypeBalanceChange)
+
+		fixture.Helper.ExpectBalanceUpdate(TestUser3ID, TestInitialBalance-3000)
+		fixture.Helper.ExpectBalanceHistoryRecordSimple(TestUser3ID, TestInitialBalance-3000, entities.TransactionTypeGroupWagerLoss)
+		fixture.Helper.ExpectEventPublish(events.EventTypeBalanceChange)
+
+		// Other resolution mocks
+		fixture.Mocks.GroupWagerRepo.On("UpdateParticipantPayouts", fixture.Ctx, mock.Anything).Return(nil)
+		fixture.Mocks.GroupWagerRepo.On("Update", fixture.Ctx, mock.Anything).Return(nil)
+		fixture.Mocks.EventPublisher.On("Publish", mock.AnythingOfType("events.GroupWagerStateChangeEvent")).Return(nil)
+
+		// Execute
+		resolverID := int64(TestResolverID)
+		result, err := fixture.Service.ResolveGroupWager(fixture.Ctx, TestWagerID, &resolverID, winningOptionID)
+
+		// Verify
+		fixture.Assertions.AssertNoError(err)
+		fixture.Assertions.AssertWagerResolved(result, 0, 3) // 0 winners, 3 losers
+
+		// All payouts should be 0
+		for _, loser := range result.Losers {
+			assert.Equal(t, int64(0), *loser.PayoutAmount)
+		}
+
+		// Verify the wager was resolved properly
+		assert.Equal(t, entities.GroupWagerStateResolved, result.GroupWager.State)
+		assert.Equal(t, winningOptionID, *result.GroupWager.WinningOptionID)
+
+		fixture.AssertAllMocks()
+	})
+}
+
 func TestGroupWagerService_ResolveGroupWager_BalanceUpdateFailure(t *testing.T) {
 	config.SetTestConfig(config.NewTestConfig())
 

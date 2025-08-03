@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"gambler/discord-client/config"
-	"gambler/discord-client/domain/events"
 	"gambler/discord-client/domain/entities"
+	"gambler/discord-client/domain/events"
 	"gambler/discord-client/domain/interfaces"
 	"gambler/discord-client/domain/utils"
 	"strings"
@@ -367,15 +367,6 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 	totalPot := groupWager.TotalPot
 	winningOptionTotal := winningOption.TotalAmount
 
-	if winningOptionTotal == 0 {
-		// For house wagers, it's valid to have no participants on winning option (house wins all)
-		// For pool wagers, this shouldn't happen as payouts are distributed from the pool
-		if groupWager.IsPoolWager() {
-			return nil, fmt.Errorf("no participants on winning option")
-		}
-		// Continue with house wager resolution - everyone loses
-	}
-
 	var winners []*entities.GroupWagerParticipant
 	var losers []*entities.GroupWagerParticipant
 	payoutDetails := make(map[int64]int64)
@@ -699,4 +690,3 @@ func (s *groupWagerService) CancelGroupWager(ctx context.Context, groupWagerID i
 
 	return nil
 }
-
