@@ -72,6 +72,26 @@ func (s *guildSettingsService) UpdateLolChannel(ctx context.Context, guildID int
 	return nil
 }
 
+// UpdateTftChannel updates the TFT channel for a guild
+func (s *guildSettingsService) UpdateTftChannel(ctx context.Context, guildID int64, channelID *int64) error {
+
+	// Get existing settings
+	settings, err := s.guildSettingsRepo.GetOrCreateGuildSettings(ctx, guildID)
+	if err != nil {
+		return fmt.Errorf("failed to get guild settings: %w", err)
+	}
+
+	// Update TFT channel (can be nil to disable)
+	settings.TftChannelID = channelID
+
+	// Save updated settings
+	if err := s.guildSettingsRepo.UpdateGuildSettings(ctx, settings); err != nil {
+		return fmt.Errorf("failed to update guild settings: %w", err)
+	}
+
+	return nil
+}
+
 // UpdateHighRollerRole updates the high roller role for a guild
 func (s *guildSettingsService) UpdateHighRollerRole(ctx context.Context, guildID int64, roleID *int64) error {
 

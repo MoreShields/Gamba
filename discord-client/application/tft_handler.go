@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"gambler/discord-client/application/dto"
 	"gambler/discord-client/domain/entities"
@@ -11,48 +10,28 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// LoLHandlerImpl implements the LoLEventHandler interface
-type LoLHandlerImpl struct {
+// TFTHandlerImpl implements the TFTEventHandler interface
+type TFTHandlerImpl struct {
 	baseHandler *BaseHouseWagerHandler
 }
 
-// NewLoLHandler creates a new LoL event handler
-func NewLoLHandler(
+// NewTFTHandler creates a new TFT event handler
+func NewTFTHandler(
 	uowFactory UnitOfWorkFactory,
 	discordPoster DiscordPoster,
-) *LoLHandlerImpl {
-	return &LoLHandlerImpl{
+) *TFTHandlerImpl {
+	return &TFTHandlerImpl{
 		baseHandler: NewBaseHouseWagerHandler(uowFactory, discordPoster),
 	}
 }
 
-// formatQueueType converts queue type strings to user-friendly display names
-func formatQueueType(queueType string) string {
-	switch queueType {
-	case "RANKED_SOLO_5x5":
-		return "Ranked Match"
-	case "RANKED_FLEX_SR":
-		return "Ranked Flex"
-	case "NORMAL_DRAFT", "NORMAL_BLIND":
-		return "Normal Match"
-	case "ARAM":
-		return "ARAM"
-	case "CLASH":
-		return "Clash"
-	case "ARENA":
-		return "Arena"
-	default:
-		return "Match"
-	}
-}
-
-// HandleGameStarted creates house wagers when a game starts
-func (h *LoLHandlerImpl) HandleGameStarted(ctx context.Context, gameStarted dto.GameStartedDTO) error {
+// HandleGameStarted creates house wagers when a TFT game starts
+func (h *TFTHandlerImpl) HandleGameStarted(ctx context.Context, gameStarted dto.TFTGameStartedDTO) error {
 	log.WithFields(log.Fields{
 		"summoner": fmt.Sprintf("%s#%s", gameStarted.SummonerName, gameStarted.TagLine),
 		"gameId":   gameStarted.GameID,
 		"queue":    gameStarted.QueueType,
-	}).Info("handling Game start")
+	}).Info("handling TFT game start")
 
 	// Query guilds watching this summoner
 	// Use a temporary UoW to query without guild scope
@@ -75,28 +54,23 @@ func (h *LoLHandlerImpl) HandleGameStarted(ctx context.Context, gameStarted dto.
 	}
 
 	// Create a house wager for each watching guild
-	// Currently only creating wagers for ranked games.
 	for _, guild := range guilds {
-		// Format the complete description with summoner info and Porofessor link for active wager
-		// URL-encode the game name and tag with %20 for spaces
-		encodedGameName := strings.ReplaceAll(gameStarted.SummonerName, " ", "%20")
-		porofessorURL := fmt.Sprintf("https://porofessor.gg/live/na/%s-%s", encodedGameName, gameStarted.TagLine)
-		condition := fmt.Sprintf("%s - **%s**\n[Match Details](%s)",
-			gameStarted.SummonerName, formatQueueType(gameStarted.QueueType), porofessorURL)
+		// Format the condition without external match URL initially
+		condition := fmt.Sprintf("%s - **TFT Match**", gameStarted.SummonerName)
 
 		config := WagerCreationConfig{
-			ExternalSystem:      entities.SystemLeagueOfLegends,
+			ExternalSystem:      entities.SystemTFT,
 			GameID:              gameStarted.GameID,
 			SummonerName:        gameStarted.SummonerName,
 			TagLine:             gameStarted.TagLine,
 			Condition:           condition,
-			Options:             []string{"Win", "Loss"},
-			OddsMultipliers:     []float64{2.0, 2.0}, // 2:1 odds for now
-			VotingPeriodMinutes: 5,                   // 5 minutes for betting
+			Options:             []string{"Top 4", "Bottom 4"}, // TFT-specific options
+			OddsMultipliers:     []float64{2.0, 2.0},           // 2:1 odds for both
+			VotingPeriodMinutes: 5,                             // 5 minutes for betting
 			ChannelIDGetter: func(gs *entities.GuildSettings) *int64 {
-				return gs.LolChannelID
+				return gs.TftChannelID
 			},
-			ChannelName: "lol-channel",
+			ChannelName: "tft-channel",
 		}
 
 		if err := h.baseHandler.CreateHouseWagerForGuild(ctx, guild, config); err != nil {
@@ -104,7 +78,7 @@ func (h *LoLHandlerImpl) HandleGameStarted(ctx context.Context, gameStarted dto.
 				"guild":    guild.GuildID,
 				"summoner": fmt.Sprintf("%s#%s", gameStarted.SummonerName, gameStarted.TagLine),
 				"error":    err,
-			}).Error("Failed to create house wager for guild")
+			}).Error("Failed to create TFT house wager for guild")
 			// Continue with other guilds
 		}
 	}
@@ -112,14 +86,14 @@ func (h *LoLHandlerImpl) HandleGameStarted(ctx context.Context, gameStarted dto.
 	return nil
 }
 
-// HandleGameEnded resolves house wagers when a game ends
-func (h *LoLHandlerImpl) HandleGameEnded(ctx context.Context, gameEnded dto.GameEndedDTO) error {
+// HandleGameEnded resolves house wagers when a TFT game ends
+func (h *TFTHandlerImpl) HandleGameEnded(ctx context.Context, gameEnded dto.TFTGameEndedDTO) error {
 	log.WithFields(log.Fields{
-		"summoner": fmt.Sprintf("%s#%s", gameEnded.SummonerName, gameEnded.TagLine),
-		"gameId":   gameEnded.GameID,
-		"won":      gameEnded.Won,
-		"duration": gameEnded.DurationSeconds,
-	}).Info("Game ended, resolving house wagers")
+		"summoner":  fmt.Sprintf("%s#%s", gameEnded.SummonerName, gameEnded.TagLine),
+		"gameId":    gameEnded.GameID,
+		"placement": gameEnded.Placement,
+		"duration":  gameEnded.DurationSeconds,
+	}).Info("TFT game ended, resolving house wagers")
 
 	// Query guilds watching this summoner to find relevant wagers
 	tempUow := h.baseHandler.uowFactory.CreateForGuild(0)
@@ -142,7 +116,7 @@ func (h *LoLHandlerImpl) HandleGameEnded(ctx context.Context, gameEnded dto.Game
 
 	// Create external reference for this game
 	externalRef := entities.ExternalReference{
-		System: entities.SystemLeagueOfLegends,
+		System: entities.SystemTFT,
 		ID:     gameEnded.GameID,
 	}
 
@@ -164,7 +138,7 @@ func (h *LoLHandlerImpl) HandleGameEnded(ctx context.Context, gameEnded dto.Game
 			"guild":          guild.GuildID,
 			"gameId":         gameEnded.GameID,
 			"externalSystem": externalRef.System,
-		}).Debug("Looking up wager by external reference")
+		}).Debug("Looking up TFT wager by external reference")
 
 		wager, err := guildUow.GroupWagerRepository().GetByExternalReference(ctx, externalRef)
 		if err != nil {
@@ -172,7 +146,7 @@ func (h *LoLHandlerImpl) HandleGameEnded(ctx context.Context, gameEnded dto.Game
 				"guild":  guild.GuildID,
 				"gameId": gameEnded.GameID,
 				"error":  err,
-			}).Error("Failed to query wager by external reference")
+			}).Error("Failed to query TFT wager by external reference")
 			guildUow.Rollback()
 			continue
 		}
@@ -181,7 +155,7 @@ func (h *LoLHandlerImpl) HandleGameEnded(ctx context.Context, gameEnded dto.Game
 			log.WithFields(log.Fields{
 				"guild":  guild.GuildID,
 				"gameId": gameEnded.GameID,
-			}).Debug("No wager found for this game in guild")
+			}).Debug("No TFT wager found for this game in guild")
 			guildUow.Rollback()
 			continue
 		}
@@ -190,27 +164,29 @@ func (h *LoLHandlerImpl) HandleGameEnded(ctx context.Context, gameEnded dto.Game
 			"guild":   guild.GuildID,
 			"gameId":  gameEnded.GameID,
 			"wagerID": wager.ID,
-		}).Debug("Found wager for external reference")
+		}).Debug("Found TFT wager for external reference")
 
 		guildUow.Rollback() // Close the query transaction
 
-		// LoL winner selector
-		lolWinnerSelector := func(options []entities.GroupWagerOption, result interface{}) int64 {
-			gameResult := result.(dto.GameEndedDTO)
+		// TFT winner selector: Top 4 (placement <= 4) vs Bottom 4 (placement > 4)
+		tftWinnerSelector := func(options []entities.GroupWagerOption, result interface{}) int64 {
+			gameResult := result.(dto.TFTGameEndedDTO)
+			isTop4 := gameResult.Placement <= 4
+			
 			for _, opt := range options {
-				if (gameResult.Won && opt.OptionText == "Win") || (!gameResult.Won && opt.OptionText == "Loss") {
+				if (isTop4 && opt.OptionText == "Top 4") || (!isTop4 && opt.OptionText == "Bottom 4") {
 					return opt.ID
 				}
 			}
 			return 0
 		}
 
-		forfeitThreshold := int32(600) // 10 minutes
+		// TFT has no 10-minute cancellation logic (unlike LoL)
 		config := WagerResolutionConfig{
-			ExternalSystem:        entities.SystemLeagueOfLegends,
-			WinnerSelector:        lolWinnerSelector,
+			ExternalSystem:        entities.SystemTFT,
+			WinnerSelector:        tftWinnerSelector,
 			GameResult:            gameEnded,
-			CancellationThreshold: &forfeitThreshold,
+			CancellationThreshold: nil, // No cancellation logic for TFT
 		}
 
 		// Resolve the wager
@@ -219,7 +195,7 @@ func (h *LoLHandlerImpl) HandleGameEnded(ctx context.Context, gameEnded dto.Game
 				"guild":   guild.GuildID,
 				"wagerID": wager.ID,
 				"error":   err,
-			}).Error("Failed to resolve house wager")
+			}).Error("Failed to resolve TFT house wager")
 			// Continue with other guilds
 		} else {
 			resolvedCount++
@@ -230,8 +206,7 @@ func (h *LoLHandlerImpl) HandleGameEnded(ctx context.Context, gameEnded dto.Game
 		"gameId":        gameEnded.GameID,
 		"resolvedCount": resolvedCount,
 		"totalGuilds":   len(guilds),
-	}).Info("Completed resolving house wagers for game")
+	}).Info("Completed resolving TFT house wagers for game")
 
 	return nil
 }
-

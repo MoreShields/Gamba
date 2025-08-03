@@ -190,6 +190,19 @@ func (b *Bot) registerCommands() error {
 				},
 				{
 					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "tft-channel",
+					Description: "Set the channel for Teamfight Tactics activities",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionChannel,
+							Name:        "channel",
+							Description: "The channel to set for TFT activities (leave empty to disable)",
+							Required:    false,
+						},
+					},
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
 					Name:        "wordle-channel",
 					Description: "Set the channel for Wordle results and rewards",
 					Options: []*discordgo.ApplicationCommandOption{

@@ -5,6 +5,7 @@ type GuildSettings struct {
 	GuildID          int64  `db:"guild_id"`
 	PrimaryChannelID *int64 `db:"primary_channel_id"` // Nullable - channel for gamba updates
 	LolChannelID     *int64 `db:"lol_channel_id"`     // Nullable - channel for LOL updates
+	TftChannelID     *int64 `db:"tft_channel_id"`     // Nullable - channel for TFT updates
 	WordleChannelID  *int64 `db:"wordle_channel_id"`  // Nullable - channel for Wordle results
 	HighRollerRoleID *int64 `db:"high_roller_role_id"` // Nullable - role ID for high roller (NULL = disabled)
 }
@@ -17,6 +18,11 @@ func (gs *GuildSettings) HasPrimaryChannel() bool {
 // HasLolChannel checks if a LOL channel is configured
 func (gs *GuildSettings) HasLolChannel() bool {
 	return gs.LolChannelID != nil && *gs.LolChannelID > 0
+}
+
+// HasTftChannel checks if a TFT channel is configured
+func (gs *GuildSettings) HasTftChannel() bool {
+	return gs.TftChannelID != nil && *gs.TftChannelID > 0
 }
 
 // HasWordleChannel checks if a Wordle channel is configured
@@ -37,6 +43,11 @@ func (gs *GuildSettings) SetPrimaryChannel(channelID *int64) {
 // SetLolChannel sets the LOL channel ID
 func (gs *GuildSettings) SetLolChannel(channelID *int64) {
 	gs.LolChannelID = channelID
+}
+
+// SetTftChannel sets the TFT channel ID
+func (gs *GuildSettings) SetTftChannel(channelID *int64) {
+	gs.TftChannelID = channelID
 }
 
 // SetWordleChannel sets the Wordle channel ID

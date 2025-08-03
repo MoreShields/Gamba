@@ -47,6 +47,16 @@ type LoLEventHandler interface {
 	HandleGameEnded(ctx context.Context, gameEnded dto.GameEndedDTO) error
 }
 
+// TFTEventHandler defines the interface for handling TFT game events
+// This interface receives domain DTOs, not raw bytes
+type TFTEventHandler interface {
+	// HandleGameStarted processes a TFT game started event
+	HandleGameStarted(ctx context.Context, gameStarted dto.TFTGameStartedDTO) error
+
+	// HandleGameEnded processes a TFT game ended event
+	HandleGameEnded(ctx context.Context, gameEnded dto.TFTGameEndedDTO) error
+}
+
 // GuildDiscoveryService discovers guilds and their channel configurations
 type GuildDiscoveryService interface {
 	// GetGuildsWithPrimaryChannel returns all guilds that have a primary channel configured
