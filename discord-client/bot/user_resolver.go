@@ -127,7 +127,7 @@ func (r *UserResolverImpl) searchAllCacheTypes(guildID int64, name string) []int
 
 	for _, nameType := range searchOrder {
 		if userIDs := r.searchInCache(guildID, name, nameType); len(userIDs) > 0 {
-			log.Infof("Found %d user(s) with %s '%s' in guild %d",
+			log.Debugf("Found %d user(s) with %s '%s' in guild %d",
 				len(userIDs), nameType, name, guildID)
 			return userIDs
 		}
@@ -156,7 +156,6 @@ func (r *UserResolverImpl) refreshMemberCache(ctx context.Context, guildID int64
 	}
 
 	r.buildNameCache(guildID, members)
-	r.logCacheContents(guildID)
 
 	return nil
 }
@@ -406,7 +405,7 @@ func (r *UserResolverImpl) InvalidateAllCache() {
 func (r *UserResolverImpl) GetUsernameByID(ctx context.Context, guildID int64, userID int64) (string, error) {
 	guildIDStr := strconv.FormatInt(guildID, 10)
 	userIDStr := strconv.FormatInt(userID, 10)
-	
+
 	// Try to get member directly from Discord API first
 	member, err := r.session.GuildMember(guildIDStr, userIDStr)
 	if err == nil && member != nil {
@@ -421,13 +420,13 @@ func (r *UserResolverImpl) GetUsernameByID(ctx context.Context, guildID int64, u
 			return member.User.Username, nil
 		}
 	}
-	
+
 	// If direct lookup failed, try direct user lookup
 	user, err := r.session.User(userIDStr)
 	if err == nil && user != nil {
 		return user.Username, nil
 	}
-	
+
 	// Final fallback
 	return fmt.Sprintf("User%d", userID), nil
 }

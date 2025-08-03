@@ -20,11 +20,11 @@ import (
 func CreateHouseWagerComponents(houseWager dto.HouseWagerPostDTO) []discordgo.MessageComponent {
 	// Only show components for active wagers that haven't expired
 	// Check if wager is active and voting period is still active
-	log.Infof("CreateHouseWagerComponents: wagerID=%d, state='%s'", houseWager.WagerID, houseWager.State)
+	log.Debugf("CreateHouseWagerComponents: wagerID=%d, state='%s'", houseWager.WagerID, houseWager.State)
 
 	if houseWager.State != "active" {
 		// Wager is not active (resolved, cancelled, pending_resolution), no components
-		log.Infof("Hiding components for wager %d because state is '%s' (not 'active')", houseWager.WagerID, houseWager.State)
+		log.Debugf("Hiding components for wager %d because state is '%s' (not 'active')", houseWager.WagerID, houseWager.State)
 		return []discordgo.MessageComponent{}
 	}
 

@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"gambler/discord-client/config"
-	"gambler/discord-client/domain/events"
 	"gambler/discord-client/domain/entities"
+	"gambler/discord-client/domain/events"
 	"gambler/discord-client/domain/services"
 
 	"github.com/jackc/pgx/v5"
@@ -43,6 +43,12 @@ func (h *wordleHandler) HandleDiscordMessage(ctx context.Context, event interfac
 		return err
 	}
 
+	// Check if message is from the Wordle bot
+	cfg := config.Get()
+	if m.UserID != cfg.WordleBotID {
+		return nil
+	}
+
 	log.WithFields(log.Fields{
 		"channel_id": m.ChannelID,
 		"message_id": m.MessageID,
@@ -50,12 +56,6 @@ func (h *wordleHandler) HandleDiscordMessage(ctx context.Context, event interfac
 		"guild_id":   m.GuildID,
 		"content":    m.Content,
 	}).Info("Processing Wordle bot message")
-
-	// Check if message is from the Wordle bot
-	cfg := config.Get()
-	if m.UserID != cfg.WordleBotID {
-		return nil
-	}
 
 	// Parse guild ID
 	guildID, err := strconv.ParseInt(m.GuildID, 10, 64)
@@ -202,7 +202,7 @@ func (h *wordleHandler) processWordleResult(ctx context.Context, result WordleRe
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
-	
+
 	if user == nil {
 		// User doesn't exist, create with initial balance as the reward
 		balanceBefore = 0
