@@ -9,9 +9,6 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    # TODO: Use base image once available
-    # container:
-    #   image: ghcr.io/moreshields/gamba-base:latest
     strategy:
       fail-fast: false
       matrix:
@@ -54,18 +51,6 @@ jobs:
     - name: Install protobuf tools
       if: matrix.test-suite.needs-protobuf
       run: make -C api install-tools
-    
-    - name: Cache generated protobuf files
-      if: matrix.test-suite.needs-protobuf
-      uses: actions/cache@v4
-      with:
-        path: |
-          api/gen/
-          discord-client/proto/
-          lol-tracker/api/gen/
-        key: ${{ runner.os }}-protobuf-gen-${{ hashFiles('api/proto/**/*.proto', 'api/Makefile') }}
-        restore-keys: |
-          ${{ runner.os }}-protobuf-gen-
 
     - name: Cache Go modules
       if: matrix.test-suite.working-dir == 'discord-client'
