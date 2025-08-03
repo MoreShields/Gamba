@@ -54,7 +54,7 @@ func (r *UserRepository) GetByDiscordID(ctx context.Context, discordID int64) (*
 				 JOIN group_wagers gw ON gw.id = gwp.group_wager_id
 				 WHERE gwp.discord_id = uga.discord_id
 				   AND gw.guild_id = uga.guild_id
-				   AND gw.state = 'active'),
+				   AND gw.state IN ('active', 'pending_resolution')),
 				0
 			) as available_balance
 		FROM user_guild_accounts uga
@@ -184,7 +184,7 @@ func (r *UserRepository) GetUsersWithPositiveBalance(ctx context.Context) ([]*en
 				 JOIN group_wagers gw ON gw.id = gwp.group_wager_id
 				 WHERE gwp.discord_id = uga.discord_id
 				   AND gw.guild_id = uga.guild_id
-				   AND gw.state = 'active'),
+				   AND gw.state IN ('active', 'pending_resolution')),
 				0
 			) as available_balance
 		FROM user_guild_accounts uga
@@ -245,7 +245,7 @@ func (r *UserRepository) GetAll(ctx context.Context) ([]*entities.User, error) {
 				 JOIN group_wagers gw ON gw.id = gwp.group_wager_id
 				 WHERE gwp.discord_id = uga.discord_id
 				   AND gw.guild_id = uga.guild_id
-				   AND gw.state = 'active'),
+				   AND gw.state IN ('active', 'pending_resolution')),
 				0
 			) as available_balance
 		FROM user_guild_accounts uga
