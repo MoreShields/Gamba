@@ -265,49 +265,12 @@ func (h *LoLHandlerImpl) createHouseWagerForGuild(
 		return fmt.Errorf("failed to create group wager: lol-channel is not set for guild %d", guild.GuildID)
 	}
 
-	// Parse the condition to extract title and description
-	// Split on first newline - everything before is title, everything after is description
-	parts := strings.SplitN(condition, "\n", 2)
-	title := parts[0]
-	description := ""
-	if len(parts) > 1 {
-		description = parts[1]
-	}
-
-	postDTO := dto.HouseWagerPostDTO{
-		GuildID:      guild.GuildID,
-		ChannelID:    channelID,
-		WagerID:      wagerDetail.Wager.ID,
-		Title:        title,       // Title from first line
-		Description:  description, // Description from remaining lines
-		State:        string(wagerDetail.Wager.State),
-		Options:      make([]dto.WagerOptionDTO, len(wagerDetail.Options)),
-		VotingEndsAt: wagerDetail.Wager.VotingEndsAt,
-	}
-
-	// Convert options to DTOs
-	for i, opt := range wagerDetail.Options {
-		postDTO.Options[i] = dto.WagerOptionDTO{
-			ID:          opt.ID,
-			Text:        opt.OptionText,
-			Order:       opt.OptionOrder,
-			Multiplier:  opt.OddsMultiplier,
-			TotalAmount: opt.TotalAmount,
-		}
-	}
-
-	// Convert participants to DTOs
-	postDTO.Participants = make([]dto.ParticipantDTO, len(wagerDetail.Participants))
-	for i, participant := range wagerDetail.Participants {
-		postDTO.Participants[i] = dto.ParticipantDTO{
-			DiscordID: participant.DiscordID,
-			OptionID:  participant.OptionID,
-			Amount:    participant.Amount,
-		}
-	}
-
-	// Set total pot
-	postDTO.TotalPot = wagerDetail.Wager.TotalPot
+	// Build DTO using the helper function
+	postDTO := h.buildHouseWagerDTO(wagerDetail)
+	// Override the channel ID since it might not be set in the wager yet
+	postDTO.ChannelID = channelID
+	// Ensure guild ID is set correctly (in case it's not set in the wager)
+	postDTO.GuildID = guild.GuildID
 
 	// Post to Discord
 	postResult, err := h.discordPoster.PostHouseWager(ctx, postDTO)
@@ -345,6 +308,53 @@ func (h *LoLHandlerImpl) createHouseWagerForGuild(
 	}).Info("Created house wager for game start")
 
 	return nil
+}
+
+// buildHouseWagerDTO builds a HouseWagerPostDTO from a GroupWagerDetail
+func (h *LoLHandlerImpl) buildHouseWagerDTO(detail *entities.GroupWagerDetail) dto.HouseWagerPostDTO {
+	// Parse the condition to extract title and description
+	parts := strings.SplitN(detail.Wager.Condition, "\n", 2)
+	title := parts[0]
+	description := ""
+	if len(parts) > 1 {
+		description = parts[1]
+	}
+
+	// Build DTO
+	result := dto.HouseWagerPostDTO{
+		GuildID:      detail.Wager.GuildID,
+		ChannelID:    detail.Wager.ChannelID,
+		WagerID:      detail.Wager.ID,
+		Title:        title,
+		Description:  description,
+		State:        string(detail.Wager.State),
+		Options:      make([]dto.WagerOptionDTO, len(detail.Options)),
+		VotingEndsAt: detail.Wager.VotingEndsAt,
+		Participants: make([]dto.ParticipantDTO, len(detail.Participants)),
+		TotalPot:     detail.Wager.TotalPot,
+	}
+
+	// Convert options
+	for i, opt := range detail.Options {
+		result.Options[i] = dto.WagerOptionDTO{
+			ID:          opt.ID,
+			Text:        opt.OptionText,
+			Order:       opt.OptionOrder,
+			Multiplier:  opt.OddsMultiplier,
+			TotalAmount: opt.TotalAmount,
+		}
+	}
+
+	// Convert participants
+	for i, participant := range detail.Participants {
+		result.Participants[i] = dto.ParticipantDTO{
+			DiscordID: participant.DiscordID,
+			OptionID:  participant.OptionID,
+			Amount:    participant.Amount,
+		}
+	}
+
+	return result
 }
 
 // resolveHouseWager resolves a specific house wager
@@ -401,6 +411,11 @@ func (h *LoLHandlerImpl) resolveHouseWager(ctx context.Context, guildID, wagerID
 			return fmt.Errorf("failed to cancel group wager: %w", err)
 		}
 
+		// Before committing, check if we need to update Discord message
+		// We already have the wager detail from earlier (guaranteed non-nil)
+		messageID := wagerDetail.Wager.MessageID
+		channelID := wagerDetail.Wager.ChannelID
+
 		// Commit the transaction
 		if err := uow.Commit(); err != nil {
 			return fmt.Errorf("failed to commit transaction: %w", err)
@@ -410,6 +425,32 @@ func (h *LoLHandlerImpl) resolveHouseWager(ctx context.Context, guildID, wagerID
 			"guild":   guildID,
 			"wagerID": wagerID,
 		}).Info("Successfully cancelled house wager and refunded participants")
+
+		// Update the Discord message to show cancelled state
+		if messageID != 0 && channelID != 0 {
+			// Update the state to cancelled since we know it was just cancelled
+			wagerDetail.Wager.State = entities.GroupWagerStateCancelled
+			
+			// Build DTO for Discord update using the helper function
+			updateDTO := h.buildHouseWagerDTO(wagerDetail)
+
+			// Update the Discord message
+			if err := h.discordPoster.UpdateHouseWager(ctx, messageID, channelID, updateDTO); err != nil {
+				log.WithFields(log.Fields{
+					"guild":     guildID,
+					"wagerID":   wagerID,
+					"messageID": messageID,
+					"channelID": channelID,
+					"error":     err,
+				}).Error("Failed to update Discord message for cancelled house wager")
+			} else {
+				log.WithFields(log.Fields{
+					"guild":     guildID,
+					"wagerID":   wagerID,
+					"messageID": messageID,
+				}).Info("Successfully updated Discord message for cancelled house wager")
+			}
+		}
 
 		return nil
 	}

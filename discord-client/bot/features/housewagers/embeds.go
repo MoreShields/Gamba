@@ -92,6 +92,11 @@ func CreateHouseWagerEmbed(houseWager dto.HouseWagerPostDTO) *discordgo.MessageE
 		return CreateHouseWagerResolvedEmbed(houseWager, winningOption, totalPayout)
 	}
 
+	// Check if this is a cancelled wager
+	if houseWager.State == "cancelled" {
+		return CreateHouseWagerCancelledEmbed(houseWager)
+	}
+
 	// For active or non-resolved wagers, use the base embed
 	return createBaseHouseWagerEmbed(houseWager)
 }
@@ -121,7 +126,8 @@ func createBaseHouseWagerEmbed(houseWager dto.HouseWagerPostDTO) *discordgo.Mess
 	}
 
 	// Add betting countdown field inline with summoner info
-	if houseWager.VotingEndsAt != nil {
+	// Skip this field for cancelled wagers
+	if houseWager.VotingEndsAt != nil && houseWager.State != "cancelled" {
 		if houseWager.VotingEndsAt.After(time.Now()) {
 			embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
 				Name:   "🟢 Betting Open",
@@ -317,6 +323,46 @@ func CreateHouseWagerResolvedEmbed(houseWager dto.HouseWagerPostDTO, winningOpti
 	embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
 		Name:   "🎉 Result",
 		Value:  resultValue,
+		Inline: false,
+	})
+
+	return embed
+}
+
+// CreateHouseWagerCancelledEmbed creates an embed for a cancelled house wager
+func CreateHouseWagerCancelledEmbed(houseWager dto.HouseWagerPostDTO) *discordgo.MessageEmbed {
+	// Create base embed
+	embed := createBaseHouseWagerEmbed(houseWager)
+
+	// Update for cancelled state
+	embed.Color = common.ColorDanger // Red for cancelled
+
+	// Update title to show CANCELLED status
+	if embed.Title != "" {
+		embed.Title = embed.Title + " - CANCELLED"
+	} else {
+		// If no title, prepend CANCELLED to description
+		embed.Description = "**CANCELLED**\n\n" + embed.Description
+	}
+
+	// Remove the Match Details link from the description since the game was forfeit/remake
+	// The description typically contains "[Match Details](url)" which we want to remove
+	if strings.Contains(embed.Description, "[Match Details]") {
+		// Find and remove the entire line containing the Match Details link
+		lines := strings.Split(embed.Description, "\n")
+		var filteredLines []string
+		for _, line := range lines {
+			if !strings.Contains(line, "[Match Details]") {
+				filteredLines = append(filteredLines, line)
+			}
+		}
+		embed.Description = strings.Join(filteredLines, "\n")
+	}
+
+	// Add cancellation notice field
+	embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
+		Name:   "❌ Wager Cancelled",
+		Value:  "Game ended in less than 10 minutes (forfeit/remake).\nAll bets have been refunded.",
 		Inline: false,
 	})
 
