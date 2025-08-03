@@ -19,8 +19,8 @@ type NameType int
 
 const (
 	NicknameType    NameType = iota // Server-specific nickname (highest priority)
-	DisplayNameType                  // Global display name
-	UsernameType                     // Username (lowest priority)
+	DisplayNameType                 // Global display name
+	UsernameType                    // Username (lowest priority)
 )
 
 // String returns a human-readable name for the NameType
@@ -53,7 +53,7 @@ func (rl *RateLimiter) Wait(ctx context.Context) error {
 	if elapsed < rl.minInterval {
 		waitTime := rl.minInterval - elapsed
 		log.Debugf("Rate limiting: waiting %v before next API call", waitTime)
-		
+
 		select {
 		case <-time.After(waitTime):
 		case <-ctx.Done():
@@ -114,7 +114,7 @@ func (r *UserResolverImpl) ResolveUsersByNick(ctx context.Context, guildID int64
 	if len(userIDs) == 0 {
 		log.Infof("No users found with nickname, display name, or username '%s' in guild %d", normalizedNick, guildID)
 	}
-	
+
 	return userIDs, nil
 }
 
@@ -127,7 +127,7 @@ func (r *UserResolverImpl) searchAllCacheTypes(guildID int64, name string) []int
 
 	for _, nameType := range searchOrder {
 		if userIDs := r.searchInCache(guildID, name, nameType); len(userIDs) > 0 {
-			log.Infof("Found %d user(s) with %s '%s' in guild %d", 
+			log.Infof("Found %d user(s) with %s '%s' in guild %d",
 				len(userIDs), nameType, name, guildID)
 			return userIDs
 		}
@@ -157,7 +157,7 @@ func (r *UserResolverImpl) refreshMemberCache(ctx context.Context, guildID int64
 
 	r.buildNameCache(guildID, members)
 	r.logCacheContents(guildID)
-	
+
 	return nil
 }
 
@@ -188,7 +188,7 @@ func (r *UserResolverImpl) fetchGuildMembersFromAPI(ctx context.Context, guildID
 
 	var allMembers []*discordgo.Member
 	after := ""
-	
+
 	for {
 		// Check context cancellation
 		select {
@@ -224,7 +224,7 @@ func (r *UserResolverImpl) fetchGuildMembersFromAPI(ctx context.Context, guildID
 		// Set 'after' for pagination
 		if len(batch) > 0 && batch[len(batch)-1].User != nil {
 			after = batch[len(batch)-1].User.ID
-			log.Debugf("Fetching next batch for guild %d after user %s (current total: %d)", 
+			log.Debugf("Fetching next batch for guild %d after user %s (current total: %d)",
 				guildID, after, len(allMembers))
 		} else {
 			log.Warnf("Unable to determine next pagination token, stopping at %d members", len(allMembers))
@@ -234,14 +234,14 @@ func (r *UserResolverImpl) fetchGuildMembersFromAPI(ctx context.Context, guildID
 
 	// Update cache
 	r.updateMemberCache(guildID, allMembers)
-	
+
 	return allMembers, nil
 }
 
 // fetchMemberBatchWithRetry fetches a batch of members with exponential backoff retry
 func (r *UserResolverImpl) fetchMemberBatchWithRetry(ctx context.Context, guildID string, after string) ([]*discordgo.Member, error) {
 	maxRetries := 3
-	
+
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		batch, err := r.session.GuildMembers(guildID, after, 1000)
 		if err == nil {
@@ -399,4 +399,35 @@ func (r *UserResolverImpl) InvalidateAllCache() {
 	r.nameCacheMutex.Lock()
 	r.nameCache = make(map[int64]map[NameType]map[string][]int64)
 	r.nameCacheMutex.Unlock()
+}
+
+// GetUsernameByID returns the display name for a user in a guild
+// Priority: server nickname > global display name > username
+func (r *UserResolverImpl) GetUsernameByID(ctx context.Context, guildID int64, userID int64) (string, error) {
+	guildIDStr := strconv.FormatInt(guildID, 10)
+	userIDStr := strconv.FormatInt(userID, 10)
+	
+	// Try to get member directly from Discord API first
+	member, err := r.session.GuildMember(guildIDStr, userIDStr)
+	if err == nil && member != nil {
+		// Priority: nickname > display name > username
+		if member.Nick != "" {
+			return member.Nick, nil
+		}
+		if member.User != nil {
+			if displayName := member.DisplayName(); displayName != "" {
+				return displayName, nil
+			}
+			return member.User.Username, nil
+		}
+	}
+	
+	// If direct lookup failed, try direct user lookup
+	user, err := r.session.User(userIDStr)
+	if err == nil && user != nil {
+		return user.Username, nil
+	}
+	
+	// Final fallback
+	return fmt.Sprintf("User%d", userID), nil
 }

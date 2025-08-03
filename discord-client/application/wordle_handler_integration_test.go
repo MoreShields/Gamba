@@ -35,6 +35,11 @@ func (m *mockUserResolver) ResolveUsersByNick(ctx context.Context, guildID int64
 	return []int64{}, nil
 }
 
+func (m *mockUserResolver) GetUsernameByID(ctx context.Context, guildID int64, userID int64) (string, error) {
+	// For testing, just return a simple username
+	return fmt.Sprintf("User%d", userID), nil
+}
+
 func (m *mockUserResolver) addNickname(nickname string, userIDs ...int64) {
 	m.nickToUserIDs[nickname] = userIDs
 }

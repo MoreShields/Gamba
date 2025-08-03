@@ -69,7 +69,7 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 	}
 
 	// Create embed using the shared function (start with first page)
-	embed := BuildScoreboardEmbed(ctx, metricsService, entries, totalBits, s, i.GuildID, PageBits)
+	embed := BuildScoreboardEmbed(ctx, metricsService, entries, totalBits, s, i.GuildID, PageBits, f.userResolver)
 
 	// Commit the transaction after building the embed
 	if err := uow.Commit(); err != nil {
