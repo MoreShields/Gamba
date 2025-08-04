@@ -422,15 +422,17 @@ func TestGroupWagerResolution_EdgeCases(t *testing.T) {
 		result, err := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, &resolver.DiscordID, winningOptionID)
 		require.NoError(t, err)
 
-		// Single winner gets entire pot
+		// Single winner gets entire pot (with exposure cap)
+		// Losers can only lose up to the winner's bet (10,000 each)
+		// Prize pool = 10,000 + 10,000 + 10,000 = 30,000
 		assert.Len(t, result.Winners, 1)
 		assert.Len(t, result.Losers, 2)
-		assert.Equal(t, int64(60000), result.PayoutDetails[winner.DiscordID]) // Gets entire pot
+		assert.Equal(t, int64(30000), result.PayoutDetails[winner.DiscordID]) // Gets entire capped pot
 
 		// Verify balance
 		updatedWinner, err := userRepo.GetByDiscordID(ctx, winner.DiscordID)
 		require.NoError(t, err)
-		assert.Equal(t, int64(100000+60000-10000), updatedWinner.Balance) // Initial + pot - bet = 150000
+		assert.Equal(t, int64(100000+30000-10000), updatedWinner.Balance) // Initial + pot - bet = 120000
 	})
 
 	t.Run("resolution with very small bets and rounding", func(t *testing.T) {
@@ -488,11 +490,12 @@ func TestGroupWagerResolution_EdgeCases(t *testing.T) {
 		result, err := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, &resolver2.DiscordID, optionAID)
 		require.NoError(t, err)
 
-		// Total pot is 2000, winning option has 1000
-		// User1 should get 333/1000 * 2000 = 666
-		// User2 should get 667/1000 * 2000 = 1334
-		assert.Equal(t, int64(666), result.PayoutDetails[user1.DiscordID])
-		assert.Equal(t, int64(1334), result.PayoutDetails[user2.DiscordID])
-		assert.Equal(t, int64(666+1334), result.PayoutDetails[user1.DiscordID]+result.PayoutDetails[user2.DiscordID]) // Should equal total pot
+		// With exposure cap: loser can only lose up to highest winner bet (667)
+		// Prize pool = 333 + 667 + 667 = 1667
+		// User1 should get 333/1000 * 1667 = 555 (rounded down)
+		// User2 should get 667/1000 * 1667 = 1111 (rounded down)
+		assert.Equal(t, int64(555), result.PayoutDetails[user1.DiscordID])
+		assert.Equal(t, int64(1111), result.PayoutDetails[user2.DiscordID])
+		assert.Equal(t, int64(1666), result.PayoutDetails[user1.DiscordID]+result.PayoutDetails[user2.DiscordID]) // Rounding causes 1 bit loss
 	})
 }
