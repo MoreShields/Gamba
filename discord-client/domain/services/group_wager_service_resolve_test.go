@@ -712,7 +712,7 @@ func TestGroupWagerService_ResolveGroupWager_BalanceUpdateFailure(t *testing.T) 
 	// Verify rollback
 	require.Error(t, err)
 	require.Nil(t, result)
-	assert.Contains(t, err.Error(), "failed to update winner balance")
+	assert.Contains(t, err.Error(), "failed to process winner balance")
 
 	mocks.AssertAllExpectations(t)
 }

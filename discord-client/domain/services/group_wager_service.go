@@ -300,6 +300,86 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 	return participant, nil
 }
 
+// calculateMaxWinnerBet finds the highest bet amount among winners
+func calculateMaxWinnerBet(winners []*entities.GroupWagerParticipant) int64 {
+	maxBet := int64(0)
+	for _, winner := range winners {
+		if winner.Amount > maxBet {
+			maxBet = winner.Amount
+		}
+	}
+	return maxBet
+}
+
+// calculateEffectiveLoss calculates the actual loss amount considering exposure cap
+func calculateEffectiveLoss(betAmount, maxWinnerBet int64) int64 {
+	if maxWinnerBet > 0 && betAmount > maxWinnerBet {
+		return maxWinnerBet
+	}
+	return betAmount
+}
+
+// processParticipantBalanceChange updates participant balance and records history
+func (s *groupWagerService) processParticipantBalanceChange(
+	ctx context.Context,
+	participant *entities.GroupWagerParticipant,
+	balanceChange int64,
+	transactionType entities.TransactionType,
+	groupWagerID int64,
+	groupWager *entities.GroupWager,
+	maxWinnerBet int64,
+) (*entities.BalanceHistory, error) {
+	// Get user for balance history
+	user, err := s.userRepo.GetByDiscordID(ctx, participant.DiscordID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// Update balance
+	newBalance := user.Balance + balanceChange
+	if err := s.userRepo.UpdateBalance(ctx, participant.DiscordID, newBalance); err != nil {
+		return nil, fmt.Errorf("failed to update balance: %w", err)
+	}
+
+	// Build transaction metadata
+	metadata := map[string]any{
+		"group_wager_id": groupWagerID,
+		"bet_amount":     participant.Amount,
+		"condition":      groupWager.Condition,
+		"wager_type":     string(groupWager.WagerType),
+	}
+
+	// Add payout info for winners
+	if transactionType == entities.TransactionTypeGroupWagerWin && participant.PayoutAmount != nil {
+		metadata["payout_amount"] = *participant.PayoutAmount
+	}
+
+	// Add capped loss info for losers if applicable
+	if transactionType == entities.TransactionTypeGroupWagerLoss && 
+		groupWager.IsPoolWager() && maxWinnerBet > 0 && participant.Amount > maxWinnerBet {
+		metadata["capped_loss"] = maxWinnerBet
+		metadata["original_bet"] = participant.Amount
+	}
+
+	// Record balance history
+	history := &entities.BalanceHistory{
+		DiscordID:           participant.DiscordID,
+		BalanceBefore:       user.Balance,
+		BalanceAfter:        newBalance,
+		ChangeAmount:        balanceChange,
+		TransactionType:     transactionType,
+		TransactionMetadata: metadata,
+		RelatedID:           &groupWagerID,
+		RelatedType:         relatedTypePtr(entities.RelatedTypeGroupWager),
+	}
+
+	if err := utils.RecordBalanceChange(ctx, s.balanceHistoryRepo, s.eventPublisher, history); err != nil {
+		return nil, fmt.Errorf("failed to record balance change: %w", err)
+	}
+
+	return history, nil
+}
+
 // ResolveGroupWager resolves a group wager with the winning option
 func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID int64, resolverID *int64, winningOptionID int64) (*entities.GroupWagerResult, error) {
 	// Check if user is a resolver (skip check for system resolution when resolverID is nil)
@@ -371,130 +451,110 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 	var losers []*entities.GroupWagerParticipant
 	payoutDetails := make(map[int64]int64)
 
+	// Separate winners and losers
 	for _, participant := range participants {
 		if participant.OptionID == winningOption.ID {
-			// Winner - calculate payout using stored odds multiplier
-			var payout int64
-			if groupWager.IsPoolWager() {
-				// Pool wager: use proportional payout (existing logic)
-				payout = participant.CalculatePayout(winningOptionTotal, totalPot)
-			} else {
-				// House wager: use stored odds multiplier
-				payout = int64(float64(participant.Amount) * winningOption.OddsMultiplier)
-			}
-			participant.PayoutAmount = &payout
 			winners = append(winners, participant)
-			payoutDetails[participant.DiscordID] = payout
 		} else {
-			// Loser
-			zero := int64(0)
-			participant.PayoutAmount = &zero
 			losers = append(losers, participant)
-			payoutDetails[participant.DiscordID] = 0
+		}
+	}
+
+	// Calculate max winner bet once for pool wagers
+	var maxWinnerBet int64
+	if groupWager.IsPoolWager() {
+		maxWinnerBet = calculateMaxWinnerBet(winners)
+	}
+
+	// Calculate payouts based on wager type
+	if groupWager.IsPoolWager() {
+
+		// Calculate effective prize pool with capped losses
+		effectivePrizePool := int64(0)
+		
+		// Add capped losses from losers
+		for _, loser := range losers {
+			effectiveLoss := calculateEffectiveLoss(loser.Amount, maxWinnerBet)
+			effectivePrizePool += effectiveLoss
+		}
+		
+		// Add winner contributions to prize pool
+		for _, winner := range winners {
+			effectivePrizePool += winner.Amount
+		}
+
+		// Calculate proportional payouts for winners
+		for _, winner := range winners {
+			var payout int64
+			if winningOptionTotal > 0 {
+				payout = (winner.Amount * effectivePrizePool) / winningOptionTotal
+			}
+			winner.PayoutAmount = &payout
+			payoutDetails[winner.DiscordID] = payout
+		}
+
+		// Set loser payouts to 0
+		for _, loser := range losers {
+			zero := int64(0)
+			loser.PayoutAmount = &zero
+			payoutDetails[loser.DiscordID] = 0
+		}
+	} else {
+		// House wager: use existing logic with odds multipliers
+		for _, winner := range winners {
+			payout := int64(float64(winner.Amount) * winningOption.OddsMultiplier)
+			winner.PayoutAmount = &payout
+			payoutDetails[winner.DiscordID] = payout
+		}
+
+		for _, loser := range losers {
+			zero := int64(0)
+			loser.PayoutAmount = &zero
+			payoutDetails[loser.DiscordID] = 0
 		}
 	}
 
 	// Process payouts
-	for _, winner := range winners {
-		// Get user for balance history
-		user, err := s.userRepo.GetByDiscordID(ctx, winner.DiscordID)
+	for i, winner := range winners {
+		// Calculate balance change: net win (payout - original bet)
+		balanceChange := *winner.PayoutAmount - winner.Amount
+
+		// Process balance update and history
+		history, err := s.processParticipantBalanceChange(
+			ctx, winner, balanceChange, entities.TransactionTypeGroupWagerWin,
+			groupWagerID, groupWager, maxWinnerBet,
+		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get winner user: %w", err)
+			return nil, fmt.Errorf("failed to process winner balance: %w", err)
 		}
 
-		var balanceChange int64
-		// For both pool and house wagers: net win (payout - original bet)
-		// Since bets only reserve funds and don't immediately deduct balance
-		balanceChange = *winner.PayoutAmount - winner.Amount
-
-		// Update balance and record history for all winners
-		if true {
-			newBalance := user.Balance + balanceChange
-			if err := s.userRepo.UpdateBalance(ctx, winner.DiscordID, newBalance); err != nil {
-				return nil, fmt.Errorf("failed to update winner balance: %w", err)
-			}
-
-			// Record balance history
-			history := &entities.BalanceHistory{
-				DiscordID:       winner.DiscordID,
-				BalanceBefore:   user.Balance,
-				BalanceAfter:    user.Balance + balanceChange,
-				ChangeAmount:    balanceChange,
-				TransactionType: entities.TransactionTypeGroupWagerWin,
-				TransactionMetadata: map[string]any{
-					"group_wager_id": groupWagerID,
-					"bet_amount":     winner.Amount,
-					"payout_amount":  *winner.PayoutAmount,
-					"condition":      groupWager.Condition,
-					"wager_type":     string(groupWager.WagerType),
-				},
-				RelatedID:   &groupWagerID,
-				RelatedType: relatedTypePtr(entities.RelatedTypeGroupWager),
-			}
-
-			if err := utils.RecordBalanceChange(ctx, s.balanceHistoryRepo, s.eventPublisher, history); err != nil {
-				return nil, fmt.Errorf("failed to record winner balance change: %w", err)
-			}
-
-			// Update participant with balance history ID
-			for i, w := range winners {
-				if w.ID == winner.ID {
-					winners[i].BalanceHistoryID = &history.ID
-					break
-				}
-			}
-		}
+		// Update participant with balance history ID
+		winners[i].BalanceHistoryID = &history.ID
 	}
 
 	// Process losers
-	for _, loser := range losers {
-		// Get user for balance history
-		user, err := s.userRepo.GetByDiscordID(ctx, loser.DiscordID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get loser user: %w", err)
-		}
-
+	for i, loser := range losers {
+		// Calculate balance change
 		var balanceChange int64
-		// For both pool and house wagers: deduct bet amount from loser
-		// Since bets only reserve funds and don't immediately deduct balance
-		balanceChange = -loser.Amount
-
-		// Update balance and record history for all losers
-		if true {
-			newBalance := user.Balance + balanceChange
-			if err := s.userRepo.UpdateBalance(ctx, loser.DiscordID, newBalance); err != nil {
-				return nil, fmt.Errorf("failed to update loser balance: %w", err)
-			}
-
-			// Record balance history
-			history := &entities.BalanceHistory{
-				DiscordID:       loser.DiscordID,
-				BalanceBefore:   user.Balance,
-				BalanceAfter:    user.Balance + balanceChange,
-				ChangeAmount:    balanceChange,
-				TransactionType: entities.TransactionTypeGroupWagerLoss,
-				TransactionMetadata: map[string]any{
-					"group_wager_id": groupWagerID,
-					"bet_amount":     loser.Amount,
-					"condition":      groupWager.Condition,
-					"wager_type":     string(groupWager.WagerType),
-				},
-				RelatedID:   &groupWagerID,
-				RelatedType: relatedTypePtr(entities.RelatedTypeGroupWager),
-			}
-
-			if err := utils.RecordBalanceChange(ctx, s.balanceHistoryRepo, s.eventPublisher, history); err != nil {
-				return nil, fmt.Errorf("failed to record loser balance change: %w", err)
-			}
-
-			// Update participant with balance history ID
-			for i, l := range losers {
-				if l.ID == loser.ID {
-					losers[i].BalanceHistoryID = &history.ID
-					break
-				}
-			}
+		if groupWager.IsPoolWager() {
+			// Pool wager with exposure cap
+			balanceChange = -calculateEffectiveLoss(loser.Amount, maxWinnerBet)
+		} else {
+			// House wager: lose full bet amount
+			balanceChange = -loser.Amount
 		}
+
+		// Process balance update and history
+		history, err := s.processParticipantBalanceChange(
+			ctx, loser, balanceChange, entities.TransactionTypeGroupWagerLoss,
+			groupWagerID, groupWager, maxWinnerBet,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process loser balance: %w", err)
+		}
+
+		// Update participant with balance history ID
+		losers[i].BalanceHistoryID = &history.ID
 	}
 
 	// Update participant records with payouts and balance history IDs
