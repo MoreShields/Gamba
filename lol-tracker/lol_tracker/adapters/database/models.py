@@ -1,10 +1,9 @@
 """SQLAlchemy models for LoL Tracker service."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 from sqlalchemy import (
-    Column,
     String,
     DateTime,
     Integer,
@@ -14,8 +13,7 @@ from sqlalchemy import (
     Index,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 import uuid
 
@@ -27,20 +25,19 @@ class TrackedPlayer(Base):
 
     __tablename__ = "tracked_players"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    game_name = Column(String(16), nullable=False)
-    tag_line = Column(String(5), nullable=False)  # Tag line without # (e.g., "gamba")
-    puuid = Column(String(78), nullable=False)  # Riot's persistent unique identifier
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    game_name: Mapped[str] = mapped_column(String(16), nullable=False)
+    tag_line: Mapped[str] = mapped_column(String(5), nullable=False)  # Tag line without # (e.g., "gamba")
+    puuid: Mapped[str] = mapped_column(String(78), nullable=False)  # Riot's persistent unique identifier
 
     # Tracking metadata
-    created_at = Column(DateTime, nullable=False, default=func.now())
-    updated_at = Column(
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=func.now(), onupdate=func.now()
     )
-    is_active = Column(Boolean, nullable=False, default=True)
 
     # Relationships
-    game_states = relationship(
+    game_states: Mapped[List["GameState"]] = relationship(
         "GameState", back_populates="player", cascade="all, delete-orphan"
     )
 
@@ -48,7 +45,6 @@ class TrackedPlayer(Base):
     __table_args__ = (
         Index("idx_tracked_players_game_name", "game_name"),
         Index("idx_tracked_players_puuid", "puuid"),
-        Index("idx_tracked_players_active", "is_active"),
     )
 
     def __repr__(self) -> str:
@@ -60,37 +56,37 @@ class GameState(Base):
 
     __tablename__ = "game_states"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    player_id = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    player_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("tracked_players.id", ondelete="CASCADE"), nullable=False
     )
 
     # Game state information
-    status = Column(
+    status: Mapped[str] = mapped_column(
         String(50), nullable=False
     )  # NOT_IN_GAME, IN_CHAMPION_SELECT, IN_GAME
-    game_id = Column(String(20), nullable=True)  # Riot's game ID
-    queue_type = Column(
+    game_id: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # Riot's game ID
+    queue_type: Mapped[Optional[str]] = mapped_column(
         String(50), nullable=True
     )  # Queue type (e.g., "RANKED_SOLO_5x5")
 
     # Game result information (populated when game ends)
-    won = Column(Boolean, nullable=True)
-    duration_seconds = Column(Integer, nullable=True)
-    champion_played = Column(String(50), nullable=True)
+    won: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    duration_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    champion_played: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, nullable=False, default=func.now())
-    game_start_time = Column(DateTime, nullable=True)
-    game_end_time = Column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=func.now())
+    game_start_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    game_end_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Additional metadata
-    raw_api_response = Column(
+    raw_api_response: Mapped[Optional[str]] = mapped_column(
         Text, nullable=True
     )  # Store raw Riot API response for debugging
 
     # Relationships
-    player = relationship("TrackedPlayer", back_populates="game_states")
+    player: Mapped["TrackedPlayer"] = relationship("TrackedPlayer", back_populates="game_states")
 
     # Indexes for efficient querying
     __table_args__ = (

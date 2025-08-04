@@ -4,32 +4,29 @@ import asyncio
 import logging
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 
 import grpc
 from grpc_reflection.v1alpha import reflection
-from google.protobuf.timestamp_pb2 import Timestamp
 
 from lol_tracker.config import Config
-from lol_tracker.message_bus import MessageBusClient, NATSMessageBusClient
-from lol_tracker.database.connection import DatabaseManager
-from lol_tracker.database.repository import TrackedPlayerRepository, GameStateRepository
-from lol_tracker.riot_api import (
-    RiotAPIClient,
-    PlayerNotInGameError,
-    CurrentGameInfo,
-    create_riot_api_client,
-)
-from lol_tracker.summoner_service import SummonerTrackingService
+from lol_tracker.adapters.messaging import NATSMessageBusClient, MessageBusClient
+from lol_tracker.adapters.grpc.summoner_service import SummonerTrackingService
 from lol_tracker.proto.services import summoner_service_pb2_grpc, summoner_service_pb2
-from lol_tracker.proto.events import lol_events_pb2
+from lol_tracker.adapters.database.manager import DatabaseManager
+from lol_tracker.adapters.riot_api.client import RiotAPIClient
+from lol_tracker.application.polling_service import PollingService
+from lol_tracker.adapters.messaging.events import EventPublisher
 
 
 logger = logging.getLogger(__name__)
 
 
 class LoLTrackerService:
-    """Main service class that orchestrates the LoL tracking functionality."""
+    """Main service class that orchestrates the LoL tracking functionality.
+    
+    This simplified service directly manages infrastructure components
+    without complex dependency injection frameworks.
+    """
 
     def __init__(
         self, config: Config, message_bus_client: Optional[MessageBusClient] = None
@@ -45,28 +42,17 @@ class LoLTrackerService:
         self._running = False
         self._tasks: list[asyncio.Task] = []
 
-        # Initialize message bus client with dependency injection support
-        if message_bus_client is None:
-            self.message_bus = NATSMessageBusClient(
-                servers=config.message_bus_url,
-                timeout=config.message_bus_timeout_seconds,
-                max_reconnect_attempts=config.message_bus_max_reconnect_attempts,
-                reconnect_delay=config.message_bus_reconnect_delay_seconds,
-                lol_events_stream=config.lol_events_stream,
-                tracking_events_stream=config.tracking_events_stream,
-                lol_events_subject=config.game_state_events_subject,
-                tracking_events_subject=config.tracking_events_subject,
-            )
-        else:
-            self.message_bus = message_bus_client
+        # Infrastructure components
+        self._database_manager: Optional[DatabaseManager] = None
+        self._message_bus_client: Optional[MessageBusClient] = None
+        self._riot_api_client: Optional[RiotAPIClient] = None
+        self._event_publisher: Optional[EventPublisher] = None
+        self._polling_service: Optional[PollingService] = None
+        
+        # Provided dependencies
+        self._provided_message_bus_client = message_bus_client
 
-        # Initialize database manager
-        self.db_manager = DatabaseManager(config)
-
-        # Initialize Riot API client using factory
-        self.riot_api_client = create_riot_api_client(config)
-
-        # Initialize gRPC server and service
+        # gRPC server and service
         self.grpc_server = None
         self.summoner_service = None
 
@@ -79,9 +65,10 @@ class LoLTrackerService:
             ThreadPoolExecutor(max_workers=self.config.grpc_server_max_workers)
         )
 
-        # Create summoner service with shared Riot API client
+        # Create summoner service with direct dependencies
         self.summoner_service = SummonerTrackingService(
-            self.db_manager, self.riot_api_client
+            self._database_manager, 
+            self._riot_api_client
         )
 
         # Add service to server
@@ -112,332 +99,50 @@ class LoLTrackerService:
         self._running = True
 
         try:
-            # Initialize database connection
-            logger.info("Initializing database connection...")
-            await self.db_manager.initialize()
-
-            # Initialize message bus connection
-            logger.info("Connecting to message bus...")
-            await self.message_bus.connect()
-
-            # Verify connection
-            if not await self.message_bus.is_connected():
-                raise RuntimeError("Failed to connect to message bus")
-
-            # Create JetStream streams
-            logger.info("Creating JetStream streams...")
-            await self.message_bus.create_streams()
-
-            logger.info("Message bus initialization completed successfully")
-
+            # Initialize infrastructure components directly
+            await self._initialize_infrastructure()
+            
             # Start gRPC server
             await self._start_grpc_server()
 
-            # TODO: Set up message subscriptions
+            # Start game state polling
+            logger.info("Starting game state polling...")
+            await self._polling_service.start_polling()
 
-            # Start polling loop
-            logger.info("Starting game state polling task...")
-            polling_task = asyncio.create_task(self._polling_loop())
-            self._tasks.append(polling_task)
-
-            # For now, just run a simple loop to keep service alive
+            # Main service loop - handles health checks and coordination
             while self._running:
-
                 # Check message bus connection health
-                if not await self.message_bus.is_connected():
+                if not await self._message_bus_client.is_connected():
                     logger.warning(
                         "Message bus connection lost, attempting to reconnect..."
                     )
                     try:
-                        await self.message_bus.connect()
-                        await self.message_bus.create_streams()
+                        await self._message_bus_client.connect()
+                        await self._message_bus_client.create_streams()
                         logger.info("Message bus reconnection successful")
                     except Exception as e:
                         logger.error(f"Failed to reconnect to message bus: {e}")
 
-                await asyncio.sleep(self.config.poll_interval_seconds)
+                # Health check interval
+                await asyncio.sleep(min(self.config.poll_interval_seconds, 30))
 
         except Exception as e:
             logger.error(f"Failed to start LoL Tracker service: {e}")
             self._running = False
             raise
 
-    async def _polling_loop(self):
-        """Main polling loop that monitors tracked players' game states."""
-        logger.info("Game state polling loop started")
-
-        while self._running:
-            try:
-                # Get all active tracked players
-                async with self.db_manager.get_session() as session:
-                    # Create repository instance with session
-                    tracked_player_repo = TrackedPlayerRepository(session)
-                    tracked_players = await tracked_player_repo.get_all_active()
-
-                if not tracked_players:
-                    logger.debug("No tracked players found, skipping poll cycle")
-                    await asyncio.sleep(self.config.poll_interval_seconds)
-                    continue
-
-                # Poll each tracked player
-                for player in tracked_players:
-                    if not self._running:
-                        break
-
-                    try:
-                        await self._poll_player_game_state(player)
-                    except Exception as e:
-                        logger.error(
-                            f"Error polling player {player.game_name}#{player.tag_line}: {e}"
-                        )
-
-                # Wait before next poll cycle
-                await asyncio.sleep(self.config.poll_interval_seconds)
-
-            except Exception as e:
-                logger.error(f"Error in polling loop: {e}")
-                # Wait before retrying on error
-                await asyncio.sleep(min(self.config.poll_interval_seconds, 30))
-
-        logger.info("Game state polling loop stopped")
-
-    async def _poll_player_game_state(self, player):
-        """Poll a single player's game state and detect changes."""
-        if not player.puuid:
-            logger.warning(
-                f"Player {player.game_name}#{player.tag_line} has no puuid, skipping"
-            )
-            return
-
-        async with self.db_manager.get_session() as session:
-            # Create repository instance with session
-            game_state_repo = GameStateRepository(session)
-            # Get current game state from database
-            current_db_state = await game_state_repo.get_latest_for_player(player.id)
-
-            # Get current game state from Riot API
-            riot_game_state = await self._get_riot_game_state(player)
-
-            # Determine if state changed
-            previous_status = self._get_game_status_from_db_state(current_db_state)
-            current_status = self._get_game_status_from_riot_state(riot_game_state)
-
-            if previous_status != current_status:
-                logger.info(
-                    f"Game state changed for {player.game_name}#{player.tag_line}: "
-                    f"{lol_events_pb2.GameStatus.Name(previous_status)} -> {lol_events_pb2.GameStatus.Name(current_status)}"
-                )
-
-                # Create new game state record
-                new_game_state = await self._create_game_state_record(
-                    session, player, riot_game_state, current_db_state
-                )
-
-                # If transitioning from IN_GAME to NOT_IN_GAME, try to fetch match results
-                if (previous_status == lol_events_pb2.GameStatus.GAME_STATUS_IN_GAME and 
-                    current_status == lol_events_pb2.GameStatus.GAME_STATUS_NOT_IN_GAME and
-                    new_game_state.game_id is not None):
-                    await self._try_update_match_result(session, new_game_state, player)
-                    # Refresh the game state object to get updated match result data
-                    await session.refresh(new_game_state)
-
-                # Commit the transaction
-                await session.commit()
-
-                # Emit event for state change
-                await self._emit_game_state_changed_event(
-                    player,
-                    previous_status,
-                    current_status,
-                    new_game_state,
-                    riot_game_state,
-                )
-            else:
-                # Update existing state if in game (for game length tracking)
-                if (
-                    current_status == lol_events_pb2.GameStatus.GAME_STATUS_IN_GAME
-                    and current_db_state
-                ):
-                    await self._update_in_game_state(
-                        current_db_state, riot_game_state
-                    )
-                    # Commit the transaction
-                    await session.commit()
-
-    async def _get_riot_game_state(self, player) -> Optional[CurrentGameInfo]:
-        """Get current game state from Riot API."""
-        try:
-            return await self.riot_api_client.get_current_game_info(
-                player.puuid, player.game_name, "na1"
-            )
-        except PlayerNotInGameError:
-            return None
-        except Exception as e:
-            logger.error(
-                f"Error fetching game state for {player.game_name}#{player.tag_line}: {e}"
-            )
-            return None
-
-    def _get_game_status_from_db_state(self, db_state) -> lol_events_pb2.GameStatus:
-        """Convert database game state to protobuf GameStatus."""
-        if not db_state:
-            return lol_events_pb2.GameStatus.GAME_STATUS_NOT_IN_GAME
-
-        status_map = {
-            "NOT_IN_GAME": lol_events_pb2.GameStatus.GAME_STATUS_NOT_IN_GAME,
-            "IN_CHAMPION_SELECT": lol_events_pb2.GameStatus.GAME_STATUS_IN_CHAMPION_SELECT,
-            "IN_GAME": lol_events_pb2.GameStatus.GAME_STATUS_IN_GAME,
-        }
-        return status_map.get(
-            db_state.status, lol_events_pb2.GameStatus.GAME_STATUS_NOT_IN_GAME
-        )
-
-    def _get_game_status_from_riot_state(
-        self, riot_state: Optional[CurrentGameInfo]
-    ) -> lol_events_pb2.GameStatus:
-        """Convert Riot API game state to protobuf GameStatus."""
-        if not riot_state:
-            return lol_events_pb2.GameStatus.GAME_STATUS_NOT_IN_GAME
-
-        # For now, we treat all active games as IN_GAME
-        # Champion select detection would require additional API calls
-        return lol_events_pb2.GameStatus.GAME_STATUS_IN_GAME
-
-    async def _create_game_state_record(self, session, player, riot_state, previous_state=None):
-        """Create a new game state record in the database."""
-        if riot_state:
-            # Player is in game
-            game_state_data = {
-                "player_id": player.id,
-                "status": "IN_GAME",
-                "game_id": riot_state.game_id,
-                "queue_type": riot_state.queue_type,
-                "game_start_time": datetime.fromtimestamp(
-                    riot_state.game_start_time / 1000
-                ),
-                "raw_api_response": str(riot_state.__dict__),
-            }
-        else:
-            # Player is not in game
-            game_state_data = {
-                "player_id": player.id,
-                "status": "NOT_IN_GAME",
-            }
-            
-            # Preserve game_id from previous state when transitioning from IN_GAME to NOT_IN_GAME
-            if previous_state and previous_state.status == "IN_GAME" and previous_state.game_id:
-                game_state_data["game_id"] = previous_state.game_id
-                game_state_data["queue_type"] = previous_state.queue_type
-
-        game_state_repo = GameStateRepository(session)
-        return await game_state_repo.create(**game_state_data)
-
-    async def _update_in_game_state(self, db_state, riot_state):
-        """Update an existing in-game state with current info."""
-        if riot_state and db_state.game_id == riot_state.game_id:
-            # Update game length and other live data
-            # Note: Could update other fields like game_length here if needed
-            # For now, we keep it minimal
-            pass
-
-    async def _try_update_match_result(self, session, game_state, player):
-        """Try to fetch and update match results when a game ends."""
-        try:
-            # Convert game_id to match_id format (prefix with region_gameId)
-            match_id = f"NA1_{game_state.game_id}"
-            
-            # Fetch match details from Riot API
-            match_info = await self.riot_api_client.get_match_info(match_id, "na1")
-            
-            # Get player's result from the match
-            participant_result = match_info.get_participant_result(player.puuid)
-            
-            if participant_result:
-                # Update the game state with match results
-                game_state_repo = GameStateRepository(session)
-                await game_state_repo.update_game_result(
-                    game_state.id,
-                    won=participant_result["won"],
-                    duration_seconds=match_info.game_duration,
-                    champion_played=participant_result["champion_name"]
-                )
-                
-                logger.info(
-                    f"Updated match result for {player.game_name}#{player.tag_line}: "
-                    f"{'Won' if participant_result['won'] else 'Lost'} as {participant_result['champion_name']}"
-                )
-            else:
-                logger.warning(
-                    f"Could not find participant result for {player.game_name}#{player.tag_line} "
-                    f"in match {match_id}"
-                )
-                
-        except Exception as e:
-            logger.warning(
-                f"Failed to fetch match result for {player.game_name}#{player.tag_line}, "
-                f"game_id: {game_state.game_id}: {e}"
-            )
-
-    async def _emit_game_state_changed_event(
-        self, player, previous_status, current_status, game_state, riot_state
-    ):
-        """Emit a LoLGameStateChanged event to the message bus."""
-        try:
-            # Create timestamp
-            timestamp = Timestamp()
-            timestamp.GetCurrentTime()
-
-            # Create the event
-            event = lol_events_pb2.LoLGameStateChanged(
-                game_name=player.game_name,
-                tag_line=player.tag_line,
-                previous_status=previous_status,
-                current_status=current_status,
-                event_time=timestamp,
-            )
-
-            # Add game metadata if available
-            if riot_state:
-                event.game_id = riot_state.game_id
-                event.queue_type = riot_state.queue_type
-            elif game_state.game_id:
-                # When transitioning out of game, use preserved game_id from database
-                event.game_id = game_state.game_id
-                if game_state.queue_type:
-                    event.queue_type = game_state.queue_type
-
-            # Add game result when transitioning from IN_GAME to NOT_IN_GAME
-            if (previous_status == lol_events_pb2.GameStatus.GAME_STATUS_IN_GAME and 
-                current_status == lol_events_pb2.GameStatus.GAME_STATUS_NOT_IN_GAME and
-                game_state.won is not None):
-                
-                # Create GameResult from database record
-                game_result = lol_events_pb2.GameResult(
-                    won=game_state.won,
-                    duration_seconds=game_state.duration_seconds or 0,
-                    queue_type=game_state.queue_type or "",
-                    champion_played=game_state.champion_played or "",
-                )
-                event.game_result.CopyFrom(game_result)
-
-            # Publish the event
-            subject = "lol.gamestate.changed"
-            await self.message_bus.publish(subject, event.SerializeToString())
-
-            logger.info(
-                f"Published game state changed event for {player.game_name}#{player.tag_line}: "
-                f"{lol_events_pb2.GameStatus.Name(previous_status)} -> {lol_events_pb2.GameStatus.Name(current_status)}"
-            )
-
-        except Exception as e:
-            logger.error(
-                f"Error publishing game state changed event for {player.game_name}#{player.tag_line}: {e}"
-            )
 
     async def stop(self):
         """Stop the LoL Tracker service."""
         logger.info("Stopping LoL Tracker service")
         self._running = False
+
+        # Stop game state polling service
+        if self._polling_service:
+            try:
+                await self._polling_service.stop_polling()
+            except Exception as e:
+                logger.error(f"Error stopping polling service: {e}")
 
         # Cancel all running tasks
         for task in self._tasks:
@@ -457,23 +162,93 @@ class LoLTrackerService:
         if self.summoner_service:
             await self.summoner_service.close()
 
-        # Close Riot API client
-        await self.riot_api_client.close()
-
-        # Close message bus connection
-        try:
-            logger.info("Disconnecting from message bus...")
-            await self.message_bus.disconnect()
-            logger.info("Message bus disconnection completed")
-        except Exception as e:
-            logger.error(f"Error during message bus disconnect: {e}")
-
-        # Close database connection
-        try:
-            logger.info("Closing database connection...")
-            await self.db_manager.close()
-            logger.info("Database connection closed")
-        except Exception as e:
-            logger.error(f"Error during database disconnect: {e}")
+        # Clean up infrastructure components
+        await self._cleanup_infrastructure()
 
         logger.info("LoL Tracker service stopped")
+
+    async def _initialize_infrastructure(self) -> None:
+        """Initialize all infrastructure components."""
+        logger.info("Initializing infrastructure components")
+        
+        # Initialize database
+        self._database_manager = DatabaseManager(self.config)
+        await self._database_manager.initialize()
+        
+        # Initialize message bus
+        if self._provided_message_bus_client is not None:
+            self._message_bus_client = self._provided_message_bus_client
+        else:
+            self._message_bus_client = NATSMessageBusClient(
+                servers=self.config.message_bus_url,
+                timeout=self.config.message_bus_timeout_seconds,
+                max_reconnect_attempts=self.config.message_bus_max_reconnect_attempts,
+                reconnect_delay=self.config.message_bus_reconnect_delay_seconds,
+                lol_events_stream=self.config.lol_events_stream,
+                tracking_events_stream=self.config.tracking_events_stream,
+                lol_events_subject=self.config.game_state_events_subject,
+                tracking_events_subject=self.config.tracking_events_subject,
+            )
+        
+        await self._message_bus_client.connect()
+        
+        # Verify message bus connection
+        if not await self._message_bus_client.is_connected():
+            raise RuntimeError("Failed to connect to message bus")
+        
+        # Create JetStream streams
+        await self._message_bus_client.create_streams()
+        
+        # Initialize Riot API client
+        self._riot_api_client = RiotAPIClient(
+            self.config.riot_api_key,
+            base_url=self.config.riot_api_url,
+            request_timeout=self.config.riot_api_timeout_seconds,
+        )
+        
+        logger.info(f"Using Riot API at: {self.config.riot_api_url}")
+        
+        # Initialize event publisher
+        self._event_publisher = EventPublisher(self.config)
+        await self._event_publisher.initialize()
+        
+        # Create polling service with direct infrastructure components
+        self._polling_service = PollingService(
+            database=self._database_manager,
+            riot_api=self._riot_api_client,
+            event_publisher=self._event_publisher,
+            config=self.config
+        )
+        
+        logger.info("Infrastructure initialization completed")
+
+    async def _cleanup_infrastructure(self) -> None:
+        """Clean up all infrastructure components."""
+        logger.info("Cleaning up infrastructure components")
+        
+        # Close Riot API client
+        if self._riot_api_client:
+            await self._riot_api_client.close()
+        
+        # Close event publisher
+        if self._event_publisher:
+            try:
+                await self._event_publisher.close()
+            except Exception as e:
+                logger.error(f"Error closing event publisher: {e}")
+        
+        # Close message bus connection
+        if self._message_bus_client:
+            try:
+                await self._message_bus_client.disconnect()
+            except Exception as e:
+                logger.error(f"Error during message bus disconnect: {e}")
+        
+        # Close database connection
+        if self._database_manager:
+            try:
+                await self._database_manager.close()
+            except Exception as e:
+                logger.error(f"Error during database disconnect: {e}")
+        
+        logger.info("Infrastructure cleanup completed")

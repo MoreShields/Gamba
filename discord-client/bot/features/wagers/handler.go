@@ -628,22 +628,6 @@ func (f *Feature) handleWagerVote(s *discordgo.Session, i *discordgo.Interaction
 			messageID := strconv.FormatInt(*wager.MessageID, 10)
 			channelID := strconv.FormatInt(*wager.ChannelID, 10)
 			common.UnpinMessage(s, channelID, messageID)
-
-			// Send notification message with link to resolved wager
-			winnerName := proposerName
-			if wager.WinnerDiscordID != nil && *wager.WinnerDiscordID == wager.TargetDiscordID {
-				winnerName = targetName
-			}
-
-			notificationContent := fmt.Sprintf("🏆 **Wager Resolved!** %s won the wager for %s bits!\n[View resolved wager](https://discord.com/channels/%s/%s/%s)",
-				winnerName, common.FormatBalance(wager.Amount), i.GuildID, channelID, messageID)
-
-			log.Printf("Discord link: https://discord.com/channels/%s/%s/%s", i.GuildID, channelID, messageID)
-
-			_, err = s.ChannelMessageSend(channelID, notificationContent)
-			if err != nil {
-				log.Printf("Error sending wager resolution notification: %v", err)
-			}
 		}
 
 		winnerName := proposerName

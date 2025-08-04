@@ -7,7 +7,7 @@ from sqlalchemy.engine import Connection
 from alembic import context
 
 # Import our models so they're available for autogenerate
-from lol_tracker.database.models import Base
+from lol_tracker.adapters.database.models import Base
 from lol_tracker.config import Config
 
 # this is the Alembic Config object, which provides
