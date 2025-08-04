@@ -6,10 +6,8 @@ option go_package = "gambler/api/gen/go/events";
 import "google/protobuf/timestamp.proto";
 
 enum GameStatus {
-  GAME_STATUS_UNKNOWN = 0;             // Unknown/unset status
-  GAME_STATUS_NOT_IN_GAME = 1;         // Not currently playing
-  GAME_STATUS_IN_CHAMPION_SELECT = 2;  // In champion select. Might not be able to detect this with Riot API alone.
-  GAME_STATUS_IN_GAME = 3;             // Currently playing
+  GAME_STATUS_NOT_IN_GAME = 0;         // Not currently playing
+  GAME_STATUS_IN_GAME = 1;             // Currently playing
 }
 
 // Events emitted from lol-tracker

@@ -106,12 +106,12 @@ services:
       target: dev
     image: lol-tracker:dev
     environment:
+      RIOT_API_URL: ${RIOT_API_URL}
       RIOT_API_KEY: ${RIOT_API_KEY}
       DATABASE_URL: postgres://gambler:gambler_dev_password@postgres:5432
       DATABASE_NAME: lol_tracker_db
       ENVIRONMENT: development
-      LOG_LEVEL: info
-      MOCK_RIOT_API_URL: ${MOCK_RIOT_API_URL}
+      LOG_LEVEL: debug
       POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS-60}
     volumes:
       - ./lol-tracker/lol_tracker:/app/lol_tracker

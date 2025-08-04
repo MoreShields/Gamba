@@ -145,14 +145,16 @@ class PlayerNotInGameError(RiotAPIError):
 class RiotAPIClient:
     """Riot API client with rate limiting and error handling."""
 
-    def __init__(self, api_key: str, request_timeout: float = 10.0):
+    def __init__(self, api_key: str, base_url: Optional[str] = None, request_timeout: float = 10.0):
         """Initialize the Riot API client.
 
         Args:
             api_key: Riot API key
+            base_url: Base URL for the API (defaults to production Riot API)
             request_timeout: Request timeout in seconds
         """
         self.api_key = api_key
+        self.base_url = base_url
         self.request_timeout = request_timeout
         self.client = httpx.AsyncClient(timeout=request_timeout)
 
@@ -177,7 +179,8 @@ class RiotAPIClient:
 
     def _get_base_url(self, region: str) -> str:
         """Get the base URL for a region."""
-        return f"https://{region}.api.riotgames.com"
+        # Always use the provided base URL if available
+        return self.base_url if self.base_url else f"https://{region}.api.riotgames.com"
 
     async def _rate_limit_delay(self):
         """Apply rate limiting delay."""
@@ -299,7 +302,7 @@ class RiotAPIClient:
             raise
 
     async def get_current_game_info(
-        self, puuid: str, summoner_name: str, region: str
+        self, puuid: str, game_name: str, tag_line: str
     ) -> CurrentGameInfo:
         """Get current game information for a summoner by PUUID.
 
@@ -317,7 +320,7 @@ class RiotAPIClient:
             RiotAPIError: For other API errors
         """
 
-        base_url = self._get_base_url(region)
+        base_url = self._get_base_url(tag_line)
         # Try spectator v5 with PUUID first, fall back to v4 if needed
         url = f"{base_url}/lol/spectator/v5/active-games/by-summoner/{puuid}"
 
@@ -343,9 +346,9 @@ class RiotAPIClient:
         except Exception as e:
             logger.error(
                 "Error fetching current game info",
-                summoner_name=summoner_name,
+                game_name=game_name,
                 puuid=puuid,
-                region=region,
+                tag_line=tag_line,
                 error=str(e),
             )
             raise
@@ -367,10 +370,9 @@ class RiotAPIClient:
             RateLimitError: If rate limited
             RiotAPIError: For other API errors
         """
-        # Account API always uses americas endpoint regardless of player's actual region
-        url = "https://americas.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{}/{}".format(
-            game_name, tag_line
-        )
+        # Account API uses americas endpoint, or custom base URL if provided
+        base_url = self.base_url if self.base_url else "https://americas.api.riotgames.com"
+        url = f"{base_url}/riot/account/v1/accounts/by-riot-id/{game_name}/{tag_line}"
 
         logger.info(
             "Fetching account by Riot ID",
@@ -415,6 +417,11 @@ class RiotAPIClient:
 
     def _get_regional_url(self, region: str) -> str:
         """Get the regional URL for Match API calls."""
+        # If custom base URL is provided, use it directly
+        if self.base_url:
+            return self.base_url
+            
+        # Otherwise use regional endpoints for production
         regional_map = {
             "na1": "americas",
             "br1": "americas",

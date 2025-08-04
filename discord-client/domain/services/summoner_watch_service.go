@@ -7,8 +7,6 @@ import (
 
 	"gambler/discord-client/domain/entities"
 	"gambler/discord-client/domain/interfaces"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type summonerWatchService struct {
@@ -49,7 +47,6 @@ func (s *summonerWatchService) AddWatch(ctx context.Context, guildID int64, summ
 // RemoveWatch removes a summoner watch for a guild
 func (s *summonerWatchService) RemoveWatch(ctx context.Context, guildID int64, summonerName, tagLine string) error {
 
-	log.Warnf("%d-%s-%s", guildID, summonerName, tagLine)
 	// Validate inputs
 	if err := s.validateSummonerName(summonerName); err != nil {
 		return err
