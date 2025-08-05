@@ -18,8 +18,9 @@ const (
 	TransactionTypeTransferOut TransactionType = "transfer_out"
 
 	// System transactions
-	TransactionTypeInitial      TransactionType = "initial"
-	TransactionTypeWordleReward TransactionType = "wordle_reward"
+	TransactionTypeInitial            TransactionType = "initial"
+	TransactionTypeWordleReward       TransactionType = "wordle_reward"
+	TransactionTypeHighRollerPurchase TransactionType = "high_roller_purchase"
 )
 
 // IsWinType returns true if the transaction type represents a win
@@ -50,7 +51,8 @@ func (tt TransactionType) IsGamblingRelated() bool {
 // IsSystemGenerated returns true if the transaction type is system-generated
 func (tt TransactionType) IsSystemGenerated() bool {
 	return tt == TransactionTypeInitial ||
-		tt == TransactionTypeWordleReward
+		tt == TransactionTypeWordleReward ||
+		tt == TransactionTypeHighRollerPurchase
 }
 
 // String returns the string representation of the transaction type

@@ -3,6 +3,7 @@ package stats
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"strconv"
 
 	"gambler/discord-client/application"
@@ -140,8 +141,35 @@ func (f *Feature) updateScoreboardPage(s *discordgo.Session, channelID, messageI
 		return
 	}
 
+	// Get high roller info before creating embed
+	var highRollerText string
+	if page == PageBits { // Only show on bits page
+		highRollerService := services.NewHighRollerService(
+			uow.HighRollerPurchaseRepository(),
+			uow.UserRepository(),
+			uow.WagerRepository(),
+			uow.GroupWagerRepository(),
+			uow.BalanceHistoryRepository(),
+			uow.EventBus(),
+		)
+		
+		highRollerInfo, err := highRollerService.GetCurrentHighRoller(ctx, guildID)
+		if err == nil && highRollerInfo.CurrentHolder != nil {
+			// Get the role ID for mention
+			guildSettingsService := services.NewGuildSettingsService(uow.GuildSettingsRepository())
+			if roleID, err := guildSettingsService.GetHighRollerRoleID(ctx, guildID); err == nil && roleID != nil {
+				highRollerText = fmt.Sprintf("\n<@&%d> - <@%d> - %s", *roleID, highRollerInfo.CurrentHolder.DiscordID, common.FormatBalance(highRollerInfo.CurrentPrice))
+			}
+		}
+	}
+
 	// Create updated embed with the new page
 	embed, imageData := BuildScoreboardEmbed(ctx, metricsService, entries, totalBits, s, guildIDStr, page, f.userResolver)
+	
+	// Add high roller info to the description if available
+	if highRollerText != "" && embed.Description != "" {
+		embed.Description += highRollerText
+	}
 
 	// Commit the transaction after building the embed
 	if err := uow.Commit(); err != nil {

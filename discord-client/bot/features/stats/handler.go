@@ -78,8 +78,33 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 		return
 	}
 
+	// Get high roller info before creating embed
+	var highRollerText string
+	highRollerService := services.NewHighRollerService(
+		uow.HighRollerPurchaseRepository(),
+		uow.UserRepository(),
+		uow.WagerRepository(),
+		uow.GroupWagerRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+	
+	highRollerInfo, err := highRollerService.GetCurrentHighRoller(ctx, guildID)
+	if err == nil && highRollerInfo.CurrentHolder != nil {
+		// Get the role ID for mention
+		guildSettingsService := services.NewGuildSettingsService(uow.GuildSettingsRepository())
+		if roleID, err := guildSettingsService.GetHighRollerRoleID(ctx, guildID); err == nil && roleID != nil {
+			highRollerText = fmt.Sprintf("\n<@&%d> - <@%d> - %s", *roleID, highRollerInfo.CurrentHolder.DiscordID, common.FormatBalance(highRollerInfo.CurrentPrice))
+		}
+	}
+
 	// Create embed using the shared function (start with first page)
 	embed, imageData := BuildScoreboardEmbed(ctx, metricsService, entries, totalBits, s, i.GuildID, PageBits, f.userResolver)
+	
+	// Add high roller info to the description if available
+	if highRollerText != "" && embed.Description != "" {
+		embed.Description += highRollerText
+	}
 
 	// Commit the transaction after building the embed
 	if err := uow.Commit(); err != nil {

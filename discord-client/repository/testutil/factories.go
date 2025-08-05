@@ -161,3 +161,20 @@ func CreateTestSummonerWatchDetail(guildID int64, summonerName, tagLine string) 
 		UpdatedAt:    now,
 	}
 }
+
+// CreateTestHighRollerPurchase creates a test high roller purchase with default values
+func CreateTestHighRollerPurchase(guildID, discordID int64, purchasePrice int64) *entities.HighRollerPurchase {
+	return &entities.HighRollerPurchase{
+		GuildID:       guildID,
+		DiscordID:     discordID,
+		PurchasePrice: purchasePrice,
+		PurchasedAt:   time.Now(),
+	}
+}
+
+// CreateTestHighRollerPurchaseWithTime creates a test high roller purchase with a specific time
+func CreateTestHighRollerPurchaseWithTime(guildID, discordID int64, purchasePrice int64, purchasedAt time.Time) *entities.HighRollerPurchase {
+	purchase := CreateTestHighRollerPurchase(guildID, discordID, purchasePrice)
+	purchase.PurchasedAt = purchasedAt
+	return purchase
+}

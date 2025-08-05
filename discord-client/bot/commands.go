@@ -260,6 +260,30 @@ func (b *Bot) registerCommands() error {
 				},
 			},
 		},
+		{
+			Name:        "highroller",
+			Description: "Purchase and manage the high roller role",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "buy",
+					Description: "Purchase the high roller role",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionInteger,
+							Name:        "amount",
+							Description: "Amount to offer for the role",
+							Required:    true,
+						},
+					},
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "info",
+					Description: "Show current high roller, price, and recent history",
+				},
+			},
+		},
 	}
 
 	for _, cmd := range commands {

@@ -166,6 +166,18 @@ type GuildSettingsRepository interface {
 	UpdateGuildSettings(ctx context.Context, settings *entities.GuildSettings) error
 }
 
+// HighRollerPurchaseRepository defines the interface for high roller purchase data access
+type HighRollerPurchaseRepository interface {
+	// GetLatestPurchase retrieves the most recent high roller purchase for a guild
+	GetLatestPurchase(ctx context.Context, guildID int64) (*entities.HighRollerPurchase, error)
+
+	// CreatePurchase creates a new high roller purchase record
+	CreatePurchase(ctx context.Context, purchase *entities.HighRollerPurchase) error
+
+	// GetPurchaseHistory retrieves the purchase history for a guild
+	GetPurchaseHistory(ctx context.Context, guildID int64, limit int) ([]*entities.HighRollerPurchase, error)
+}
+
 // SummonerWatchRepository defines the interface for summoner watch data access
 type SummonerWatchRepository interface {
 	// CreateWatch creates a new summoner watch for a guild
@@ -184,6 +196,7 @@ type SummonerWatchRepository interface {
 	// GetWatch retrieves a specific summoner watch for a guild
 	GetWatch(ctx context.Context, guildID int64, summonerName, tagLine string) (*entities.SummonerWatchDetail, error)
 }
+
 
 // EventPublisher defines the interface for publishing events
 type EventPublisher interface {

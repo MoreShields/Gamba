@@ -131,3 +131,13 @@ func (s *guildSettingsService) UpdateWordleChannel(ctx context.Context, guildID 
 
 	return nil
 }
+
+// GetHighRollerRoleID returns the high roller role ID for a guild
+func (s *guildSettingsService) GetHighRollerRoleID(ctx context.Context, guildID int64) (*int64, error) {
+	settings, err := s.guildSettingsRepo.GetOrCreateGuildSettings(ctx, guildID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get guild settings: %w", err)
+	}
+
+	return settings.HighRollerRoleID, nil
+}

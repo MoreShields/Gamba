@@ -27,6 +27,7 @@ type UnitOfWork interface {
 	GuildSettingsRepository() interfaces.GuildSettingsRepository
 	SummonerWatchRepository() interfaces.SummonerWatchRepository
 	WordleCompletionRepo() interfaces.WordleCompletionRepository
+	HighRollerPurchaseRepository() interfaces.HighRollerPurchaseRepository
 	EventBus() interfaces.EventPublisher
 }
 
