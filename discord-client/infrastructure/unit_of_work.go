@@ -15,21 +15,22 @@ import (
 
 // unitOfWork implements the UnitOfWork interface with integrated event publishing
 type unitOfWork struct {
-	db                   *database.DB
-	tx                   pgx.Tx
-	ctx                  context.Context
-	guildID              int64
-	eventPublisher       interfaces.EventPublisher
-	pendingEvents        []events.Event
-	userRepo             interfaces.UserRepository
-	balanceHistoryRepo   interfaces.BalanceHistoryRepository
-	betRepo              interfaces.BetRepository
-	wagerRepo            interfaces.WagerRepository
-	wagerVoteRepo        interfaces.WagerVoteRepository
-	groupWagerRepo       interfaces.GroupWagerRepository
-	guildSettingsRepo    interfaces.GuildSettingsRepository
-	summonerWatchRepo    interfaces.SummonerWatchRepository
-	wordleCompletionRepo interfaces.WordleCompletionRepository
+	db                       *database.DB
+	tx                       pgx.Tx
+	ctx                      context.Context
+	guildID                  int64
+	eventPublisher           interfaces.EventPublisher
+	pendingEvents            []events.Event
+	userRepo                 interfaces.UserRepository
+	balanceHistoryRepo       interfaces.BalanceHistoryRepository
+	betRepo                  interfaces.BetRepository
+	wagerRepo                interfaces.WagerRepository
+	wagerVoteRepo            interfaces.WagerVoteRepository
+	groupWagerRepo           interfaces.GroupWagerRepository
+	guildSettingsRepo        interfaces.GuildSettingsRepository
+	summonerWatchRepo        interfaces.SummonerWatchRepository
+	wordleCompletionRepo     interfaces.WordleCompletionRepository
+	highRollerPurchaseRepo   interfaces.HighRollerPurchaseRepository
 }
 
 // transactionalEventBus wraps the unit of work to buffer events
@@ -73,6 +74,7 @@ func (u *unitOfWork) Begin(ctx context.Context) error {
 	u.guildSettingsRepo = repository.NewGuildSettingsRepositoryWithTx(tx) // Guild settings don't need scoping
 	u.summonerWatchRepo = repository.NewSummonerWatchRepositoryScoped(tx, u.guildID)
 	u.wordleCompletionRepo = repository.NewWordleCompletionRepositoryScoped(tx, u.guildID)
+	u.highRollerPurchaseRepo = repository.NewHighRollerPurchaseRepositoryScoped(tx, u.guildID)
 
 	return nil
 }
@@ -209,6 +211,13 @@ func (u *unitOfWork) WordleCompletionRepo() interfaces.WordleCompletionRepositor
 		panic("unit of work not started - call Begin() first")
 	}
 	return u.wordleCompletionRepo
+}
+
+func (u *unitOfWork) HighRollerPurchaseRepository() interfaces.HighRollerPurchaseRepository {
+	if u.highRollerPurchaseRepo == nil {
+		panic("unit of work not started - call Begin() first")
+	}
+	return u.highRollerPurchaseRepo
 }
 
 // EventBus returns the transactional event publisher

@@ -46,6 +46,16 @@ func FormatUserID(userID int64) string {
 	return strconv.FormatInt(userID, 10)
 }
 
+// ParseGuildID converts a Discord guild ID string to int64
+func ParseGuildID(guildID string) (int64, error) {
+	return strconv.ParseInt(guildID, 10, 64)
+}
+
+// FormatDiscordID converts any int64 Discord ID to string
+func FormatDiscordID(id int64) string {
+	return strconv.FormatInt(id, 10)
+}
+
 // GetUserMention returns a Discord mention string for a user
 func GetUserMention(userID int64) string {
 	return "<@" + FormatUserID(userID) + ">"

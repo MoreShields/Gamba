@@ -115,6 +115,25 @@ type GuildSettingsService interface {
 
 	// UpdateHighRollerRole updates the high roller role for a guild
 	UpdateHighRollerRole(ctx context.Context, guildID int64, roleID *int64) error
+
+	// GetHighRollerRoleID returns the high roller role ID for a guild
+	GetHighRollerRoleID(ctx context.Context, guildID int64) (*int64, error)
+}
+
+// HighRollerService defines the interface for high roller operations
+type HighRollerService interface {
+	// GetCurrentHighRoller returns information about the current high roller
+	GetCurrentHighRoller(ctx context.Context, guildID int64) (*HighRollerInfo, error)
+
+	// PurchaseHighRollerRole processes a high roller role purchase
+	PurchaseHighRollerRole(ctx context.Context, discordID, guildID, offerAmount int64) error
+}
+
+// HighRollerInfo contains information about the current high roller
+type HighRollerInfo struct {
+	CurrentHolder   *entities.User
+	CurrentPrice    int64
+	LastPurchasedAt *time.Time
 }
 
 // SummonerWatchService defines the interface for summoner watch operations

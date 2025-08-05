@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"gambler/discord-client/application"
 	"gambler/discord-client/application/dto"
@@ -13,6 +12,7 @@ import (
 	"gambler/discord-client/bot/features/betting"
 	"gambler/discord-client/bot/features/dailyawards"
 	"gambler/discord-client/bot/features/groupwagers"
+	"gambler/discord-client/bot/features/highroller"
 	"gambler/discord-client/bot/features/housewagers"
 	"gambler/discord-client/bot/features/settings"
 	"gambler/discord-client/bot/features/stats"
@@ -47,9 +47,6 @@ type Bot struct {
 	// Event publishing
 	eventPublisher interfaces.EventPublisher
 
-	// High roller tracking
-	lastHighRollerID int64
-
 	// Feature modules
 	betting     *betting.Feature
 	wagers      *wagers.Feature
@@ -61,6 +58,7 @@ type Bot struct {
 	settings    *settings.Feature
 	summoner    *summoner.Feature
 	dailyAwards *dailyawards.Feature
+	highroller  *highroller.Feature
 
 	// Worker cleanup functions
 	stopGroupWagerWorker  func()
@@ -100,6 +98,7 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory appli
 	bot.settings = settings.NewFeature(dg, uowFactory)
 	bot.summoner = summoner.NewFeature(dg, uowFactory, summonerClient, config.GuildID)
 	bot.dailyAwards = dailyawards.NewFeature(dg, uowFactory)
+	bot.highroller = highroller.NewFeature(dg, uowFactory)
 
 	// Register handlers
 	dg.AddHandler(bot.handleCommands)
@@ -119,30 +118,6 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory appli
 		return nil, fmt.Errorf("error registering commands: %w", err)
 	}
 
-	// Perform initial sync of high roller role for all guilds
-	go func() {
-		// Wait a moment for Discord connection to be fully established
-		time.Sleep(2 * time.Second)
-		ctx := context.Background()
-
-		// Get all guilds the bot is in
-		guilds := bot.session.State.Guilds
-		log.Infof("Syncing high roller roles for %d guilds", len(guilds))
-
-		for _, guild := range guilds {
-			guildID, err := strconv.ParseInt(guild.ID, 10, 64)
-			if err != nil {
-				log.Errorf("Failed to parse guild ID %s: %v", guild.ID, err)
-				continue
-			}
-
-			if err := bot.UpdateHighRollerRole(ctx, guildID); err != nil {
-				log.Errorf("Failed to sync high roller role for guild %s: %v", guild.Name, err)
-			} else {
-				log.Infof("High roller role synced for guild %s", guild.Name)
-			}
-		}
-	}()
 
 	// Start background workers
 	ctx := context.Background()
@@ -186,6 +161,7 @@ func (b *Bot) GetSession() *discordgo.Session {
 	return b.session
 }
 
+
 // SetDailyAwardsWorkerCleanup sets the cleanup function for the daily awards worker
 func (b *Bot) SetDailyAwardsWorkerCleanup(cleanup func()) {
 	b.stopDailyAwardsWorker = cleanup
@@ -196,106 +172,6 @@ func (b *Bot) GetConfig() Config {
 	return b.config
 }
 
-// UpdateHighRollerRole updates the high roller role based on current balances
-func (b *Bot) UpdateHighRollerRole(ctx context.Context, guildID int64) error {
-	// Create guild-scoped unit of work
-	uow := b.uowFactory.CreateForGuild(guildID)
-	if err := uow.Begin(ctx); err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer uow.Rollback()
-
-	// Instantiate services with repositories from UnitOfWork
-	guildSettingsService := services.NewGuildSettingsService(
-		uow.GuildSettingsRepository(),
-	)
-	userService := services.NewUserService(
-		uow.UserRepository(),
-		uow.BalanceHistoryRepository(),
-		uow.EventBus(),
-	)
-
-	// Get guild-specific settings
-	settings, err := guildSettingsService.GetOrCreateSettings(ctx, guildID)
-	if err != nil {
-		return fmt.Errorf("failed to get guild settings: %w", err)
-	}
-
-	// Check if high roller feature is enabled for this guild
-	if settings.HighRollerRoleID == nil {
-		return nil // Feature disabled for this guild
-	}
-
-	// Get the current high roller
-	highRoller, err := userService.GetCurrentHighRoller(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get current high roller: %w", err)
-	}
-
-	// Commit the transaction
-	if err := uow.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	if highRoller == nil {
-		// No users in database yet
-		return nil
-	}
-
-	// Update the tracked high roller
-	b.lastHighRollerID = highRoller.DiscordID
-
-	// Get all guild members with the high roller role
-	guildIDStr := strconv.FormatInt(guildID, 10)
-	members, err := b.session.GuildMembers(guildIDStr, "", 1000)
-	if err != nil {
-		return fmt.Errorf("failed to get guild members: %w", err)
-	}
-
-	// Find who currently has the role
-	var currentHolders []string
-	highRollerDiscordID := strconv.FormatInt(highRoller.DiscordID, 10)
-	roleIDStr := strconv.FormatInt(*settings.HighRollerRoleID, 10)
-
-	for _, member := range members {
-		for _, roleID := range member.Roles {
-			if roleID == roleIDStr {
-				currentHolders = append(currentHolders, member.User.ID)
-				break
-			}
-		}
-	}
-
-	// Remove role from anyone who shouldn't have it
-	for _, holderID := range currentHolders {
-		if holderID != highRollerDiscordID {
-			if err := b.session.GuildMemberRoleRemove(guildIDStr, holderID, roleIDStr); err != nil {
-				log.Errorf("Failed to remove high roller role from user %s: %v", holderID, err)
-			} else {
-				log.Infof("Removed high roller role from user %s", holderID)
-			}
-		}
-	}
-
-	// Add role to the high roller if they don't have it
-	hasRole := false
-	for _, holderID := range currentHolders {
-		if holderID == highRollerDiscordID {
-			hasRole = true
-			break
-		}
-	}
-
-	if !hasRole {
-		if err := b.session.GuildMemberRoleAdd(guildIDStr, highRollerDiscordID, roleIDStr); err != nil {
-			log.Errorf("Failed to add high roller role to user %s: %v", highRollerDiscordID, err)
-		} else {
-			log.Infof("Added high roller role to user %s (balance: %d)", highRollerDiscordID, highRoller.Balance)
-		}
-	}
-
-	return nil
-}
 
 // handleCommands routes slash commands to appropriate handlers
 func (b *Bot) handleCommands(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -320,6 +196,8 @@ func (b *Bot) handleCommands(s *discordgo.Session, i *discordgo.InteractionCreat
 		b.settings.HandleCommand(s, i)
 	case "summoner":
 		b.summoner.HandleCommand(s, i)
+	case "highroller":
+		b.highroller.HandleCommand(s, i)
 	}
 }
 

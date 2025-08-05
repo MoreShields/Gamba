@@ -471,3 +471,29 @@ func (m *MockWordleCompletionRepository) GetTodaysCompletions(ctx context.Contex
 	}
 	return args.Get(0).([]*entities.WordleCompletion), args.Error(1)
 }
+
+// MockHighRollerPurchaseRepository is a mock implementation of HighRollerPurchaseRepository
+type MockHighRollerPurchaseRepository struct {
+	mock.Mock
+}
+
+func (m *MockHighRollerPurchaseRepository) GetLatestPurchase(ctx context.Context, guildID int64) (*entities.HighRollerPurchase, error) {
+	args := m.Called(ctx, guildID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*entities.HighRollerPurchase), args.Error(1)
+}
+
+func (m *MockHighRollerPurchaseRepository) CreatePurchase(ctx context.Context, purchase *entities.HighRollerPurchase) error {
+	args := m.Called(ctx, purchase)
+	return args.Error(0)
+}
+
+func (m *MockHighRollerPurchaseRepository) GetPurchaseHistory(ctx context.Context, guildID int64, limit int) ([]*entities.HighRollerPurchase, error) {
+	args := m.Called(ctx, guildID, limit)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*entities.HighRollerPurchase), args.Error(1)
+}
