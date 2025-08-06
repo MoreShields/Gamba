@@ -3,7 +3,7 @@
 from typing import Optional, Dict, Any
 from datetime import datetime
 
-from .entities import Player, GameState, LoLGameResult
+from .entities import Player, GameState
 from .enums import GameStatus, QueueType
 
 
@@ -117,74 +117,3 @@ class GameStateTransitionService:
             raise ValueError(f"Invalid API response format: missing key {e}")
         except Exception as e:
             raise ValueError(f"Error processing API response: {e}")
-    
-    def update_game_result(
-        self,
-        game_state: GameState,
-        won: bool,
-        duration_seconds: int,
-        champion_played: str
-    ) -> bool:
-        """Update game result information.
-        
-        Args:
-            game_state: The game state to update
-            won: Whether the player won
-            duration_seconds: Game duration in seconds
-            champion_played: Champion that was played
-            
-        Returns:
-            True if result was updated, False if no change needed
-            
-        Raises:
-            ValueError: If game is not in a state to accept results
-        """
-        if game_state.status != GameStatus.NOT_IN_GAME:
-            raise ValueError("Cannot update results for game still in progress")
-        
-        # Check if results are already set and identical
-        if (game_state.won == won and
-            game_state.duration_seconds == duration_seconds and
-            game_state.champion_played == champion_played):
-            return False
-        
-        # Create LoLGameResult and update
-        game_result = LoLGameResult(
-            won=won,
-            duration_seconds=duration_seconds,
-            champion_played=champion_played
-        )
-        game_state.update_game_result(game_result)
-        return True
-    
-    def validate_state(self, player: Player, game_state: GameState) -> bool:
-        """Validate that player and game state are consistent.
-        
-        Args:
-            player: The player
-            game_state: The game state
-            
-        Returns:
-            True if state is valid, False otherwise
-        """
-        # Check that player can be tracked
-        if not player.can_be_tracked():
-            return False
-        
-        # Check that game state belongs to the player
-        if game_state.player_id != player.id:
-            return False
-        
-        # Check that active games have required information
-        if game_state.is_active_game:
-            if not game_state.game_id or not game_state.queue_type:
-                return False
-        
-        # Check that completed games with results have all required fields
-        if (game_state.status == GameStatus.NOT_IN_GAME and
-            game_state.won is not None):
-            if (game_state.duration_seconds is None or
-                not game_state.champion_played):
-                return False
-        
-        return True

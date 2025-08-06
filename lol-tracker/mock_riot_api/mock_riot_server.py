@@ -124,11 +124,17 @@ class MockRiotAPIServer:
         self.app.router.add_get('/lol/match/v5/matches/{match_id}', self.get_match_info)
         self.app.router.add_get('/lol/match/v5/matches/by-puuid/{puuid}/ids', self.get_recent_matches)
         
+        # TFT endpoints
+        self.app.router.add_get('/lol/spectator/tft/v5/active-games/by-puuid/{puuid}', self.get_current_tft_game)
+        self.app.router.add_get('/tft/match/v1/matches/{match_id}', self.get_tft_match_info)
+        
         # Control endpoints
         self.app.router.add_post('/control/players', self.create_player)
         self.app.router.add_put('/control/players/{puuid}/state', self.update_player_state)
         self.app.router.add_post('/control/players/{puuid}/start-game', self.start_game)
         self.app.router.add_post('/control/players/{puuid}/end-game', self.end_game)
+        self.app.router.add_post('/control/players/{puuid}/start-tft-game', self.start_tft_game)
+        self.app.router.add_post('/control/players/{puuid}/end-tft-game', self.end_tft_game)
         self.app.router.add_get('/control/players', self.list_players)
         self.app.router.add_delete('/control/players/{puuid}', self.delete_player)
         self.app.router.add_put('/control/settings', self.update_settings)
@@ -418,6 +424,191 @@ class MockRiotAPIServer:
         return web.json_response({
             "match_id": match_id,
             "won": won,
+            "state": player.state.value
+        })
+    
+    async def get_current_tft_game(self, request: web.Request) -> web.Response:
+        """Mock /lol/spectator/tft/v5/active-games/by-puuid endpoint."""
+        await self.apply_request_delay()
+        
+        if rate_limit_response := await self.check_rate_limit():
+            return rate_limit_response
+            
+        puuid = request.match_info['puuid']
+        
+        if puuid not in self.players:
+            return web.json_response(
+                {"status": {"message": "Player not found", "status_code": 404}},
+                status=404
+            )
+            
+        player = self.players[puuid]
+        
+        if player.state == PlayerGameState.NOT_IN_GAME:
+            return web.json_response(
+                {"status": {"message": "Player is not currently in a game", "status_code": 404}},
+                status=404
+            )
+            
+        # Return current TFT game info
+        if player.current_game_id and player.current_game_id in self.games:
+            game = self.games[player.current_game_id]
+            # Update game length based on current time
+            if game.game_start_time:
+                game.game_length = int((time.time() * 1000 - game.game_start_time) / 1000)
+            return web.json_response(game.to_api_response())
+            
+        # Create a default TFT game if none exists
+        game_id = str(uuid.uuid4().int)[:10]
+        game = MockGameInfo(
+            game_id=game_id,
+            game_queue_config_id=player.queue_type_id,
+            participants=[{
+                "puuid": player.puuid,
+                "summonerName": player.game_name,
+                "teamId": 100
+            }]
+        )
+        self.games[game_id] = game
+        player.current_game_id = game_id
+        player.current_game_start_time = game.game_start_time
+        
+        return web.json_response(game.to_api_response())
+    
+    async def get_tft_match_info(self, request: web.Request) -> web.Response:
+        """Mock /tft/match/v1/matches endpoint."""
+        await self.apply_request_delay()
+        
+        if rate_limit_response := await self.check_rate_limit():
+            return rate_limit_response
+            
+        match_id = request.match_info['match_id']
+        
+        if match_id in self.match_results:
+            match = self.match_results[match_id]
+            # Return TFT-specific match format
+            tft_response = {
+                "metadata": {
+                    "match_id": match.match_id,
+                    "participants": [p["puuid"] for p in match.participants]
+                },
+                "info": {
+                    "game_datetime": match.game_creation,
+                    "game_length": match.game_duration,
+                    "game_variation": None,
+                    "game_version": "Version 14.1",
+                    "queue_id": match.queue_id,
+                    "tft_game_type": "standard",
+                    "tft_set_core_name": "TFTSet11",
+                    "tft_set_name": "TFTSet11",
+                    "tft_set_number": 11,
+                    "participants": match.participants
+                }
+            }
+            return web.json_response(tft_response)
+            
+        return web.json_response(
+            {"status": {"message": "Match not found", "status_code": 404}},
+            status=404
+        )
+    
+    async def start_tft_game(self, request: web.Request) -> web.Response:
+        """Start a TFT game for a player."""
+        puuid = request.match_info['puuid']
+        data = await request.json()
+        
+        if puuid not in self.players:
+            return web.json_response({"error": "Player not found"}, status=404)
+            
+        player = self.players[puuid]
+        
+        # Create new TFT game
+        game_id = data.get("game_id", str(uuid.uuid4().int)[:10])
+        queue_type_id = data.get("queue_type_id", 1100)  # Default to ranked TFT
+        
+        game = MockGameInfo(
+            game_id=game_id,
+            game_queue_config_id=queue_type_id,
+            participants=[{
+                "puuid": player.puuid,
+                "summonerName": player.game_name,
+                "teamId": 100
+            }]
+        )
+        
+        self.games[game_id] = game
+        player.state = PlayerGameState.IN_GAME
+        player.current_game_id = game_id
+        player.current_game_start_time = game.game_start_time
+        
+        logger.info("Started TFT game for player", puuid=puuid, game_id=game_id)
+        
+        return web.json_response({
+            "game_id": game_id,
+            "state": player.state.value,
+            "game_start_time": game.game_start_time
+        })
+    
+    async def end_tft_game(self, request: web.Request) -> web.Response:
+        """End a TFT game for a player with a result."""
+        puuid = request.match_info['puuid']
+        data = await request.json()
+        
+        if puuid not in self.players:
+            return web.json_response({"error": "Player not found"}, status=404)
+            
+        player = self.players[puuid]
+        
+        if not player.current_game_id:
+            return web.json_response({"error": "Player not in game"}, status=400)
+            
+        # Create TFT match result
+        placement = data.get("placement", 4)  # Default to 4th place
+        duration_seconds = data.get("duration_seconds", 1800)  # Default 30 min
+        
+        game = self.games.get(player.current_game_id)
+        if not game:
+            return web.json_response({"error": "Game not found"}, status=404)
+            
+        match_id = f"NA1_{player.current_game_id}"
+        
+        # TFT-specific participant data
+        match_result = MockMatchResult(
+            match_id=match_id,
+            game_creation=game.game_start_time or int(time.time() * 1000),
+            game_duration=duration_seconds,
+            game_end_timestamp=int(time.time() * 1000),
+            queue_id=game.game_queue_config_id,
+            participants=[{
+                "puuid": player.puuid,
+                "placement": placement,
+                "time_eliminated": duration_seconds if placement > 1 else 0
+            }]
+        )
+        
+        self.match_results[match_id] = match_result
+        
+        # Update player state
+        player.state = PlayerGameState.NOT_IN_GAME
+        player.last_match_result = {
+            "match_id": match_id,
+            "placement": placement,
+            "duration_seconds": duration_seconds
+        }
+        
+        # Clean up game
+        del self.games[player.current_game_id]
+        player.current_game_id = None
+        player.current_game_start_time = None
+        
+        logger.info("Ended TFT game for player", 
+                   puuid=puuid, 
+                   match_id=match_id,
+                   placement=placement)
+        
+        return web.json_response({
+            "match_id": match_id,
+            "placement": placement,
             "state": player.state.value
         })
         

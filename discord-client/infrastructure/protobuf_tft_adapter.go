@@ -15,20 +15,6 @@ func NewProtobufToTFTAdapter() *ProtobufToTFTAdapter {
 	return &ProtobufToTFTAdapter{}
 }
 
-// queueTypeToString converts TFTQueueType enum to string
-func (a *ProtobufToTFTAdapter) queueTypeToString(queueType events.TFTQueueType) string {
-	switch queueType {
-	case events.TFTQueueType_TFT_QUEUE_TYPE_RANKED_TFT:
-		return "RANKED_TFT"
-	case events.TFTQueueType_TFT_QUEUE_TYPE_RANKED_TFT_DOUBLE_UP:
-		return "RANKED_TFT_DOUBLE_UP"
-	case events.TFTQueueType_TFT_QUEUE_TYPE_RANKED_TFT_TURBO:
-		return "RANKED_TFT_TURBO"
-	default:
-		return "UNKNOWN"
-	}
-}
-
 // ConvertGameStateChanged converts a protobuf TFTGameStateChanged event to domain DTOs
 // Returns either a TFTGameStartedDTO or TFTGameEndedDTO based on the state transition
 func (a *ProtobufToTFTAdapter) ConvertGameStateChanged(event *events.TFTGameStateChanged) (interface{}, error) {
@@ -61,7 +47,7 @@ func (a *ProtobufToTFTAdapter) convertToGameStarted(event *events.TFTGameStateCh
 		GameID:       event.GameId,
 		SummonerName: event.GameName,
 		TagLine:      event.TagLine,
-		QueueType:    a.queueTypeToString(event.QueueType),
+		QueueType:    event.QueueType,
 		EventTime:    event.EventTime.AsTime(),
 	}
 }
@@ -79,7 +65,7 @@ func (a *ProtobufToTFTAdapter) convertToGameEnded(event *events.TFTGameStateChan
 		TagLine:         event.TagLine,
 		Placement:       event.GameResult.Placement,
 		DurationSeconds: event.GameResult.DurationSeconds,
-		QueueType:       a.queueTypeToString(event.QueueType),
+		QueueType:       event.QueueType,
 		EventTime:       event.EventTime.AsTime(),
 	}, nil
 }

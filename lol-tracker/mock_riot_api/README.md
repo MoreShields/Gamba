@@ -32,21 +32,40 @@ python -m mock_riot_api.mock_riot_server
 
 ### 3. Controlling the Mock Server
 
-#### Via CLI
 
 ```bash
 # Create a player
-python -m mock_riot_api.control create-player TestPlayer NA1
+python -m mock_riot_api.control create-player Feviben NA1
 
 # List all players
 python -m mock_riot_api.control list-players
+```
 
-# Start a game
+##### League of Legends Commands
+
+```bash
+# Start a League game
 python -m mock_riot_api.control start-game <puuid>
 
-# End a game
-python -m  mock_riot_api.control end-game <puuid> --won
+# End a League game
+python -m mock_riot_api.control end-game <puuid> --won
 
-# Simulate a complete game cycle
+# Simulate a complete League game cycle
 python -m mock_riot_api.control simulate-game <puuid> --duration 30
+```
+
+##### TFT Commands
+
+```bash
+# Start a TFT game
+python -m mock_riot_api.control start-tft-game <puuid>
+
+# Start a TFT game with custom queue type (1100=ranked, 1090=normal)
+python -m mock_riot_api.control start-tft-game <puuid> --queue-type-id 1090
+
+# End a TFT game with placement (1-8)
+python -m mock_riot_api.control end-tft-game <puuid> --placement 1 --duration 1800
+
+# Simulate a complete TFT game cycle
+python -m mock_riot_api.control simulate-tft-game <puuid> --duration 30 --placement 3
 ```

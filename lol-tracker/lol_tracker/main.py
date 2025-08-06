@@ -9,7 +9,6 @@ import asyncio
 import logging
 import signal
 import sys
-import os
 
 from lol_tracker.config import Config, Environment
 from lol_tracker.service import LoLTrackerService

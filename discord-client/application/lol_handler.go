@@ -30,11 +30,11 @@ func NewLoLHandler(
 func formatQueueType(queueType string) string {
 	switch queueType {
 	case "RANKED_SOLO_5x5":
-		return "Ranked Match"
+		return "Ranked Solo/Duo"
 	case "RANKED_FLEX_SR":
 		return "Ranked Flex"
 	case "NORMAL_DRAFT", "NORMAL_BLIND":
-		return "Normal Match"
+		return "Normal SR"
 	case "ARAM":
 		return "ARAM"
 	case "CLASH":
@@ -234,4 +234,3 @@ func (h *LoLHandlerImpl) HandleGameEnded(ctx context.Context, gameEnded dto.Game
 
 	return nil
 }
-

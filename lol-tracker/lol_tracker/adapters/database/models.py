@@ -12,10 +12,9 @@ from sqlalchemy import (
     Text,
     Index,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-import uuid
 
 Base = declarative_base()
 
@@ -70,10 +69,11 @@ class GameState(Base):
         String(50), nullable=True
     )  # Queue type (e.g., "RANKED_SOLO_5x5")
 
-    # Game result information (populated when game ends)
-    won: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    # Polymorphic game result data stored as JSON
+    game_result_data: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    
+    # Common fields for all game types
     duration_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    champion_played: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=func.now())

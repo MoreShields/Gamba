@@ -107,6 +107,43 @@ class MockRiotControlClient:
             )
             response.raise_for_status()
             return response.json()
+    
+    async def start_tft_game(
+        self,
+        puuid: str,
+        game_id: Optional[str] = None,
+        queue_type_id: int = 1100  # Default to TFT Ranked
+    ) -> Dict[str, Any]:
+        """Start a TFT game for a player."""
+        async with httpx.AsyncClient() as client:
+            data = {"queue_type_id": queue_type_id}
+            if game_id:
+                data["game_id"] = game_id
+                
+            response = await client.post(
+                f"{self.control_url}/players/{puuid}/start-tft-game",
+                json=data
+            )
+            response.raise_for_status()
+            return response.json()
+    
+    async def end_tft_game(
+        self,
+        puuid: str,
+        placement: int = 4,
+        duration_seconds: int = 1800
+    ) -> Dict[str, Any]:
+        """End a TFT game for a player with a result."""
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.control_url}/players/{puuid}/end-tft-game",
+                json={
+                    "placement": placement,
+                    "duration_seconds": duration_seconds
+                }
+            )
+            response.raise_for_status()
+            return response.json()
             
     async def list_players(self) -> Dict[str, Any]:
         """List all mock players."""
@@ -152,7 +189,7 @@ class MockRiotControlClient:
         duration_seconds: int = 30,
         won: bool = True
     ) -> None:
-        """Simulate a complete game cycle for a player."""
+        """Simulate a complete League of Legends game cycle for a player."""
         logger.info("Starting game cycle simulation", puuid=puuid)
         
         # Start game
@@ -166,6 +203,27 @@ class MockRiotControlClient:
         # End game
         match_result = await self.end_game(puuid, won=won, duration_seconds=duration_seconds)
         logger.info("Game ended", match_id=match_result["match_id"], won=won)
+    
+    async def simulate_tft_game_cycle(
+        self,
+        puuid: str,
+        duration_seconds: int = 30,
+        placement: int = 4
+    ) -> None:
+        """Simulate a complete TFT game cycle for a player."""
+        logger.info("Starting TFT game cycle simulation", puuid=puuid)
+        
+        # Start TFT game
+        game_result = await self.start_tft_game(puuid)
+        logger.info("TFT game started", game_id=game_result["game_id"])
+        
+        # Wait for game duration
+        logger.info(f"Simulating TFT game for {duration_seconds} seconds...")
+        await asyncio.sleep(duration_seconds)
+        
+        # End TFT game
+        match_result = await self.end_tft_game(puuid, placement=placement, duration_seconds=duration_seconds)
+        logger.info("TFT game ended", match_id=match_result["match_id"], placement=placement)
 
 
 # Predefined test scenarios
@@ -223,6 +281,40 @@ class TestScenarios:
         await asyncio.sleep(0.5)
         
         await client.end_game(puuid, won=True, duration_seconds=2400)  # 40 min game
+    
+    @staticmethod
+    async def basic_tft_game_flow(client: MockRiotControlClient) -> str:
+        """Create a player and run through a basic TFT game flow."""
+        # Create player
+        player = await client.create_player("TFTPlayer", "NA1")
+        puuid = player["puuid"]
+        
+        # Start TFT game
+        await client.start_tft_game(puuid)
+        
+        # Wait a bit
+        await asyncio.sleep(2)
+        
+        # End TFT game with 1st place
+        await client.end_tft_game(puuid, placement=1, duration_seconds=1800)
+        
+        return puuid
+    
+    @staticmethod
+    async def multiple_tft_players_concurrent_games(client: MockRiotControlClient) -> list:
+        """Create multiple TFT players with concurrent games."""
+        puuids = []
+        
+        # Create 8 players (full TFT lobby)
+        for i in range(8):
+            player = await client.create_player(f"TFTPlayer{i}", "NA1")
+            puuids.append(player["puuid"])
+            
+        # Start TFT games for all players
+        for puuid in puuids:
+            await client.start_tft_game(puuid)
+            
+        return puuids
 
 
 # CLI Commands
@@ -278,10 +370,21 @@ def list_players(ctx):
 @click.option('--queue-type-id', type=int)
 @click.pass_context
 def start_game(ctx, puuid, champion_id, queue_type_id):
-    """Start a game for a player."""
+    """Start a League of Legends game for a player."""
     client = ctx.obj['client']
     result = asyncio.run(client.start_game(puuid, champion_id=champion_id, queue_type_id=queue_type_id))
     click.echo(f"Game started: {result}")
+
+
+@cli.command()
+@click.argument('puuid')
+@click.option('--queue-type-id', default=1100, type=int, help='TFT queue type (1100=ranked, 1090=normal)')
+@click.pass_context
+def start_tft_game(ctx, puuid, queue_type_id):
+    """Start a TFT game for a player."""
+    client = ctx.obj['client']
+    result = asyncio.run(client.start_tft_game(puuid, queue_type_id=queue_type_id))
+    click.echo(f"TFT game started: {result}")
 
 
 @cli.command()
@@ -293,7 +396,7 @@ def start_game(ctx, puuid, champion_id, queue_type_id):
 @click.option('--assists', default=10, type=int)
 @click.pass_context
 def end_game(ctx, puuid, won, duration, kills, deaths, assists):
-    """End a game for a player."""
+    """End a League of Legends game for a player."""
     client = ctx.obj['client']
     result = asyncio.run(client.end_game(
         puuid, won=won, duration_seconds=duration,
@@ -304,14 +407,40 @@ def end_game(ctx, puuid, won, duration, kills, deaths, assists):
 
 @cli.command()
 @click.argument('puuid')
+@click.option('--placement', default=4, type=int, help='Final placement (1-8)')
+@click.option('--duration', default=1800, type=int, help='Duration in seconds')
+@click.pass_context
+def end_tft_game(ctx, puuid, placement, duration):
+    """End a TFT game for a player."""
+    client = ctx.obj['client']
+    result = asyncio.run(client.end_tft_game(
+        puuid, placement=placement, duration_seconds=duration
+    ))
+    click.echo(f"TFT game ended: {result}")
+
+
+@cli.command()
+@click.argument('puuid')
 @click.option('--duration', default=30, type=int, help='Game duration in seconds')
 @click.option('--won/--lost', default=True)
 @click.pass_context
 def simulate_game(ctx, puuid, duration, won):
-    """Simulate a complete game cycle."""
+    """Simulate a complete League of Legends game cycle."""
     client = ctx.obj['client']
     asyncio.run(client.simulate_game_cycle(puuid, duration, won))
     click.echo("Game cycle completed")
+
+
+@cli.command()
+@click.argument('puuid')
+@click.option('--duration', default=30, type=int, help='Game duration in seconds')
+@click.option('--placement', default=4, type=int, help='Final placement (1-8)')
+@click.pass_context
+def simulate_tft_game(ctx, puuid, duration, placement):
+    """Simulate a complete TFT game cycle."""
+    client = ctx.obj['client']
+    asyncio.run(client.simulate_tft_game_cycle(puuid, duration, placement))
+    click.echo("TFT game cycle completed")
 
 
 @cli.command()

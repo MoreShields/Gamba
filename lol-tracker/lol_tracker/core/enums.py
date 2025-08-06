@@ -1,7 +1,7 @@
 """Core enums for the lol-tracker service."""
 
 from enum import Enum
-from typing import Dict, Set
+from typing import Dict, Optional, Set, Tuple
 
 
 class GameType(Enum):
@@ -36,40 +36,81 @@ class GameStatus(Enum):
 
 
 class QueueType(Enum):
-    """League of Legends and TFT queue types."""
+    """League of Legends and TFT queue types with associated metadata.
     
-    # LoL queue types
-    RANKED_SOLO_5X5 = "RANKED_SOLO_5x5"
-    RANKED_FLEX_SR = "RANKED_FLEX_SR"
-    ARAM = "ARAM"
-    NORMAL_DRAFT = "NORMAL_DRAFT"
-    NORMAL_BLIND = "NORMAL_BLIND"
-    CLASH = "CLASH"
-    ARENA = "ARENA"
+    Each queue type contains:
+    - value: String identifier for the queue
+    - game_type: The GameType this queue belongs to
+    - queue_id: The Riot API queue ID
+    
+    Data from: https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/queues.json
+    """
+    
+    # Format: (string_value, game_type, queue_id)
+    
+    # Core Summoner's Rift PvP
+    NORMAL_DRAFT = ("NORMAL_DRAFT", GameType.LOL, 400)           # Normal (Draft Pick)
+    RANKED_SOLO_5X5 = ("RANKED_SOLO_5x5", GameType.LOL, 420)    # Ranked Solo/Duo
+    NORMAL_BLIND = ("NORMAL_BLIND", GameType.LOL, 430)           # Normal (Blind Pick)
+    RANKED_FLEX_SR = ("RANKED_FLEX_SR", GameType.LOL, 440)      # Ranked Flex
+    QUICKPLAY = ("QUICKPLAY", GameType.LOL, 490)                 # Quickplay
+    
+    # Alternative LoL modes
+    ARAM = ("ARAM", GameType.LOL, 450)                           # ARAM
+    CLASH = ("CLASH", GameType.LOL, 700)                         # Clash tournament
+    ARENA = ("ARENA", GameType.LOL, 1700)                        # Arena 2v2v2v2
+    
+    # Rotating game modes
+    URF = ("URF", GameType.LOL, 1900)                            # Ultra Rapid Fire
+    ARURF = ("ARURF", GameType.LOL, 900)                         # All Random URF
+    ONE_FOR_ALL = ("ONE_FOR_ALL", GameType.LOL, 1020)            # One For All
+    ULTIMATE_SPELLBOOK = ("ULTIMATE_SPELLBOOK", GameType.LOL, 1400)  # Ultimate Spellbook
+    NEXUS_BLITZ = ("NEXUS_BLITZ", GameType.LOL, 1300)           # Nexus Blitz
+    
+    # Bot games
+    BOT_INTRO_5X5 = ("BOT_INTRO_5x5", GameType.LOL, 830)        # Intro bots
+    BOT_BEGINNER_5X5 = ("BOT_BEGINNER_5x5", GameType.LOL, 840)  # Beginner bots
+    BOT_INTERMEDIATE_5X5 = ("BOT_INTERMEDIATE_5x5", GameType.LOL, 850)  # Intermediate bots
     
     # TFT queue types
-    RANKED_TFT = "RANKED_TFT"
-    RANKED_TFT_TURBO = "RANKED_TFT_TURBO"
-    RANKED_TFT_DOUBLE_UP = "RANKED_TFT_DOUBLE_UP"
+    TFT_NORMAL = ("TFT_NORMAL", GameType.TFT, 1090)              # Teamfight Tactics (Normal)
+    TFT_RANKED = ("TFT_RANKED", GameType.TFT, 1100)              # Teamfight Tactics (Ranked)
+    TFT_TUTORIAL = ("TFT_TUTORIAL", GameType.TFT, 1110)          # Teamfight Tactics (Tutorial)
+    TFT_HYPER_ROLL = ("TFT_HYPER_ROLL", GameType.TFT, 1130)      # Teamfight Tactics (Hyper Roll)
+    TFT_DOUBLE_UP = ("TFT_DOUBLE_UP", GameType.TFT, 1150)        # Teamfight Tactics (Double Up workshop)
+    TFT_NORMAL_HYPER_ROLL = ("TFT_NORMAL_HYPER_ROLL", GameType.TFT, 1120)  # Teamfight Tactics (Normal Hyper Roll)
+    TFT_NORMAL_DOUBLE_UP = ("TFT_NORMAL_DOUBLE_UP", GameType.TFT, 1140)    # Teamfight Tactics (Normal Double Up)
     
-    UNKNOWN = "UNKNOWN"
+    def __init__(self, value: str, game_type: GameType, queue_id: int):
+        """Initialize queue type with metadata."""
+        self._value_ = value
+        self.game_type = game_type
+        self.queue_id = queue_id
+    
+    @property
+    def value(self) -> str:
+        """Get the string value of the queue type."""
+        return self._value_
     
     @classmethod
-    def from_queue_id(cls, queue_id: int) -> "QueueType":
-        """Convert a Riot API queue ID to a QueueType."""
-        queue_map: Dict[int, QueueType] = {
-            # LoL queue IDs
-            420: cls.RANKED_SOLO_5X5,
-            440: cls.RANKED_FLEX_SR,
-            450: cls.ARAM,
-            400: cls.NORMAL_DRAFT,
-            430: cls.NORMAL_BLIND,
-            700: cls.CLASH,
-            1700: cls.ARENA,
-            # TFT queue IDs
-            1100: cls.RANKED_TFT,
-            1130: cls.RANKED_TFT_TURBO,
-            1150: cls.RANKED_TFT_DOUBLE_UP,
-        }
-        return queue_map.get(queue_id, cls.UNKNOWN)
+    def from_queue_id(cls, queue_id: int) -> Optional["QueueType"]:
+        """Convert a Riot API queue ID to a QueueType.
+        
+        Returns None for unknown queue IDs.
+        """
+        for queue_type in cls:
+            if queue_type.queue_id == queue_id:
+                return queue_type
+        return None
+    
+    @classmethod
+    def from_string(cls, value: str) -> Optional["QueueType"]:
+        """Convert a string value to a QueueType.
+        
+        Returns None for unknown values.
+        """
+        for queue_type in cls:
+            if queue_type.value == value:
+                return queue_type
+        return None
     
