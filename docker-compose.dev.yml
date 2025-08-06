@@ -117,7 +117,7 @@ services:
       - ./lol-tracker/lol_tracker:/app/lol_tracker
       - ./lol-tracker/tests:/app/tests
     working_dir: /app
-    command: python -m lol_tracker.main
+    command: python /app/lol_tracker/main.py
     stdin_open: true
     tty: true
     extra_hosts: []

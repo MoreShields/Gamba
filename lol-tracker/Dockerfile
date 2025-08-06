@@ -77,6 +77,9 @@ RUN apt-get update && apt-get install -y \
 # Copy virtual environment from builder
 COPY --from=builder /opt/venv /opt/venv
 
+# Install development dependencies (hupper for hot reload)
+RUN pip install hupper>=1.12.0
+
 # Create app user
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
