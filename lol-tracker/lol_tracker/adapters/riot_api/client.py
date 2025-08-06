@@ -4,7 +4,6 @@ import asyncio
 import time
 from typing import Optional, Dict, Any, Union
 from dataclasses import dataclass
-from enum import Enum
 
 import httpx
 import structlog
@@ -756,8 +755,8 @@ class RiotAPIClient:
     ) -> Optional[Union[CurrentGameInfo, CurrentTFTGameInfo]]:
         """Get active game info by checking both LoL and TFT endpoints in parallel.
         
-        Uses asyncio.wait with FIRST_COMPLETED to race both requests and return
-        the first active game found (or None if neither has active game).
+        Checks both LoL and TFT endpoints concurrently and returns the first
+        successful result (or None if both indicate player is not in game).
         
         Args:
             puuid: Player's PUUID
@@ -779,33 +778,56 @@ class RiotAPIClient:
             self.get_current_tft_game_info(puuid, game_name, tag_line)
         )
         
+        # Gather results from both tasks
+        lol_result = None
+        tft_result = None
+        lol_error = None
+        tft_error = None
+        
         try:
-            # Wait for the first one to complete
-            done, pending = await asyncio.wait(
-                [lol_task, tft_task], return_when=asyncio.FIRST_COMPLETED
+            # Wait for both tasks to complete
+            done, _ = await asyncio.wait(
+                [lol_task, tft_task], return_when=asyncio.ALL_COMPLETED
             )
             
-            # Cancel pending tasks
-            for task in pending:
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-            
-            # Check completed task results
+            # Process results from both tasks
             for task in done:
                 try:
-                    result = await task
-                    return result
-                except PlayerNotInGameError:
-                    # This is expected, continue to check other task or return None
-                    continue
-                except Exception:
-                    # Other errors should be re-raised
-                    raise
+                    result = task.result()
+                    if task == lol_task:
+                        lol_result = result
+                    else:
+                        tft_result = result
+                except PlayerNotInGameError as e:
+                    # Expected error - player not in this game type
+                    if task == lol_task:
+                        lol_error = e
+                    else:
+                        tft_error = e
+                except Exception as e:
+                    # Unexpected error - should be re-raised unless other succeeds
+                    if task == lol_task:
+                        lol_error = e
+                    else:
+                        tft_error = e
             
-            # If we get here, both tasks completed with PlayerNotInGameError
+            # Return first successful result
+            if lol_result:
+                return lol_result
+            if tft_result:
+                return tft_result
+            
+            # If both failed with PlayerNotInGameError, return None
+            if isinstance(lol_error, PlayerNotInGameError) and isinstance(tft_error, PlayerNotInGameError):
+                return None
+            
+            # If one had an unexpected error, raise it
+            if lol_error and not isinstance(lol_error, PlayerNotInGameError):
+                raise lol_error
+            if tft_error and not isinstance(tft_error, PlayerNotInGameError):
+                raise tft_error
+            
+            # Default case: no game found
             return None
             
         except Exception as e:
@@ -814,10 +836,10 @@ class RiotAPIClient:
             tft_task.cancel()
             try:
                 await lol_task
-            except asyncio.CancelledError:
+            except (asyncio.CancelledError, Exception):
                 pass
             try:
                 await tft_task
-            except asyncio.CancelledError:
+            except (asyncio.CancelledError, Exception):
                 pass
             raise
