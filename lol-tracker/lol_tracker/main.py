@@ -9,12 +9,38 @@ import asyncio
 import logging
 import signal
 import sys
+import os
 
-from lol_tracker.config import Config
+from lol_tracker.config import Config, Environment
 from lol_tracker.service import LoLTrackerService
 
 
 logger = logging.getLogger(__name__)
+
+
+def run_service():
+    """Run the service (called by hupper in worker process)."""
+    asyncio.run(main())
+
+
+def start_with_reloader():
+    """Start the service with hot reload using hupper."""
+    try:
+        import hupper
+    except ImportError:
+        logger.warning("hupper not installed, running without hot reload")
+        run_service()
+        return
+    
+    # hupper.start_reloader returns a reloader object in the monitor process
+    # and returns None in the worker process
+    reloader = hupper.start_reloader('lol_tracker.main.run_service')
+    
+    if reloader:
+        # We're in the monitor process
+        logger.info("Hot reload enabled, monitoring file changes...")
+        # Watch additional files if needed
+        # reloader.watch_files(['config.yaml'])
 
 
 async def main():
@@ -57,4 +83,11 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Entry point for direct execution
+    config = Config.from_env()
+    
+    # Enable hot reload in development
+    if config.environment == Environment.DEVELOPMENT:
+        start_with_reloader()
+    else:
+        asyncio.run(main())
