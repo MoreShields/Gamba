@@ -126,8 +126,7 @@ class LoLTrackerService:
                 # Health check interval
                 await asyncio.sleep(min(self.config.poll_interval_seconds, 30))
 
-        except Exception as e:
-            logger.error(f"Failed to start LoL Tracker service: {e}")
+        except Exception:
             self._running = False
             raise
 

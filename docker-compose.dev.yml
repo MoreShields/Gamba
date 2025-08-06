@@ -111,7 +111,7 @@ services:
       DATABASE_URL: postgres://gambler:gambler_dev_password@postgres:5432
       DATABASE_NAME: lol_tracker_db
       ENVIRONMENT: development
-      LOG_LEVEL: debug
+      LOG_LEVEL: DEBUG
       POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS-60}
     volumes:
       - ./lol-tracker/lol_tracker:/app/lol_tracker

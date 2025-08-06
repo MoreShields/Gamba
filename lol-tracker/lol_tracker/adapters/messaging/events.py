@@ -12,7 +12,9 @@ import nats.js.errors
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from ...config import Config
-from ...proto.events import lol_events_pb2
+from ...proto.events import lol_events_pb2, tft_events_pb2
+from ...core.events import GameStateChangedEvent, LoLGameStateChangedEvent, TFTGameStateChangedEvent
+from ...core.enums import GameStatus
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +97,15 @@ class EventPublisher:
                 "storage": self.config.jetstream_storage,
             },
             {
+                "name": self.config.tft_events_stream,
+                "subjects": [f"{self.config.tft_game_state_events_subject}.state_changed"],
+                "description": "TFT game state change events",
+                "retention": "limits",
+                "max_age": self.config.jetstream_max_age_hours * 60 * 60,  # Convert to seconds
+                "max_msgs": self.config.jetstream_max_msgs_lol,  # Reuse LoL limit for now
+                "storage": self.config.jetstream_storage,
+            },
+            {
                 "name": self.config.tracking_events_stream,
                 "subjects": [f"{self.config.tracking_events_subject}.*"],
                 "description": "Player tracking command events",
@@ -136,136 +147,108 @@ class EventPublisher:
 
     # Direct event publishing methods for common events
     
-    async def publish_player_tracking_started(
-        self,
-        player_id: int,
-        game_name: str,
-        tag_line: str,
-        puuid: str,
-        started_at: datetime,
-    ) -> None:
-        """Publish player tracking started event."""
-        subject = f"{self.config.tracking_events_subject}.started"
-        message_data = {
-            "event_type": "PlayerTrackingStarted",
-            "player_id": player_id,
-            "summoner_identity": {
-                "game_name": game_name,
-                "tag_line": tag_line,
-                "puuid": puuid,
-            },
-            "started_at": started_at.isoformat(),
-            "timestamp": datetime.utcnow().isoformat(),
-        }
-        
-        await self._publish_json_message(subject, message_data)
+    # Tracking events are currently unused but kept for potential future use
+    # If needed, these should be converted to domain events like game state changes
 
-    async def publish_player_tracking_stopped(
-        self,
-        player_id: int,
-        game_name: str,
-        tag_line: str,
-        puuid: str,
-        stopped_at: datetime,
-        reason: str = "manual",
-    ) -> None:
-        """Publish player tracking stopped event."""
-        subject = f"{self.config.tracking_events_subject}.stopped"
-        message_data = {
-            "event_type": "PlayerTrackingStopped",
-            "player_id": player_id,
-            "summoner_identity": {
-                "game_name": game_name,
-                "tag_line": tag_line,
-                "puuid": puuid,
-            },
-            "stopped_at": stopped_at.isoformat(),
-            "reason": reason,
-            "timestamp": datetime.utcnow().isoformat(),
-        }
-        
-        await self._publish_json_message(subject, message_data)
+    # Queue type mapping for TFT - maps our internal queue types to protobuf enums
+    def _map_game_status_to_lol_enum(self, status: str):
+        """Map game status string to LoL protobuf enum."""
+        if status == GameStatus.NOT_IN_GAME.value:
+            return lol_events_pb2.GAME_STATUS_NOT_IN_GAME
+        elif status == GameStatus.IN_GAME.value:
+            return lol_events_pb2.GAME_STATUS_IN_GAME
+        return lol_events_pb2.GAME_STATUS_NOT_IN_GAME
+    
+    def _map_game_status_to_tft_enum(self, status: str):
+        """Map game status string to TFT protobuf enum."""
+        if status == GameStatus.NOT_IN_GAME.value:
+            return tft_events_pb2.TFT_GAME_STATUS_NOT_IN_GAME
+        elif status == GameStatus.IN_GAME.value:
+            return tft_events_pb2.TFT_GAME_STATUS_IN_GAME
+        return tft_events_pb2.TFT_GAME_STATUS_NOT_IN_GAME
 
-    async def publish_game_state_changed(
-        self,
-        player_id: int,
-        game_name: str,
-        tag_line: str,
-        puuid: str,
-        previous_status: str,
-        new_status: str,
-        game_id: Optional[str] = None,
-        queue_type: Optional[str] = None,
-        changed_at: Optional[datetime] = None,
-        is_game_start: bool = False,
-        is_game_end: bool = False,
-        # Game result fields (only set when game ends with results)
-        won: Optional[bool] = None,
-        duration_seconds: Optional[int] = None,
-        champion_played: Optional[str] = None,
-    ) -> None:
-        """Publish game state changed event as protobuf with optional game results."""
-        # Create protobuf message
-        event = lol_events_pb2.LoLGameStateChanged()
-        event.game_name = game_name
-        event.tag_line = tag_line
+    def _set_common_protobuf_fields(self, pb_event, event: GameStateChangedEvent):
+        """Set common fields for any protobuf game state event."""
+        pb_event.game_name = event.game_name
+        pb_event.tag_line = event.tag_line
         
-        # Map status strings to protobuf enum values
-        if previous_status == "NOT_IN_GAME":
-            event.previous_status = lol_events_pb2.GAME_STATUS_NOT_IN_GAME
-        elif previous_status == "IN_GAME":
-            event.previous_status = lol_events_pb2.GAME_STATUS_IN_GAME
-            
-        if new_status == "NOT_IN_GAME":
-            event.current_status = lol_events_pb2.GAME_STATUS_NOT_IN_GAME
-        elif new_status == "IN_GAME":
-            event.current_status = lol_events_pb2.GAME_STATUS_IN_GAME
-            
-        # Set optional fields
-        if game_id:
-            event.game_id = game_id
-        if queue_type:
-            event.queue_type = queue_type
+        if event.game_id:
+            pb_event.game_id = event.game_id
+        if event.queue_type:
+            pb_event.queue_type = event.queue_type
             
         # Set timestamp
         timestamp = Timestamp()
-        timestamp.FromDatetime(changed_at or datetime.utcnow())
-        event.event_time.CopyFrom(timestamp)
+        timestamp.FromDatetime(event.changed_at)
+        pb_event.event_time.CopyFrom(timestamp)
+
+    async def publish_game_state_changed(self, event: GameStateChangedEvent) -> None:
+        """Publish game state changed event as protobuf.
+        
+        Accepts polymorphic domain events and publishes them appropriately.
+        
+        Args:
+            event: Domain event to publish (LoL or TFT specific)
+        """
+        if not self._connected:
+            logger.warning("Cannot publish event - not connected to NATS")
+            return
+        
+        # Route to appropriate handler based on event type
+        if isinstance(event, TFTGameStateChangedEvent):
+            await self._publish_tft_game_state_changed(event)
+        else:
+            # Default to LoL for LoLGameStateChangedEvent or unknown types
+            await self._publish_lol_game_state_changed(event)
+    
+    async def _publish_lol_game_state_changed(self, event: GameStateChangedEvent) -> None:
+        """Publish LoL game state changed event."""
+        pb_event = lol_events_pb2.LoLGameStateChanged()
+        
+        # Set common fields
+        self._set_common_protobuf_fields(pb_event, event)
+        
+        # Map status enums
+        pb_event.previous_status = self._map_game_status_to_lol_enum(event.previous_status)
+        pb_event.current_status = self._map_game_status_to_lol_enum(event.new_status)
         
         # Set game result if provided (when game ends with complete results)
-        if is_game_end and won is not None and duration_seconds is not None and champion_played is not None:
-            game_result = lol_events_pb2.GameResult()
-            game_result.won = won
-            game_result.duration_seconds = duration_seconds
-            game_result.champion_played = champion_played
-            if queue_type:
-                game_result.queue_type = queue_type
-            event.game_result.CopyFrom(game_result)
+        if event.is_game_end and event.duration_seconds is not None:
+            if isinstance(event, LoLGameStateChangedEvent):
+                if event.won is not None and event.champion_played is not None:
+                    game_result = lol_events_pb2.GameResult()
+                    game_result.won = event.won
+                    game_result.duration_seconds = event.duration_seconds
+                    game_result.champion_played = event.champion_played
+                    if event.queue_type:
+                        game_result.queue_type = event.queue_type
+                    pb_event.game_result.CopyFrom(game_result)
         
-        # Always publish to state_changed subject - no separate completed subject
+        # Publish to LoL subject
         subject = f"{self.config.game_state_events_subject}.state_changed"
-        await self._publish_protobuf_message(subject, event)
-
-
-    # Generic message publishing
+        await self._publish_protobuf_message(subject, pb_event)
     
-    async def publish_message(self, subject: str, data: Dict[str, Any]) -> None:
-        """Publish a generic message with JSON data."""
-        await self._publish_json_message(subject, data)
-
-    async def _publish_json_message(self, subject: str, data: Dict[str, Any]) -> None:
-        """Publish a JSON message to a NATS subject."""
-        if not self._js:
-            raise RuntimeError("Not connected to NATS JetStream")
-
-        try:
-            json_data = json.dumps(data, ensure_ascii=False).encode('utf-8')
-            ack = await self._js.publish(subject, json_data)
-            logger.debug(f"Published message to {subject}, ack: {ack}")
-        except Exception as e:
-            logger.error(f"Failed to publish message to {subject}: {e}")
-            raise
-    
+    async def _publish_tft_game_state_changed(self, event: TFTGameStateChangedEvent) -> None:
+        """Publish TFT game state changed event."""
+        pb_event = tft_events_pb2.TFTGameStateChanged()
+        
+        # Set common fields
+        self._set_common_protobuf_fields(pb_event, event)
+        
+        # Map status enums
+        pb_event.previous_status = self._map_game_status_to_tft_enum(event.previous_status)
+        pb_event.current_status = self._map_game_status_to_tft_enum(event.new_status)
+        
+        # Set game result if provided
+        if event.is_game_end and event.duration_seconds is not None and event.placement is not None:
+            game_result = tft_events_pb2.TFTGameResult()
+            game_result.placement = event.placement
+            game_result.duration_seconds = event.duration_seconds
+            pb_event.game_result.CopyFrom(game_result)
+        
+        # Publish to TFT subject
+        subject = f"{self.config.tft_game_state_events_subject}.state_changed"
+        await self._publish_protobuf_message(subject, pb_event)
     async def _publish_protobuf_message(self, subject: str, message) -> None:
         """Publish a protobuf message to a NATS subject."""
         if not self._js:
@@ -297,159 +280,55 @@ class EventPublisher:
         self._connected = True
 
 
-class MockEventPublisher:
-    """Mock event publisher for testing."""
+class MockEventPublisher(EventPublisher):
+    """Mock event publisher for testing that reuses real protobuf serialization logic."""
 
     def __init__(self, config: Config):
-        self.config = config
-        self._connected = False
-        self.published_messages = []
+        super().__init__(config)
+        self.published_messages = []  # Store (subject, protobuf_bytes, protobuf_message) tuples
 
     async def initialize(self) -> None:
-        """Mock initialize operation."""
+        """Mock initialize operation - skip NATS connection."""
         self._connected = True
         logger.info("Mock: Event publisher initialized")
 
     async def close(self) -> None:
-        """Mock close operation."""
+        """Mock close operation - no NATS to close."""
         self._connected = False
         logger.info("Mock: Event publisher closed")
 
-    async def is_healthy(self) -> bool:
-        """Mock health check."""
-        return self._connected
+    async def _create_streams(self) -> None:
+        """Mock stream creation - no actual NATS streams."""
+        logger.info("Mock: Skipping stream creation")
 
-    async def publish_player_tracking_started(
-        self,
-        player_id: int,
-        game_name: str,
-        tag_line: str,
-        puuid: str,
-        started_at: datetime,
-    ) -> None:
-        """Mock publish player tracking started event."""
-        message = {
-            "subject": f"{self.config.tracking_events_subject}.started",
-            "event_type": "PlayerTrackingStarted",
-            "player_id": player_id,
-            "game_name": game_name,
-            "tag_line": tag_line,
-            "puuid": puuid,
-            "started_at": started_at,
-        }
-        self.published_messages.append(message)
-        logger.debug(f"Mock: Published player tracking started event for player {player_id}")
+    async def _publish_protobuf_message(self, subject: str, message) -> None:
+        """Override to capture protobuf messages instead of publishing to NATS."""
+        try:
+            # Serialize protobuf to bytes (validates serialization works)
+            message_bytes = message.SerializeToString()
+            
+            # Store both the raw bytes and the message object for testing
+            self.published_messages.append({
+                "subject": subject,
+                "protobuf_bytes": message_bytes,
+                "protobuf_message": message,  # Keep the actual protobuf object for easy testing
+                "message_type": type(message).__name__
+            })
+            
+            logger.debug(f"Mock: Captured protobuf message to {subject}, type: {type(message).__name__}")
+        except Exception as e:
+            logger.error(f"Mock: Failed to serialize protobuf message to {subject}: {e}")
+            raise
 
-    async def publish_player_tracking_stopped(
-        self,
-        player_id: int,
-        game_name: str,
-        tag_line: str,
-        puuid: str,
-        stopped_at: datetime,
-        reason: str = "manual",
-    ) -> None:
-        """Mock publish player tracking stopped event."""
-        message = {
-            "subject": f"{self.config.tracking_events_subject}.stopped",
-            "event_type": "PlayerTrackingStopped",
-            "player_id": player_id,
-            "game_name": game_name,
-            "tag_line": tag_line,
-            "puuid": puuid,
-            "stopped_at": stopped_at,
-            "reason": reason,
-        }
-        self.published_messages.append(message)
-        logger.debug(f"Mock: Published player tracking stopped event for player {player_id}")
+    # NATS callbacks not needed for mock
+    async def _error_callback(self, error):
+        """Mock NATS error callback."""
+        pass
 
-    async def publish_game_state_changed(
-        self,
-        player_id: int,
-        game_name: str,
-        tag_line: str,
-        puuid: str,
-        previous_status: str,
-        new_status: str,
-        game_id: Optional[str] = None,
-        queue_type: Optional[str] = None,
-        changed_at: Optional[datetime] = None,
-        is_game_start: bool = False,
-        is_game_end: bool = False,
-        won: Optional[bool] = None,
-        duration_seconds: Optional[int] = None,
-        champion_played: Optional[str] = None,
-    ) -> None:
-        """Mock publish game state changed event with optional game results."""
-        message = {
-            "subject": f"{self.config.game_state_events_subject}.state_changed",
-            "event_type": "PlayerGameStateChanged",
-            "player_id": player_id,
-            "game_name": game_name,
-            "tag_line": tag_line,
-            "puuid": puuid,
-            "previous_status": previous_status,
-            "new_status": new_status,
-            "game_id": game_id,
-            "queue_type": queue_type,
-            "changed_at": changed_at or datetime.utcnow(),
-            "is_game_start": is_game_start,
-            "is_game_end": is_game_end,
-        }
-        
-        # Add game result if provided
-        if is_game_end and won is not None and duration_seconds is not None and champion_played is not None:
-            message["game_result"] = {
-                "won": won,
-                "duration_seconds": duration_seconds,
-                "champion_played": champion_played,
-                "queue_type": queue_type
-            }
-        
-        self.published_messages.append(message)
-        logger.debug(f"Mock: Published game state changed event for player {player_id}")
+    async def _disconnected_callback(self):
+        """Mock NATS disconnected callback."""
+        pass
 
-
-    async def publish_message(self, subject: str, data: Dict[str, Any]) -> None:
-        """Mock publish generic message."""
-        message = {"subject": subject, "data": data}
-        self.published_messages.append(message)
-        logger.debug(f"Mock: Published message to {subject}")
-
-
-# Global event publisher instance
-_event_publisher: Optional[EventPublisher] = None
-
-
-def get_event_publisher() -> EventPublisher:
-    """Get the global event publisher instance."""
-    global _event_publisher
-    if _event_publisher is None:
-        raise RuntimeError(
-            "Event publisher not initialized. Call initialize_event_publisher() first."
-        )
-    return _event_publisher
-
-
-async def initialize_event_publisher(config: Config, use_mock: bool = False) -> EventPublisher:
-    """Initialize the global event publisher."""
-    global _event_publisher
-    if _event_publisher is not None:
-        logger.warning("Event publisher already initialized")
-        return _event_publisher
-
-    if use_mock or config.is_test():
-        _event_publisher = MockEventPublisher(config)
-    else:
-        _event_publisher = EventPublisher(config)
-    
-    await _event_publisher.initialize()
-    return _event_publisher
-
-
-async def close_event_publisher() -> None:
-    """Close the global event publisher."""
-    global _event_publisher
-    if _event_publisher is not None:
-        await _event_publisher.close()
-        _event_publisher = None
+    async def _reconnected_callback(self):
+        """Mock NATS reconnected callback."""
+        pass

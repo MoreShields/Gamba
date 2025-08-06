@@ -9,10 +9,9 @@ into a single, pragmatic implementation that handles:
 
 import logging
 import asyncio
-from datetime import datetime
 from typing import List, Optional, Dict, Any
 
-from ..core.entities import Player, GameState, LoLGameResult
+from ..core.entities import Player, GameState
 from ..core.enums import GameStatus, QueueType
 from ..core.services import GameStateTransitionService
 from ..adapters.database.manager import DatabaseManager
@@ -218,18 +217,16 @@ class PollingService:
             f"{current_state.status.value} -> {new_state.status.value}"
         )
         
-        # Publish consolidated event for the state change
-        await self._publish_game_state_changed_event(
-            player,
-            current_state.status, 
-            new_state.status,
-            new_state.game_id or current_state.game_id,
-            new_state.queue_type,
-            # Include game results if available
-            won=new_state.won,
-            duration_seconds=new_state.duration_seconds,
-            champion_played=new_state.champion_played
-        )
+        # Publish event for the state change
+        try:
+            if player.id and player.puuid:
+                # Let the domain create the appropriate event
+                event = new_state.create_state_change_event(player, current_state)
+                await self.event_publisher.publish_game_state_changed(event)
+                logger.debug(f"Published {event.get_event_type()} event for player {player.id}")
+        except Exception as e:
+            logger.error(f"Failed to publish event for player {player.riot_id}: {e}")
+            # Don't re-raise to avoid breaking the main flow
         
         return new_state
     
@@ -329,7 +326,7 @@ class PollingService:
         player: Player,
         game_state: GameState
     ) -> None:
-        """Handle game end by fetching and updating match results immediately.
+        """Handle game end by fetching and updating match results.
         
         Args:
             game_id: The game ID to process
@@ -337,184 +334,32 @@ class PollingService:
             game_state: The current game state
         """
         try:
-            # Use default region for match processing
-            region = "na1"
+            if player.puuid is None:
+                logger.warning(f"Player {player.riot_id} has no PUUID")
+                return
             
-            # Fetch match details from Riot API
-            match_info = await self._fetch_match_details(game_id, region)
+            # Fetch match details - the API client handles game type internally
+            match_info = await self.riot_api.get_match_for_game(
+                game_id, 
+                game_state.queue_type,
+                region="na1"
+            )
             if not match_info:
                 logger.warning(f"Could not fetch match details for game {game_id}")
                 return
             
-            # Get participant result from match info
-            if player.puuid is None:
-                logger.warning(f"Player {player.riot_id} has no PUUID")
-                return
-            participant_result = match_info.get_participant_result(player.puuid)
-            if not participant_result:
-                logger.warning(f"Player {player.puuid} not found in match participants")
-                return
+            # Let domain entity handle all game-type-specific logic
+            game_result = game_state.update_from_match_info(match_info, player.puuid)
             
-            # Update the game state with match results
-            game_result = LoLGameResult(
-                won=participant_result["won"],
-                duration_seconds=match_info.game_duration,
-                champion_played=participant_result["champion_name"]
-            )
-            game_state.update_game_result(game_result)
-            
-            logger.info(
-                f"Immediately fetched match result for {player.riot_id}: "
-                f"{'Won' if participant_result['won'] else 'Lost'} as {participant_result['champion_name']}"
-            )
+            if game_result:
+                logger.info(
+                    f"Fetched match result for {player.riot_id}: {game_result}"
+                )
+            else:
+                logger.warning(f"Could not process match result for player {player.riot_id}")
             
         except Exception as e:
             logger.error(f"Error fetching immediate match results for {game_id}: {e}")
             # Don't re-raise to avoid breaking the main polling flow
     
-    # Removed _execute_process_match_result method as DTOs were deleted
     
-    async def _fetch_match_details(self, game_id: str, region: str):
-        """Fetch match details from Riot API.
-        
-        Args:
-            game_id: The game ID to fetch
-            region: The region for API calls
-            
-        Returns:
-            MatchInfo if found, None otherwise
-        """
-        try:
-            # Convert game_id to match_id format (region_gameId)
-            match_id = f"{region.upper()}_{game_id}"
-            
-            match_info = await self.riot_api.get_match_info(match_id, region)
-            
-            if match_info:
-                logger.debug(f"Fetched match details for {match_id}")
-                return match_info
-            else:
-                logger.warning(f"Match {match_id} not found")
-                return None
-                
-        except Exception as e:
-            logger.error(f"Error fetching match details for {game_id}: {e}")
-            return None
-    
-    async def _process_player_result(self, puuid: str, match_info) -> Optional[bool]:
-        """Process match result for a specific player.
-        
-        Args:
-            puuid: The player's PUUID
-            match_info: Match information from Riot API
-            
-        Returns:
-            True if processed successfully, None otherwise
-        """
-        # Find the tracked player
-        player = await self.database.get_tracked_player_by_puuid(puuid)
-        if not player:
-            logger.warning(f"Player {puuid} not found")
-            return None
-        
-        # Get participant result from match info
-        participant_result = match_info.get_participant_result(puuid)
-        if not participant_result:
-            logger.warning(f"Player {puuid} not found in match participants")
-            return None
-        
-        # Find the latest game state
-        latest_state = await self.database.get_latest_game_state_for_player(player.id)
-        if not latest_state:
-            logger.warning(f"No game state found for player {player.game_name}#{player.tag_line}")
-            return None
-        
-        # Update the game state with match results
-        try:
-            success = await self.database.update_game_result(
-                game_state_id=latest_state.id,
-                won=participant_result["won"],
-                duration_seconds=match_info.game_duration,
-                champion_played=participant_result["champion_name"]
-            )
-            
-            if not success:
-                logger.warning(f"Failed to update game result for player {player.game_name}#{player.tag_line}")
-                return None
-            
-            logger.info(
-                f"Processed match result for {player.game_name}#{player.tag_line}: "
-                f"{'Won' if participant_result['won'] else 'Lost'} as {participant_result['champion_name']}"
-            )
-            
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error updating game result for player {player.game_name}#{player.tag_line}: {e}")
-            return None
-    
-    # Event publishing
-    
-    async def _publish_game_state_changed_event(
-        self,
-        player: Player,
-        previous_status: GameStatus,
-        new_status: GameStatus,
-        game_id: Optional[str],
-        queue_type: Optional[QueueType] = None,
-        won: Optional[bool] = None,
-        duration_seconds: Optional[int] = None,
-        champion_played: Optional[str] = None
-    ) -> None:
-        """Publish a consolidated LoLGameStateChanged event with optional game results.
-        
-        Args:
-            player: The player whose state changed
-            previous_status: The previous game status
-            new_status: The new game status
-            game_id: The game ID
-            queue_type: The queue type
-            won: Whether the player won (if game ended with results)
-            duration_seconds: Game duration in seconds (if game ended with results)
-            champion_played: Champion that was played (if game ended with results)
-        """
-        try:
-            is_game_start = previous_status == GameStatus.NOT_IN_GAME and new_status == GameStatus.IN_GAME
-            is_game_end = previous_status == GameStatus.IN_GAME and new_status == GameStatus.NOT_IN_GAME
-            
-            if player.id is None or player.puuid is None:
-                logger.error(f"Player {player.game_name}#{player.tag_line} missing required fields")
-                return
-                
-            await self.event_publisher.publish_game_state_changed(
-                player_id=player.id,
-                game_name=player.game_name,
-                tag_line=player.tag_line,
-                puuid=player.puuid,
-                previous_status=previous_status.value,
-                new_status=new_status.value,
-                game_id=game_id,
-                queue_type=queue_type.value if queue_type else None,
-                changed_at=datetime.utcnow(),
-                is_game_start=is_game_start,
-                is_game_end=is_game_end,
-                won=won,
-                duration_seconds=duration_seconds,
-                champion_played=champion_played
-            )
-            
-            event_desc = f"{previous_status.value} -> {new_status.value}"
-            if is_game_end and won is not None:
-                result_desc = "Won" if won else "Lost"
-                event_desc += f" ({result_desc} as {champion_played})"
-            
-            logger.debug(
-                f"Published consolidated LoLGameStateChanged event for player {player.id}: {event_desc}"
-            )
-            
-        except Exception as e:
-            logger.error(
-                f"Failed to publish LoLGameStateChanged event for player "
-                f"{player.id}: {e}"
-            )
-            # Don't re-raise to avoid breaking the main flow

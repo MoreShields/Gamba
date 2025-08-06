@@ -5,6 +5,8 @@ import time
 from typing import Optional, Dict, Any, Union
 from dataclasses import dataclass
 
+from lol_tracker.core.enums import QueueType, GameType
+
 import httpx
 import structlog
 
@@ -51,18 +53,8 @@ class CurrentGameInfo:
     @property
     def queue_type(self) -> str:
         """Get a readable queue type name."""
-        queue_map = {
-            420: "RANKED_SOLO_5x5",
-            440: "RANKED_FLEX_SR",
-            450: "ARAM",
-            400: "NORMAL_DRAFT",
-            430: "NORMAL_BLIND",
-            700: "CLASH",
-            1700: "ARENA",
-        }
-        return queue_map.get(
-            self.game_queue_config_id, f"QUEUE_{self.game_queue_config_id}"
-        )
+        qt = QueueType.from_queue_id(self.game_queue_config_id)
+        return qt.value if qt else f"QUEUE_{self.game_queue_config_id}"
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dict format expected by transition service."""
@@ -97,15 +89,8 @@ class CurrentTFTGameInfo:
     @property
     def queue_type(self) -> str:
         """Get a readable queue type name."""
-        queue_map = {
-            1090: "RANKED_TFT",
-            1100: "RANKED_TFT_TURBO",
-            1130: "RANKED_TFT_DOUBLE_UP",
-            1160: "NORMAL_TFT",
-        }
-        return queue_map.get(
-            self.game_queue_config_id, f"QUEUE_{self.game_queue_config_id}"
-        )
+        qt = QueueType.from_queue_id(self.game_queue_config_id)
+        return qt.value if qt else f"QUEUE_{self.game_queue_config_id}"
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dict format expected by transition service."""
@@ -374,13 +359,7 @@ class RiotAPIClient:
         except SummonerNotFoundError:
             logger.info("Summoner not found", game_name=game_name, tag_line=tag_line)
             raise SummonerNotFoundError(f"Summoner not found: {game_name}#{tag_line}")
-        except Exception as e:
-            logger.error(
-                "Error fetching summoner",
-                game_name=game_name,
-                tag_line=tag_line,
-                error=str(e),
-            )
+        except Exception:
             raise
 
     async def get_current_lol_game_info(
@@ -425,14 +404,7 @@ class RiotAPIClient:
 
         except PlayerNotInGameError:
             raise
-        except Exception as e:
-            logger.error(
-                "Error fetching current game info",
-                game_name=game_name,
-                puuid=puuid,
-                tag_line=tag_line,
-                error=str(e),
-            )
+        except Exception:
             raise
 
     async def get_account_by_riot_id(
@@ -487,13 +459,7 @@ class RiotAPIClient:
                 tag_line=tag_line,
             )
             raise
-        except Exception as e:
-            logger.error(
-                "Error fetching account",
-                game_name=game_name,
-                tag_line=tag_line,
-                error=str(e),
-            )
+        except Exception:
             raise
 
 
@@ -568,13 +534,7 @@ class RiotAPIClient:
 
             return match_info
 
-        except Exception as e:
-            logger.error(
-                "Error fetching match info",
-                match_id=match_id,
-                region=region,
-                error=str(e),
-            )
+        except Exception:
             raise
 
     async def get_recent_matches(
@@ -637,13 +597,7 @@ class RiotAPIClient:
         except httpx.RequestError as e:
             logger.error("HTTP request failed", error=str(e))
             raise RiotAPIError(f"Request failed: {e}")
-        except Exception as e:
-            logger.error(
-                "Error fetching recent matches",
-                puuid=puuid,
-                region=region,
-                error=str(e),
-            )
+        except Exception:
             raise
 
     async def get_current_tft_game_info(
@@ -686,14 +640,7 @@ class RiotAPIClient:
 
         except PlayerNotInGameError:
             raise
-        except Exception as e:
-            logger.error(
-                "Error fetching current TFT game info",
-                game_name=game_name,
-                puuid=puuid,
-                tag_line=tag_line,
-                error=str(e),
-            )
+        except Exception:
             raise
 
     async def get_tft_match_info(self, match_id: str) -> TFTMatchInfo:
@@ -742,14 +689,43 @@ class RiotAPIClient:
 
             return match_info
 
-        except Exception as e:
-            logger.error(
-                "Error fetching TFT match info",
-                match_id=match_id,
-                error=str(e),
-            )
+        except Exception:
             raise
 
+    async def get_match_for_game(
+        self, game_id: str, queue_type: Optional[QueueType], region: str = "na1"
+    ) -> Optional[Union["MatchInfo", "TFTMatchInfo"]]:
+        """Get match information for a completed game based on queue type.
+        
+        This method abstracts away the complexity of determining which API to call,
+        allowing the application layer to remain game-type agnostic.
+        
+        Args:
+            game_id: The game ID to fetch
+            queue_type: QueueType enum that contains game type information
+            region: Region for API calls (default: "na1")
+            
+        Returns:
+            MatchInfo for LoL, TFTMatchInfo for TFT, or None if not found
+            
+        Raises:
+            RiotAPIError: For API errors
+        """
+        if not queue_type:
+            return None
+        
+        # Convert game_id to match_id format
+        match_id = f"{region.upper()}_{game_id}"
+        
+        # Call appropriate API based on game type
+        if queue_type.game_type == GameType.LOL:
+            return await self.get_match_info(match_id, region)
+        elif queue_type.game_type == GameType.TFT:
+            return await self.get_tft_match_info(match_id)
+        else:
+            logger.warning(f"Unknown game type: {queue_type.game_type}")
+            return None
+    
     async def get_active_game_info(
         self, puuid: str, game_name: str, tag_line: str
     ) -> Optional[Union[CurrentGameInfo, CurrentTFTGameInfo]]:
@@ -770,76 +746,22 @@ class RiotAPIClient:
             RateLimitError: If rate limited
             RiotAPIError: For other API errors (but not PlayerNotInGameError)
         """
-        # Create tasks for both API calls
-        lol_task = asyncio.create_task(
-            self.get_current_lol_game_info(puuid, game_name, tag_line)
-        )
-        tft_task = asyncio.create_task(
-            self.get_current_tft_game_info(puuid, game_name, tag_line)
+        # Check both LoL and TFT endpoints in parallel
+        results = await asyncio.gather(
+            self.get_current_lol_game_info(puuid, game_name, tag_line),
+            self.get_current_tft_game_info(puuid, game_name, tag_line),
+            return_exceptions=True
         )
         
-        # Gather results from both tasks
-        lol_result = None
-        tft_result = None
-        lol_error = None
-        tft_error = None
+        # Return first successful result
+        for result in results:
+            if not isinstance(result, Exception):
+                return result
         
-        try:
-            # Wait for both tasks to complete
-            done, _ = await asyncio.wait(
-                [lol_task, tft_task], return_when=asyncio.ALL_COMPLETED
-            )
-            
-            # Process results from both tasks
-            for task in done:
-                try:
-                    result = task.result()
-                    if task == lol_task:
-                        lol_result = result
-                    else:
-                        tft_result = result
-                except PlayerNotInGameError as e:
-                    # Expected error - player not in this game type
-                    if task == lol_task:
-                        lol_error = e
-                    else:
-                        tft_error = e
-                except Exception as e:
-                    # Unexpected error - should be re-raised unless other succeeds
-                    if task == lol_task:
-                        lol_error = e
-                    else:
-                        tft_error = e
-            
-            # Return first successful result
-            if lol_result:
-                return lol_result
-            if tft_result:
-                return tft_result
-            
-            # If both failed with PlayerNotInGameError, return None
-            if isinstance(lol_error, PlayerNotInGameError) and isinstance(tft_error, PlayerNotInGameError):
-                return None
-            
-            # If one had an unexpected error, raise it
-            if lol_error and not isinstance(lol_error, PlayerNotInGameError):
-                raise lol_error
-            if tft_error and not isinstance(tft_error, PlayerNotInGameError):
-                raise tft_error
-            
-            # Default case: no game found
-            return None
-            
-        except Exception as e:
-            # Cancel any remaining tasks on error
-            lol_task.cancel()
-            tft_task.cancel()
-            try:
-                await lol_task
-            except (asyncio.CancelledError, Exception):
-                pass
-            try:
-                await tft_task
-            except (asyncio.CancelledError, Exception):
-                pass
-            raise
+        # Re-raise any non-PlayerNotInGameError exceptions
+        for result in results:
+            if isinstance(result, Exception) and not isinstance(result, PlayerNotInGameError):
+                raise result
+        
+        # Both endpoints returned PlayerNotInGameError - player is not in any game
+        return None

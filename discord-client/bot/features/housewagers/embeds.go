@@ -319,10 +319,16 @@ func CreateHouseWagerResolvedEmbed(houseWager dto.HouseWagerPostDTO, winningOpti
 		resultValue += "\n*No winners - House keeps all bets*"
 	}
 
+	// Add blank field for spacing
+	embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
+		Name:   "\u200b",
+		Value:  "",
+		Inline: false,
+	})
+
 	// Add resolution information
 	embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
-		Name:   "🎉 Result",
-		Value:  resultValue,
+		Value:  fmt.Sprintf("🎉 Result: %s", resultValue),
 		Inline: false,
 	})
 

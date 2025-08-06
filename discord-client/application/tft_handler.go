@@ -25,6 +25,28 @@ func NewTFTHandler(
 	}
 }
 
+// formatTFTQueueType converts TFT queue type strings to user-friendly display names
+func formatTFTQueueType(queueType string) string {
+	switch queueType {
+	case "TFT_RANKED":
+		return "Ranked TFT"
+	case "TFT_NORMAL":
+		return "Normal TFT"
+	case "TFT_HYPER_ROLL":
+		return "Hyper Roll"
+	case "TFT_DOUBLE_UP":
+		return "Double Up"
+	case "TFT_NORMAL_HYPER_ROLL":
+		return "Normal Hyper Roll"
+	case "TFT_NORMAL_DOUBLE_UP":
+		return "Normal Double Up"
+	case "TFT_TUTORIAL":
+		return "Tutorial"
+	default:
+		return "TFT Match"
+	}
+}
+
 // HandleGameStarted creates house wagers when a TFT game starts
 func (h *TFTHandlerImpl) HandleGameStarted(ctx context.Context, gameStarted dto.TFTGameStartedDTO) error {
 	log.WithFields(log.Fields{
@@ -55,8 +77,8 @@ func (h *TFTHandlerImpl) HandleGameStarted(ctx context.Context, gameStarted dto.
 
 	// Create a house wager for each watching guild
 	for _, guild := range guilds {
-		// Format the condition without external match URL initially
-		condition := fmt.Sprintf("%s - **TFT Match**", gameStarted.SummonerName)
+		// Format the condition with the queue type
+		condition := fmt.Sprintf("%s - **%s**", gameStarted.SummonerName, formatTFTQueueType(gameStarted.QueueType))
 
 		config := WagerCreationConfig{
 			ExternalSystem:      entities.SystemTFT,

@@ -23,10 +23,14 @@ from lol_tracker.adapters.database.manager import DatabaseManager
 from lol_tracker.adapters.riot_api.client import RiotAPIClient
 from lol_tracker.adapters.messaging.events import MockEventPublisher
 from lol_tracker.application.polling_service import PollingService
-from lol_tracker.proto.services import summoner_service_pb2_grpc
+from lol_tracker.proto.services import summoner_service_pb2_grpc, summoner_service_pb2
+from lol_tracker.proto.events import lol_events_pb2, tft_events_pb2
 from mock_riot_api.mock_riot_server import MockRiotAPIServer
 from mock_riot_api.control import MockRiotControlClient
 import grpc
+import asyncio
+from sqlalchemy import text
+from lol_tracker.proto.services import summoner_service_pb2
 
 
 @pytest.fixture(scope="session")
@@ -178,3 +182,143 @@ async def mock_riot_control():
     client = MockRiotControlClient("http://localhost:8081")
     await client.reset_server()
     return client
+
+
+class BaseE2ETest:
+    """Base class for E2E tracker tests with common utilities."""
+    
+    async def setup_test_environment(self, mock_riot_control, mock_event_publisher, database_manager):
+        """Clean slate setup for each test."""
+        await self._cleanup_database(database_manager)
+        await mock_riot_control.reset_server()
+        mock_event_publisher.published_messages.clear()
+    
+    async def _cleanup_database(self, database_manager):
+        """Clean up database from previous tests."""
+        async with database_manager.get_session() as session:
+            await session.execute(text("DELETE FROM game_states"))
+            await session.execute(text("DELETE FROM tracked_players"))
+            await session.commit()
+    
+    async def create_test_player(self, mock_riot_control, game_name: str, tag_line: str, puuid: str):
+        """Create a test player in the mock Riot API."""
+        player_data = await mock_riot_control.create_player(game_name, tag_line, puuid)
+        assert player_data["puuid"] == puuid
+        return player_data
+    
+    async def track_summoner_via_grpc(self, grpc_client, game_name: str, tag_line: str, expected_puuid: str):
+        """Track a summoner via gRPC and verify the response."""
+        request = summoner_service_pb2.StartTrackingSummonerRequest(
+            game_name=game_name,
+            tag_line=tag_line
+        )
+        response = await grpc_client.StartTrackingSummoner(request)
+        assert response.success is True
+        assert response.summoner_details.puuid == expected_puuid
+        return response
+    
+    async def verify_player_tracked_in_db(self, database_manager, puuid: str, game_name: str, tag_line: str):
+        """Verify player is properly tracked in the database."""
+        tracked_player = await database_manager.get_tracked_player_by_puuid(puuid)
+        assert tracked_player is not None
+        assert tracked_player.game_name == game_name
+        assert tracked_player.tag_line == tag_line
+        return tracked_player
+    
+    async def wait_for_polling_cycle(self, wait_time: float = 2.0):
+        """Wait for automatic polling to detect changes."""
+        await asyncio.sleep(wait_time)
+    
+    def find_events_by_type(self, mock_event_publisher, event_filter):
+        """Find events matching a given filter function."""
+        return [e for e in mock_event_publisher.published_messages if event_filter(e)]
+    
+    def find_game_state_events(self, mock_event_publisher):
+        """Find all game state change events."""
+        return self.find_events_by_type(
+            mock_event_publisher, 
+            lambda e: "state_changed" in e.get("subject", "")
+        )
+    
+    def find_game_end_events(self, mock_event_publisher):
+        """Find all game end events."""
+        # With protobuf messages, we need to check the actual message content
+        game_end_events = []
+        for msg in mock_event_publisher.published_messages:
+            pb_msg = msg["protobuf_message"]
+            # Check if this is a game end event by looking at status transition
+            if hasattr(pb_msg, 'previous_status') and hasattr(pb_msg, 'current_status'):
+                # For LoL events
+                if msg["message_type"] == "LoLGameStateChanged":
+                    if (pb_msg.previous_status == lol_events_pb2.GAME_STATUS_IN_GAME and 
+                        pb_msg.current_status == lol_events_pb2.GAME_STATUS_NOT_IN_GAME):
+                        game_end_events.append(msg)
+                # For TFT events
+                elif msg["message_type"] == "TFTGameStateChanged":
+                    if (pb_msg.previous_status == tft_events_pb2.TFT_GAME_STATUS_IN_GAME and 
+                        pb_msg.current_status == tft_events_pb2.TFT_GAME_STATUS_NOT_IN_GAME):
+                        game_end_events.append(msg)
+        return game_end_events
+    
+    def assert_game_start_event(self, event, game_id: str):
+        """Assert that an event represents a proper game start."""
+        pb_msg = event["protobuf_message"]
+        
+        # Check status transition based on message type
+        if event["message_type"] == "LoLGameStateChanged":
+            assert pb_msg.previous_status == lol_events_pb2.GAME_STATUS_NOT_IN_GAME
+            assert pb_msg.current_status == lol_events_pb2.GAME_STATUS_IN_GAME
+        elif event["message_type"] == "TFTGameStateChanged":
+            assert pb_msg.previous_status == tft_events_pb2.TFT_GAME_STATUS_NOT_IN_GAME
+            assert pb_msg.current_status == tft_events_pb2.TFT_GAME_STATUS_IN_GAME
+        
+        assert pb_msg.game_id == game_id
+    
+    def assert_game_end_event(self, event, game_id: str = None):
+        """Assert that an event represents a proper game end."""
+        pb_msg = event["protobuf_message"]
+        
+        # Check status transition based on message type
+        if event["message_type"] == "LoLGameStateChanged":
+            assert pb_msg.previous_status == lol_events_pb2.GAME_STATUS_IN_GAME
+            assert pb_msg.current_status == lol_events_pb2.GAME_STATUS_NOT_IN_GAME
+        elif event["message_type"] == "TFTGameStateChanged":
+            assert pb_msg.previous_status == tft_events_pb2.TFT_GAME_STATUS_IN_GAME
+            assert pb_msg.current_status == tft_events_pb2.TFT_GAME_STATUS_NOT_IN_GAME
+        
+        if game_id:
+            assert pb_msg.game_id == game_id
+    
+    def assert_game_result_present(self, event):
+        """Assert that game result data is present in the event."""
+        pb_msg = event["protobuf_message"]
+        
+        # Check if game_result is present and populated
+        assert hasattr(pb_msg, 'game_result')
+        assert pb_msg.HasField('game_result')
+        
+        # Return a dictionary representation of the game result for easier testing
+        game_result = pb_msg.game_result
+        result_dict = {}
+        
+        if event["message_type"] == "LoLGameStateChanged":
+            result_dict["won"] = game_result.won
+            result_dict["duration_seconds"] = game_result.duration_seconds
+            result_dict["champion_played"] = game_result.champion_played
+            if game_result.queue_type:
+                result_dict["queue_type"] = game_result.queue_type
+        elif event["message_type"] == "TFTGameStateChanged":
+            result_dict["placement"] = game_result.placement
+            result_dict["duration_seconds"] = game_result.duration_seconds
+            result_dict["won"] = game_result.placement <= 4  # Top 4 is a win in TFT
+        
+        return result_dict
+    
+    async def verify_game_state_in_db(self, database_manager, tracked_player, expected_status: str, expected_game_id: str = None):
+        """Verify game state is correctly stored in database."""
+        game_state = await database_manager.get_latest_game_state_for_player(tracked_player.id)
+        assert game_state is not None
+        assert game_state.status.value == expected_status
+        if expected_game_id:
+            assert game_state.game_id == expected_game_id
+        return game_state

@@ -17,7 +17,7 @@ from sqlalchemy.orm import selectinload
 
 from ...config import Config
 from .models import Base, TrackedPlayer as TrackedPlayerModel, GameState as GameStateModel
-from ...core.entities import Player, GameState, LoLGameResult
+from ...core.entities import Player, GameState
 from ...core.enums import GameStatus, QueueType
 
 logger = logging.getLogger(__name__)
@@ -107,22 +107,22 @@ class DatabaseManager:
         Returns:
             Core GameState entity
         """
-        # Create game result if we have result data
-        game_result = None
-        if (gamestate_record.won is not None and 
-            gamestate_record.duration_seconds is not None and 
-            gamestate_record.champion_played is not None):
-            game_result = LoLGameResult(
-                won=gamestate_record.won,
-                duration_seconds=gamestate_record.duration_seconds,
-                champion_played=gamestate_record.champion_played
-            )
+        # Parse queue type
+        queue_type = None
+        if gamestate_record.queue_type:
+            queue_type = QueueType.from_string(gamestate_record.queue_type)
+        
+        # Let the domain entity handle game result parsing
+        game_result = GameState.parse_game_result(
+            queue_type, 
+            gamestate_record.game_result_data
+        )
         
         return GameState(
             status=GameStatus(gamestate_record.status),
             player_id=gamestate_record.player_id,
             game_id=gamestate_record.game_id,
-            queue_type=QueueType(gamestate_record.queue_type) if gamestate_record.queue_type else None,
+            queue_type=queue_type,
             game_result=game_result,
             created_at=gamestate_record.created_at,
             game_start_time=gamestate_record.game_start_time,
@@ -216,22 +216,31 @@ class DatabaseManager:
     async def update_game_result(
         self,
         game_state_id: int,
-        won: bool,
-        duration_seconds: int,
-        champion_played: str,
+        game_result_data: dict,
         game_end_time: Optional[datetime] = None,
     ) -> bool:
-        """Update game result information."""
+        """Update game result information.
+        
+        Args:
+            game_state_id: ID of the game state to update
+            game_result_data: Dictionary containing game result data
+                             (will be stored as JSON)
+            game_end_time: Optional game end time
+        
+        Returns:
+            True if update was successful
+        """
         async with self.get_session() as session:
+            update_values = {
+                "game_result_data": game_result_data,
+                "duration_seconds": game_result_data.get("duration_seconds"),
+                "game_end_time": game_end_time or datetime.utcnow(),
+            }
+            
             result = await session.execute(
                 update(GameStateModel)
                 .where(GameStateModel.id == game_state_id)
-                .values(
-                    won=won,
-                    duration_seconds=duration_seconds,
-                    champion_played=champion_played,
-                    game_end_time=game_end_time or datetime.utcnow(),
-                )
+                .values(**update_values)
             )
             await session.commit()
             return result.rowcount > 0

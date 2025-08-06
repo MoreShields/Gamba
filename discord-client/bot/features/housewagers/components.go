@@ -143,7 +143,7 @@ func (f *Feature) handleHouseWagerBetButton(s *discordgo.Session, i *discordgo.I
 	}
 
 	// Create betting modal
-	modal := f.createHouseWagerBetModal(wagerID, optionID, selectedOption.OptionText, selectedOption.OddsMultiplier)
+	modal := f.createHouseWagerBetModal(wagerID, optionID, selectedOption.OptionText, selectedOption.OddsMultiplier, wagerDetail.Wager.Condition)
 
 	// Respond with modal
 	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -160,10 +160,28 @@ func (f *Feature) handleHouseWagerBetButton(s *discordgo.Session, i *discordgo.I
 }
 
 // createHouseWagerBetModal creates a modal for betting on a house wager option
-func (f *Feature) createHouseWagerBetModal(wagerID, optionID int64, optionText string, multiplier float64) *discordgo.InteractionResponseData {
+func (f *Feature) createHouseWagerBetModal(wagerID, optionID int64, optionText string, multiplier float64, condition string) *discordgo.InteractionResponseData {
+	// Extract the first line of the condition for context (summoner name and game type)
+	var wagerContext string
+	if idx := strings.Index(condition, "\n"); idx > 0 {
+		wagerContext = condition[:idx]
+	} else {
+		wagerContext = condition
+	}
+
+	// Create a more informative title
+	title := fmt.Sprintf("Bet: %s", optionText)
+	if wagerContext != "" {
+		title = fmt.Sprintf("%s - %s", wagerContext, optionText)
+		// Truncate if too long (Discord limit is 45 chars for modal title)
+		if len(title) > 45 {
+			title = fmt.Sprintf("Bet: %s", optionText)
+		}
+	}
+
 	return &discordgo.InteractionResponseData{
 		CustomID: fmt.Sprintf("house_wager_bet_modal_%d_%d", wagerID, optionID),
-		Title:    fmt.Sprintf("Bet on: %s", optionText),
+		Title:    title,
 		Components: []discordgo.MessageComponent{
 			discordgo.ActionsRow{
 				Components: []discordgo.MessageComponent{

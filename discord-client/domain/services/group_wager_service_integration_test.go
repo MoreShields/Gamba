@@ -283,14 +283,18 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 		user9, err := userRepo.Create(ctx, 999111, "user9", 100000)
 		require.NoError(t, err)
 
-		// Create another resolver (999998 is already in test config)
+		// Create primary resolver (999991 is in test config)
+		resolver1, err := userRepo.Create(ctx, 999991, "resolver1", 100000)
+		require.NoError(t, err)
+		
+		// Create another resolver (999998 is also in test config)
 		resolver2, err := userRepo.Create(ctx, 999998, "resolver2", 100000)
 		require.NoError(t, err)
 
 		// Create group wager
 		votingEndsAt := time.Now().Add(24 * time.Hour)
 		groupWager := &entities.GroupWager{
-			CreatorDiscordID:    &[]int64{999999}[0],
+			CreatorDiscordID:    &resolver1.DiscordID,
 			Condition:           "Concurrent test wager",
 			State:               entities.GroupWagerStateActive,
 			WagerType:           entities.GroupWagerTypePool,
@@ -324,8 +328,7 @@ func TestGroupWagerResolution_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// First resolution should succeed
-		resolverID := int64(999999)
-		result1, err1 := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, &resolverID, optionAID)
+		result1, err1 := groupWagerService.ResolveGroupWager(ctx, groupWager.ID, &resolver1.DiscordID, optionAID)
 		require.NoError(t, err1)
 		require.NotNil(t, result1)
 

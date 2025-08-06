@@ -32,13 +32,11 @@ func TestHouseWager_Integration(t *testing.T) {
 	eventPublisher := &testhelpers.MockEventPublisher{}
 	eventPublisher.On("Publish", mock.Anything).Return(nil)
 
-	// Set up config with resolver IDs
+	// Verify config is set up properly by TestMain
+	// The test config already includes 999999 as a resolver ID
 	cfg := config.Get()
-	originalResolvers := cfg.ResolverDiscordIDs
-	cfg.ResolverDiscordIDs = []int64{999999}
-	defer func() {
-		cfg.ResolverDiscordIDs = originalResolvers
-	}()
+	require.NotNil(t, cfg)
+	require.Contains(t, cfg.ResolverDiscordIDs, int64(999999), "Test config should include 999999 as a resolver")
 
 	// Create service
 	// Note: This integration test will need to be updated once the repository

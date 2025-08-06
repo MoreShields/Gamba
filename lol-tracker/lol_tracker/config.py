@@ -42,9 +42,11 @@ class Config:
     message_bus_reconnect_delay_seconds: int = 2
     tracking_events_subject: str = "lol.tracking"
     game_state_events_subject: str = "lol.gamestate"
+    tft_game_state_events_subject: str = "tft.gamestate"
 
     # JetStream configuration
     lol_events_stream: str = "lol_events"
+    tft_events_stream: str = "tft_events"
     tracking_events_stream: str = "tracking_events"
     jetstream_max_age_hours: int = 24
     jetstream_max_msgs_lol: int = 1000000
@@ -63,90 +65,58 @@ class Config:
     @classmethod
     def from_env(cls) -> "Config":
         """Create configuration from environment variables."""
+        # Helper function to simplify config calls
+        def get_config(key: str, default=None, cast=None):
+            if default is not None:
+                if cast is not None:
+                    return config(key, default=default, cast=cast)
+                else:
+                    return config(key, default=default)
+            else:
+                return config(key)
+        
         env = Environment(
-            config(
-                "ENVIRONMENT",
-                default="development",
-                cast=Choices(["development", "CI", "production"]),
-            )
+            get_config("ENVIRONMENT", "development", Choices(["development", "CI", "production"]))
         )
 
         # Environment-specific defaults
-        default_message_bus = (
-            "nats://nats:4222"
-            if env == Environment.PRODUCTION
-            else "nats://localhost:4222"
-        )
+        default_message_bus = "nats://nats:4222" if env == Environment.PRODUCTION else "nats://localhost:4222"
 
         return cls(
             # Required
-            database_url=config("DATABASE_URL"),
-            database_name=config("DATABASE_NAME", "lol_tracker_db"),
-            riot_api_key=config("RIOT_API_KEY"),
+            database_url=get_config("DATABASE_URL"),
+            database_name=get_config("DATABASE_NAME", "lol_tracker_db"),
+            riot_api_key=get_config("RIOT_API_KEY"),
             # Environment
             environment=env,
             # Riot API
-            riot_api_url=config(
-                "RIOT_API_URL", default="https://na1.api.riotgames.com"
-            ),
-            riot_api_timeout_seconds=config(
-                "RIOT_API_TIMEOUT_SECONDS", default=30, cast=int
-            ),
+            riot_api_url=get_config("RIOT_API_URL", "https://na1.api.riotgames.com"),
+            riot_api_timeout_seconds=get_config("RIOT_API_TIMEOUT_SECONDS", 30, int),
             # Polling
-            poll_interval_seconds=config("POLL_INTERVAL_SECONDS", default=60, cast=int),
+            poll_interval_seconds=get_config("POLL_INTERVAL_SECONDS", 60, int),
             # Message bus
-            message_bus_url=config("MESSAGE_BUS_URL", default=default_message_bus),
-            message_bus_timeout_seconds=config(
-                "MESSAGE_BUS_TIMEOUT_SECONDS", default=10, cast=int
-            ),
-            message_bus_max_reconnect_attempts=config(
-                "MESSAGE_BUS_MAX_RECONNECT_ATTEMPTS", default=10, cast=int
-            ),
-            message_bus_reconnect_delay_seconds=config(
-                "MESSAGE_BUS_RECONNECT_DELAY_SECONDS", default=2, cast=int
-            ),
-            tracking_events_subject=config(
-                "TRACKING_EVENTS_SUBJECT", default="lol.tracking"
-            ),
-            game_state_events_subject=config(
-                "GAME_STATE_EVENTS_SUBJECT", default="lol.gamestate"
-            ),
+            message_bus_url=get_config("MESSAGE_BUS_URL", default_message_bus),
+            message_bus_timeout_seconds=get_config("MESSAGE_BUS_TIMEOUT_SECONDS", 10, int),
+            message_bus_max_reconnect_attempts=get_config("MESSAGE_BUS_MAX_RECONNECT_ATTEMPTS", 10, int),
+            message_bus_reconnect_delay_seconds=get_config("MESSAGE_BUS_RECONNECT_DELAY_SECONDS", 2, int),
+            tracking_events_subject=get_config("TRACKING_EVENTS_SUBJECT", "lol.tracking"),
+            game_state_events_subject=get_config("GAME_STATE_EVENTS_SUBJECT", "lol.gamestate"),
+            tft_game_state_events_subject=get_config("TFT_GAME_STATE_EVENTS_SUBJECT", "tft.gamestate"),
             # JetStream
-            lol_events_stream=config("LOL_EVENTS_STREAM", default="lol_events"),
-            tracking_events_stream=config(
-                "TRACKING_EVENTS_STREAM", default="tracking_events"
-            ),
-            jetstream_max_age_hours=config(
-                "JETSTREAM_MAX_AGE_HOURS", default=24, cast=int
-            ),
-            jetstream_max_msgs_lol=config(
-                "JETSTREAM_MAX_MSGS_LOL", default=1000000, cast=int
-            ),
-            jetstream_max_msgs_tracking=config(
-                "JETSTREAM_MAX_MSGS_TRACKING", default=100000, cast=int
-            ),
-            jetstream_storage=config("JETSTREAM_STORAGE", default="file"),
+            lol_events_stream=get_config("LOL_EVENTS_STREAM", "lol_events"),
+            tft_events_stream=get_config("TFT_EVENTS_STREAM", "tft_events"),
+            tracking_events_stream=get_config("TRACKING_EVENTS_STREAM", "tracking_events"),
+            jetstream_max_age_hours=get_config("JETSTREAM_MAX_AGE_HOURS", 24, int),
+            jetstream_max_msgs_lol=get_config("JETSTREAM_MAX_MSGS_LOL", 1000000, int),
+            jetstream_max_msgs_tracking=get_config("JETSTREAM_MAX_MSGS_TRACKING", 100000, int),
+            jetstream_storage=get_config("JETSTREAM_STORAGE", "file"),
             # Logging
-            log_level=config(
-                "LOG_LEVEL",
-                default="INFO",
-                cast=lambda x: Choices(
-                    ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-                )(x.upper()),
-            ),
-            log_format=config(
-                "LOG_FORMAT",
-                default="json",
-                cast=lambda x: Choices(["json", "text"])(x.lower()),
-            ),
+            log_level=get_config("LOG_LEVEL", "INFO"),
+            log_format=get_config("LOG_FORMAT", "json", Choices(["json", "text"])),
             # gRPC server
-            grpc_server_port=config("GRPC_SERVER_PORT", default=9000, cast=int),
-            grpc_server_max_workers=config(
-                "GRPC_SERVER_MAX_WORKERS", default=10, cast=int
-            ),
-            grpc_server_reflection=config(
-                "GRPC_SERVER_REFLECTION", default=True, cast=bool
-            ),
+            grpc_server_port=get_config("GRPC_SERVER_PORT", 9000, int),
+            grpc_server_max_workers=get_config("GRPC_SERVER_MAX_WORKERS", 10, int),
+            grpc_server_reflection=get_config("GRPC_SERVER_REFLECTION", True, bool),
         )
 
     def is_development(self) -> bool:

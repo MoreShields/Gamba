@@ -11,14 +11,6 @@ enum TFTGameStatus {
   TFT_GAME_STATUS_IN_GAME = 1;         // Currently in a TFT match
 }
 
-// TFT queue types enum
-enum TFTQueueType {
-  TFT_QUEUE_TYPE_UNKNOWN = 0;          // Unknown queue type
-  TFT_QUEUE_TYPE_RANKED_TFT = 1;       // Ranked Teamfight Tactics games
-  TFT_QUEUE_TYPE_RANKED_TFT_DOUBLE_UP = 2;  // Ranked Teamfight Tactics (Double Up Workshop) games
-  TFT_QUEUE_TYPE_RANKED_TFT_TURBO = 3;      // Ranked Teamfight Tactics (Hyper Roll) games
-}
-
 // Events emitted from tft-tracker
 message TFTGameStateChanged {
   string game_name = 1;                // Summoner game name (e.g., "Faker")
@@ -29,7 +21,7 @@ message TFTGameStateChanged {
   
   // Game context
   string game_id = 5;                  // Riot game ID
-  TFTQueueType queue_type = 6;         // Type of TFT game
+  string queue_type = 6;               // Type of TFT game (e.g., "TFT_RANKED", "TFT_NORMAL")
   
   // Game metadata (populated when transitioning out of IN_GAME)
   optional TFTGameResult game_result = 7; // TFT-specific game result
