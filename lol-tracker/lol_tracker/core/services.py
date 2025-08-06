@@ -3,7 +3,7 @@
 from typing import Optional, Dict, Any
 from datetime import datetime
 
-from .entities import Player, GameState
+from .entities import Player, GameState, LoLGameResult
 from .enums import GameStatus, QueueType
 
 
@@ -54,9 +54,7 @@ class GameStateTransitionService:
             player_id=current_state.player_id,
             game_id=current_state.game_id,  # Keep game_id for result updates
             queue_type=current_state.queue_type,
-            won=current_state.won,
-            duration_seconds=current_state.duration_seconds,
-            champion_played=current_state.champion_played,
+            game_result=current_state.game_result,  # Keep any existing game result
             game_start_time=current_state.game_start_time,
             game_end_time=datetime.utcnow()
         )
@@ -150,7 +148,13 @@ class GameStateTransitionService:
             game_state.champion_played == champion_played):
             return False
         
-        game_state.update_game_result(won, duration_seconds, champion_played)
+        # Create LoLGameResult and update
+        game_result = LoLGameResult(
+            won=won,
+            duration_seconds=duration_seconds,
+            champion_played=champion_played
+        )
+        game_state.update_game_result(game_result)
         return True
     
     def validate_state(self, player: Player, game_state: GameState) -> bool:

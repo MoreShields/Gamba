@@ -12,7 +12,7 @@ import asyncio
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 
-from ..core.entities import Player, GameState
+from ..core.entities import Player, GameState, LoLGameResult
 from ..core.enums import GameStatus, QueueType
 from ..core.services import GameStateTransitionService
 from ..adapters.database.manager import DatabaseManager
@@ -308,19 +308,12 @@ class PollingService:
             if player.puuid is None:
                 logger.warning(f"Player {player.riot_id} has no PUUID")
                 return None
-            current_game = await self.riot_api.get_current_game_info(player.puuid, player.game_name, player.tag_line)
-            # Convert to raw dict format expected by domain service
-            return {
-                "gameId": int(current_game.game_id),
-                "gameQueueConfigId": current_game.game_queue_config_id,
-                "gameStartTime": current_game.game_start_time,
-                "gameLength": current_game.game_length,
-                "gameType": current_game.game_type,
-                "gameMode": current_game.game_mode,
-                "mapId": current_game.map_id,
-                "platformId": current_game.platform_id,
-                "participants": current_game.participants
-            }
+            # Use the parallel checking method that tries both LoL and TFT
+            current_game = await self.riot_api.get_active_game_info(player.puuid, player.game_name, player.tag_line)
+            if current_game:
+                # Use the polymorphic to_dict method
+                return current_game.to_dict()
+            return None
         except PlayerNotInGameError:
             # Expected when player is not in game
             return None
@@ -363,11 +356,12 @@ class PollingService:
                 return
             
             # Update the game state with match results
-            game_state.update_game_result(
+            game_result = LoLGameResult(
                 won=participant_result["won"],
                 duration_seconds=match_info.game_duration,
                 champion_played=participant_result["champion_name"]
             )
+            game_state.update_game_result(game_result)
             
             logger.info(
                 f"Immediately fetched match result for {player.riot_id}: "

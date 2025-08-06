@@ -2,7 +2,7 @@
 
 import asyncio
 import time
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 from dataclasses import dataclass
 from enum import Enum
 
@@ -64,6 +64,89 @@ class CurrentGameInfo:
         return queue_map.get(
             self.game_queue_config_id, f"QUEUE_{self.game_queue_config_id}"
         )
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dict format expected by transition service."""
+        return {
+            "gameId": int(self.game_id),
+            "gameQueueConfigId": self.game_queue_config_id,
+            "gameStartTime": self.game_start_time,
+            "gameLength": self.game_length,
+            "gameType": self.game_type,
+            "gameMode": self.game_mode,
+            "mapId": self.map_id,
+            "platformId": self.platform_id,
+            "participants": self.participants,
+            "game_type": "LOL"  # Marker for polymorphism
+        }
+
+
+@dataclass
+class CurrentTFTGameInfo:
+    """Current TFT game information from TFT Spectator API."""
+
+    game_id: str
+    game_type: str
+    game_start_time: int
+    map_id: int
+    game_length: int
+    platform_id: str
+    game_mode: str
+    game_queue_config_id: int
+    participants: list[Dict[str, Any]]
+
+    @property
+    def queue_type(self) -> str:
+        """Get a readable queue type name."""
+        queue_map = {
+            1090: "RANKED_TFT",
+            1100: "RANKED_TFT_TURBO",
+            1130: "RANKED_TFT_DOUBLE_UP",
+            1160: "NORMAL_TFT",
+        }
+        return queue_map.get(
+            self.game_queue_config_id, f"QUEUE_{self.game_queue_config_id}"
+        )
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dict format expected by transition service."""
+        return {
+            "gameId": int(self.game_id),
+            "gameQueueConfigId": self.game_queue_config_id,
+            "gameStartTime": self.game_start_time,
+            "gameLength": self.game_length,
+            "gameType": self.game_type,
+            "gameMode": self.game_mode,
+            "mapId": self.map_id,
+            "platformId": self.platform_id,
+            "participants": self.participants,
+            "game_type": "TFT"  # Marker for polymorphism
+        }
+
+
+@dataclass
+class TFTMatchInfo:
+    """TFT match information from TFT Match API."""
+
+    match_id: str
+    game_creation: int
+    game_datetime: int
+    game_length: float
+    game_variation: Optional[str]
+    game_version: str
+    participants: list[Dict[str, Any]]
+    queue_id: int
+    tft_game_type: Optional[str]
+    tft_set_core_name: str
+    tft_set_name: str
+    tft_set_number: int
+
+    def get_placement(self, puuid: str) -> Optional[int]:
+        """Get the player's placement (1-8) for the given PUUID."""
+        for participant in self.participants:
+            if participant.get("puuid") == puuid:
+                return participant.get("placement")
+        return None
 
 
 @dataclass
@@ -301,10 +384,10 @@ class RiotAPIClient:
             )
             raise
 
-    async def get_current_game_info(
+    async def get_current_lol_game_info(
         self, puuid: str, game_name: str, tag_line: str
     ) -> CurrentGameInfo:
-        """Get current game information for a summoner by PUUID.
+        """Get current LoL game information for a summoner by PUUID.
 
         Args:
             puuid: Player's PUUID
@@ -562,4 +645,179 @@ class RiotAPIClient:
                 region=region,
                 error=str(e),
             )
+            raise
+
+    async def get_current_tft_game_info(
+        self, puuid: str, game_name: str, tag_line: str
+    ) -> CurrentTFTGameInfo:
+        """Get current TFT game information for a summoner by PUUID.
+
+        Args:
+            puuid: Player's PUUID
+            game_name: Player's game name
+            tag_line: Player's tag line
+
+        Returns:
+            CurrentTFTGameInfo object with current TFT game details
+
+        Raises:
+            PlayerNotInGameError: If player is not currently in a TFT game
+            RateLimitError: If rate limited
+            RiotAPIError: For other API errors
+        """
+        base_url = self._get_base_url(tag_line)
+        url = f"{base_url}/lol/spectator/tft/v5/active-games/by-puuid/{puuid}"
+
+        try:
+            data = await self._make_request(url, handle_404_as="not_in_game")
+
+            current_game = CurrentTFTGameInfo(
+                game_id=str(data["gameId"]),
+                game_type=data["gameType"],
+                game_start_time=data["gameStartTime"],
+                map_id=data["mapId"],
+                game_length=data["gameLength"],
+                platform_id=data["platformId"],
+                game_mode=data["gameMode"],
+                game_queue_config_id=data["gameQueueConfigId"],
+                participants=data.get("participants", []),
+            )
+
+            return current_game
+
+        except PlayerNotInGameError:
+            raise
+        except Exception as e:
+            logger.error(
+                "Error fetching current TFT game info",
+                game_name=game_name,
+                puuid=puuid,
+                tag_line=tag_line,
+                error=str(e),
+            )
+            raise
+
+    async def get_tft_match_info(self, match_id: str) -> TFTMatchInfo:
+        """Get detailed TFT match information.
+
+        Args:
+            match_id: TFT Match ID to fetch
+
+        Returns:
+            TFTMatchInfo object with match details
+
+        Raises:
+            RateLimitError: If rate limited
+            RiotAPIError: For other API errors
+        """
+        # TFT Match API uses americas endpoint, or custom base URL if provided
+        base_url = self.base_url if self.base_url else "https://americas.api.riotgames.com"
+        url = f"{base_url}/tft/match/v1/matches/{match_id}"
+
+        logger.info("Fetching TFT match info", match_id=match_id)
+
+        try:
+            data = await self._make_request(url)
+
+            match_info = TFTMatchInfo(
+                match_id=data["metadata"]["match_id"],
+                game_creation=data["info"]["game_datetime"],
+                game_datetime=data["info"]["game_datetime"],
+                game_length=data["info"]["game_length"],
+                game_variation=data["info"].get("game_variation"),
+                game_version=data["info"]["game_version"],
+                participants=data["info"]["participants"],
+                queue_id=data["info"]["queue_id"],
+                tft_game_type=data["info"].get("tft_game_type"),
+                tft_set_core_name=data["info"]["tft_set_core_name"],
+                tft_set_name=data["info"]["tft_set_name"],
+                tft_set_number=data["info"]["tft_set_number"],
+            )
+
+            logger.info(
+                "Successfully fetched TFT match info",
+                match_id=match_id,
+                queue_id=match_info.queue_id,
+                duration=match_info.game_length,
+            )
+
+            return match_info
+
+        except Exception as e:
+            logger.error(
+                "Error fetching TFT match info",
+                match_id=match_id,
+                error=str(e),
+            )
+            raise
+
+    async def get_active_game_info(
+        self, puuid: str, game_name: str, tag_line: str
+    ) -> Optional[Union[CurrentGameInfo, CurrentTFTGameInfo]]:
+        """Get active game info by checking both LoL and TFT endpoints in parallel.
+        
+        Uses asyncio.wait with FIRST_COMPLETED to race both requests and return
+        the first active game found (or None if neither has active game).
+        
+        Args:
+            puuid: Player's PUUID
+            game_name: Player's game name  
+            tag_line: Player's tag line
+            
+        Returns:
+            CurrentGameInfo or CurrentTFTGameInfo if player is in a game, None otherwise
+            
+        Raises:
+            RateLimitError: If rate limited
+            RiotAPIError: For other API errors (but not PlayerNotInGameError)
+        """
+        # Create tasks for both API calls
+        lol_task = asyncio.create_task(
+            self.get_current_lol_game_info(puuid, game_name, tag_line)
+        )
+        tft_task = asyncio.create_task(
+            self.get_current_tft_game_info(puuid, game_name, tag_line)
+        )
+        
+        try:
+            # Wait for the first one to complete
+            done, pending = await asyncio.wait(
+                [lol_task, tft_task], return_when=asyncio.FIRST_COMPLETED
+            )
+            
+            # Cancel pending tasks
+            for task in pending:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+            
+            # Check completed task results
+            for task in done:
+                try:
+                    result = await task
+                    return result
+                except PlayerNotInGameError:
+                    # This is expected, continue to check other task or return None
+                    continue
+                except Exception:
+                    # Other errors should be re-raised
+                    raise
+            
+            # If we get here, both tasks completed with PlayerNotInGameError
+            return None
+            
+        except Exception as e:
+            # Cancel any remaining tasks on error
+            lol_task.cancel()
+            tft_task.cancel()
+            try:
+                await lol_task
+            except asyncio.CancelledError:
+                pass
+            try:
+                await tft_task
+            except asyncio.CancelledError:
+                pass
             raise
