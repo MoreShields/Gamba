@@ -16,7 +16,9 @@ from sqlalchemy import select, update, delete
 from sqlalchemy.orm import selectinload
 
 from ...config import Config
-from .models import Base, TrackedPlayer, GameState
+from .models import Base, TrackedPlayer as TrackedPlayerModel, GameState as GameStateModel
+from ...core.entities import Player, GameState
+from ...core.enums import GameStatus, QueueType
 
 logger = logging.getLogger(__name__)
 
@@ -52,22 +54,6 @@ class DatabaseManager:
 
         logger.info("Database manager initialized successfully")
 
-    def get_session_factory(self) -> async_sessionmaker[AsyncSession]:
-        """Get the session factory for use with other components.
-        
-        Returns:
-            The SQLAlchemy async session factory
-            
-        Raises:
-            RuntimeError: If database manager is not initialized
-        """
-        if self._session_factory is None:
-            raise RuntimeError(
-                "Database manager not initialized. Call initialize() first."
-            )
-        
-        return self._session_factory
-
     async def close(self) -> None:
         """Close database engine and clean up resources."""
         if self._engine is not None:
@@ -93,29 +79,47 @@ class DatabaseManager:
             finally:
                 await session.close()
 
-    async def create_tables(self) -> None:
-        """Create all database tables. Used for testing and initial setup."""
-        if self._engine is None:
-            raise RuntimeError(
-                "Database manager not initialized. Call initialize() first."
-            )
-
-        async with self._engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-
-        logger.info("Database tables created successfully")
-
-    async def drop_tables(self) -> None:
-        """Drop all database tables. Used for testing cleanup."""
-        if self._engine is None:
-            raise RuntimeError(
-                "Database manager not initialized. Call initialize() first."
-            )
-
-        async with self._engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
-
-        logger.info("Database tables dropped successfully")
+    # Conversion methods
+    def _convert_db_player_to_core_entity(self, player_record: TrackedPlayerModel) -> Player:
+        """Convert database TrackedPlayer model to core Player entity.
+        
+        Args:
+            player_record: SQLAlchemy TrackedPlayer instance
+            
+        Returns:
+            Core Player entity
+        """
+        return Player(
+            game_name=player_record.game_name,
+            tag_line=player_record.tag_line,
+            puuid=player_record.puuid,
+            id=player_record.id,
+            created_at=player_record.created_at,
+            updated_at=player_record.updated_at
+        )
+    
+    def _convert_db_gamestate_to_core_entity(self, gamestate_record: GameStateModel) -> GameState:
+        """Convert database GameState model to core GameState entity.
+        
+        Args:
+            gamestate_record: SQLAlchemy GameState instance
+            
+        Returns:
+            Core GameState entity
+        """
+        return GameState(
+            status=GameStatus(gamestate_record.status),
+            player_id=gamestate_record.player_id,
+            game_id=gamestate_record.game_id,
+            queue_type=QueueType(gamestate_record.queue_type) if gamestate_record.queue_type else None,
+            won=gamestate_record.won,
+            duration_seconds=gamestate_record.duration_seconds,
+            champion_played=gamestate_record.champion_played,
+            created_at=gamestate_record.created_at,
+            game_start_time=gamestate_record.game_start_time,
+            game_end_time=gamestate_record.game_end_time,
+            id=gamestate_record.id
+        )
 
     # TrackedPlayer repository methods
     async def create_tracked_player(
@@ -123,10 +127,10 @@ class DatabaseManager:
         game_name: str,
         tag_line: str,
         puuid: str,
-    ) -> TrackedPlayer:
+    ) -> Player:
         """Create a new tracked player."""
         async with self.get_session() as session:
-            player = TrackedPlayer(
+            player = TrackedPlayerModel(
                 game_name=game_name,
                 tag_line=tag_line,
                 puuid=puuid,
@@ -134,29 +138,31 @@ class DatabaseManager:
             session.add(player)
             await session.commit()
             await session.refresh(player)
-            return player
+            return self._convert_db_player_to_core_entity(player)
 
-    async def get_tracked_player_by_puuid(self, puuid: str) -> Optional[TrackedPlayer]:
+    async def get_tracked_player_by_puuid(self, puuid: str) -> Optional[Player]:
         """Get a tracked player by PUUID."""
         async with self.get_session() as session:
             result = await session.execute(
-                select(TrackedPlayer).where(TrackedPlayer.puuid == puuid)
+                select(TrackedPlayerModel).where(TrackedPlayerModel.puuid == puuid)
             )
-            return result.scalar_one_or_none()
+            player_record = result.scalar_one_or_none()
+            return self._convert_db_player_to_core_entity(player_record) if player_record else None
 
-    async def get_all_players(self) -> List[TrackedPlayer]:
+    async def get_all_players(self) -> List[Player]:
         """Get all tracked players."""
         async with self.get_session() as session:
             result = await session.execute(
-                select(TrackedPlayer)
+                select(TrackedPlayerModel)
             )
-            return list(result.scalars().all())
+            player_records = result.scalars().all()
+            return [self._convert_db_player_to_core_entity(p) for p in player_records]
 
     async def delete_tracked_player(self, player_id: int) -> bool:
         """Delete a tracked player."""
         async with self.get_session() as session:
             result = await session.execute(
-                delete(TrackedPlayer).where(TrackedPlayer.id == player_id)
+                delete(TrackedPlayerModel).where(TrackedPlayerModel.id == player_id)
             )
             await session.commit()
             return result.rowcount > 0
@@ -173,7 +179,7 @@ class DatabaseManager:
     ) -> GameState:
         """Create a new game state record."""
         async with self.get_session() as session:
-            game_state = GameState(
+            game_state = GameStateModel(
                 player_id=player_id,
                 status=status,
                 game_id=game_id,
@@ -184,18 +190,19 @@ class DatabaseManager:
             session.add(game_state)
             await session.commit()
             await session.refresh(game_state)
-            return game_state
+            return self._convert_db_gamestate_to_core_entity(game_state)
 
     async def get_latest_game_state_for_player(self, player_id: int) -> Optional[GameState]:
         """Get the latest game state for a player."""
         async with self.get_session() as session:
             result = await session.execute(
-                select(GameState)
-                .where(GameState.player_id == player_id)
-                .order_by(GameState.created_at.desc())
+                select(GameStateModel)
+                .where(GameStateModel.player_id == player_id)
+                .order_by(GameStateModel.created_at.desc())
                 .limit(1)
             )
-            return result.scalar_one_or_none()
+            game_state_record = result.scalar_one_or_none()
+            return self._convert_db_gamestate_to_core_entity(game_state_record) if game_state_record else None
 
     async def update_game_result(
         self,
@@ -208,8 +215,8 @@ class DatabaseManager:
         """Update game result information."""
         async with self.get_session() as session:
             result = await session.execute(
-                update(GameState)
-                .where(GameState.id == game_state_id)
+                update(GameStateModel)
+                .where(GameStateModel.id == game_state_id)
                 .values(
                     won=won,
                     duration_seconds=duration_seconds,
@@ -219,61 +226,3 @@ class DatabaseManager:
             )
             await session.commit()
             return result.rowcount > 0
-
-    async def get_recent_games_for_player(
-        self, player_id: int, limit: int = 10
-    ) -> List[GameState]:
-        """Get recent game states for a player."""
-        async with self.get_session() as session:
-            result = await session.execute(
-                select(GameState)
-                .where(GameState.player_id == player_id)
-                .order_by(GameState.created_at.desc())
-                .limit(limit)
-            )
-            return list(result.scalars().all())
-
-    async def get_active_games(self) -> List[GameState]:
-        """Get all currently active game states (IN_GAME status)."""
-        async with self.get_session() as session:
-            result = await session.execute(
-                select(GameState)
-                .options(selectinload(GameState.player))
-                .where(GameState.status == "IN_GAME")
-                .order_by(GameState.created_at.desc())
-            )
-            return list(result.scalars().all())
-
-
-# Global database manager instance
-_db_manager: Optional[DatabaseManager] = None
-
-
-def get_database_manager() -> DatabaseManager:
-    """Get the global database manager instance."""
-    global _db_manager
-    if _db_manager is None:
-        raise RuntimeError(
-            "Database manager not initialized. Call initialize_database() first."
-        )
-    return _db_manager
-
-
-async def initialize_database(config: Config) -> DatabaseManager:
-    """Initialize the global database manager."""
-    global _db_manager
-    if _db_manager is not None:
-        logger.warning("Database manager already initialized")
-        return _db_manager
-
-    _db_manager = DatabaseManager(config)
-    await _db_manager.initialize()
-    return _db_manager
-
-
-async def close_database() -> None:
-    """Close the global database manager."""
-    global _db_manager
-    if _db_manager is not None:
-        await _db_manager.close()
-        _db_manager = None

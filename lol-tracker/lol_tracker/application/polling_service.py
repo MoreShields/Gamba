@@ -13,7 +13,6 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 
 from ..core.entities import Player, GameState
-from ..adapters.database.models import TrackedPlayer as TrackedPlayerModel, GameState as GameStateModel
 from ..core.enums import GameStatus, QueueType
 from ..core.services import GameStateTransitionService
 from ..adapters.database.manager import DatabaseManager
@@ -120,49 +119,6 @@ class PollingService:
             logger.error(f"Error in polling cycle: {e}")
             raise
     
-    # Helper methods for type conversion
-    
-    def _convert_db_player_to_core_entity(self, player_record: TrackedPlayerModel) -> Player:
-        """Convert database TrackedPlayer model to core Player entity.
-        
-        Args:
-            player_record: SQLAlchemy TrackedPlayer instance
-            
-        Returns:
-            Core Player entity
-        """
-        return Player(
-            game_name=player_record.game_name,
-            tag_line=player_record.tag_line,
-            puuid=player_record.puuid,
-            id=player_record.id,
-            created_at=player_record.created_at,
-            updated_at=player_record.updated_at
-        )
-    
-    def _convert_db_gamestate_to_core_entity(self, gamestate_record: GameStateModel) -> GameState:
-        """Convert database GameState model to core GameState entity.
-        
-        Args:
-            gamestate_record: SQLAlchemy GameState instance
-            
-        Returns:
-            Core GameState entity
-        """
-        return GameState(
-            status=GameStatus(gamestate_record.status),
-            player_id=gamestate_record.player_id,
-            game_id=gamestate_record.game_id,
-            queue_type=QueueType(gamestate_record.queue_type) if gamestate_record.queue_type else None,
-            won=gamestate_record.won,
-            duration_seconds=gamestate_record.duration_seconds,
-            champion_played=gamestate_record.champion_played,
-            created_at=gamestate_record.created_at,
-            game_start_time=gamestate_record.game_start_time,
-            game_end_time=gamestate_record.game_end_time,
-            id=gamestate_record.id
-        )
-    
     # Private implementation methods
     
     async def _polling_loop(self) -> None:
@@ -206,16 +162,13 @@ class PollingService:
         logger.debug(f"Polling game states for {len(active_players)} active players")
         
         # Poll each player's game state
-        for player_record in active_players:
+        for player in active_players:
             try:
-                # Convert to core entity
-                player = self._convert_db_player_to_core_entity(player_record)
-                
                 update = await self._poll_single_player(player)
                 if update:
                     state_updates.append(update)
             except Exception as e:
-                logger.error(f"Error polling player {player_record.game_name}#{player_record.tag_line}: {e}")
+                logger.error(f"Error polling player {player.game_name}#{player.tag_line}: {e}")
                 # Continue with other players even if one fails
                 continue
         if state_updates:
@@ -302,8 +255,7 @@ class PollingService:
             )
             logger.debug(f"Created initial game state for player {player.riot_id}")
         
-        # Convert to core entity
-        return self._convert_db_gamestate_to_core_entity(current_state_record)
+        return current_state_record
     
     async def _process_state_transition(
         self, 
@@ -466,8 +418,8 @@ class PollingService:
             True if processed successfully, None otherwise
         """
         # Find the tracked player
-        player_record = await self.database.get_tracked_player_by_puuid(puuid)
-        if not player_record:
+        player = await self.database.get_tracked_player_by_puuid(puuid)
+        if not player:
             logger.warning(f"Player {puuid} not found")
             return None
         
@@ -478,9 +430,9 @@ class PollingService:
             return None
         
         # Find the latest game state
-        latest_state = await self.database.get_latest_game_state_for_player(player_record.id)
+        latest_state = await self.database.get_latest_game_state_for_player(player.id)
         if not latest_state:
-            logger.warning(f"No game state found for player {player_record.game_name}#{player_record.tag_line}")
+            logger.warning(f"No game state found for player {player.game_name}#{player.tag_line}")
             return None
         
         # Update the game state with match results
@@ -493,18 +445,18 @@ class PollingService:
             )
             
             if not success:
-                logger.warning(f"Failed to update game result for player {player_record.game_name}#{player_record.tag_line}")
+                logger.warning(f"Failed to update game result for player {player.game_name}#{player.tag_line}")
                 return None
             
             logger.info(
-                f"Processed match result for {player_record.game_name}#{player_record.tag_line}: "
+                f"Processed match result for {player.game_name}#{player.tag_line}: "
                 f"{'Won' if participant_result['won'] else 'Lost'} as {participant_result['champion_name']}"
             )
             
             return True
             
         except Exception as e:
-            logger.error(f"Error updating game result for player {player_record.game_name}#{player_record.tag_line}: {e}")
+            logger.error(f"Error updating game result for player {player.game_name}#{player.tag_line}: {e}")
             return None
     
     # Event publishing
