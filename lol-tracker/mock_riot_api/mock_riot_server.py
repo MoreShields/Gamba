@@ -391,6 +391,8 @@ class MockRiotAPIServer:
             queue_id=game.game_queue_config_id,
             participants=[{
                 "puuid": player.puuid,
+                "riotIdGameName": player.game_name,
+                "riotIdTagline": player.tag_line,
                 "championName": f"Champion{player.current_champion_id}",
                 "championId": player.current_champion_id,
                 "win": won,
@@ -581,6 +583,8 @@ class MockRiotAPIServer:
             queue_id=game.game_queue_config_id,
             participants=[{
                 "puuid": player.puuid,
+                "riotIdGameName": player.game_name,
+                "riotIdTagline": player.tag_line,
                 "placement": placement,
                 "time_eliminated": duration_seconds if placement > 1 else 0
             }]

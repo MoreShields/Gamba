@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
 )
 from sqlalchemy.pool import NullPool
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update, delete, func
 from sqlalchemy.orm import selectinload
 
 from ...config import Config
@@ -92,7 +92,7 @@ class DatabaseManager:
         return Player(
             game_name=player_record.game_name,
             tag_line=player_record.tag_line,
-            puuid=player_record.puuid,
+            # Note: puuid field removed from Player entity
             id=player_record.id,
             created_at=player_record.created_at,
             updated_at=player_record.updated_at
@@ -134,26 +134,35 @@ class DatabaseManager:
     async def create_tracked_player(
         self,
         game_name: str,
-        tag_line: str,
-        puuid: str,
+        tag_line: str
     ) -> Player:
-        """Create a new tracked player."""
+        """Create a new tracked player.
+        
+        Args:
+            game_name: Player's game name
+            tag_line: Player's tag line
+        """
         async with self.get_session() as session:
             player = TrackedPlayerModel(
                 game_name=game_name,
-                tag_line=tag_line,
-                puuid=puuid,
+                tag_line=tag_line
             )
             session.add(player)
             await session.commit()
             await session.refresh(player)
             return self._convert_db_player_to_core_entity(player)
 
-    async def get_tracked_player_by_puuid(self, puuid: str) -> Optional[Player]:
-        """Get a tracked player by PUUID."""
+    # Note: get_tracked_player_by_puuid removed - use get_tracked_player_by_riot_id instead
+    
+    async def get_tracked_player_by_riot_id(self, game_name: str, tag_line: str) -> Optional[Player]:
+        """Get a tracked player by Riot ID (game name and tag line)."""
         async with self.get_session() as session:
+            # Case-insensitive comparison for game_name and tag_line
             result = await session.execute(
-                select(TrackedPlayerModel).where(TrackedPlayerModel.puuid == puuid)
+                select(TrackedPlayerModel).where(
+                    func.lower(TrackedPlayerModel.game_name) == game_name.lower(),
+                    func.lower(TrackedPlayerModel.tag_line) == tag_line.lower()
+                )
             )
             player_record = result.scalar_one_or_none()
             return self._convert_db_player_to_core_entity(player_record) if player_record else None

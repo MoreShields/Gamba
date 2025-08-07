@@ -79,22 +79,21 @@ class SummonerTrackingService(
             if summoner_info is None:
                 raise SummonerNotFoundError(f"Summoner '{request.game_name}#{request.tag_line}' not found")
 
-            # Check if summoner is already being tracked by PUUID
-            existing_player = await self.db_manager.get_tracked_player_by_puuid(
-                summoner_info.puuid
+            # Check if summoner is already being tracked by Riot ID
+            existing_player = await self.db_manager.get_tracked_player_by_riot_id(
+                summoner_info.game_name,
+                summoner_info.tag_line
             )
 
             if existing_player:
                 logger.info(
                     "Summoner already being tracked",
                     game_name=request.game_name,
-                    tag_line=request.tag_line,
-                    puuid=summoner_info.puuid,
+                    tag_line=request.tag_line
                 )
                 return summoner_service_pb2.StartTrackingSummonerResponse(
                     success=True,
                     summoner_details = summoner_service_pb2.SummonerDetails(
-                        puuid=summoner_info.puuid,
                         game_name=summoner_info.game_name,
                         tag_line=summoner_info.tag_line,
                         summoner_level=0,
@@ -103,21 +102,19 @@ class SummonerTrackingService(
                 )
 
             # Create new tracked player using DatabaseManager
+            # Note: We no longer store PUUID
             await self.db_manager.create_tracked_player(
                 game_name=summoner_info.game_name,
-                tag_line=summoner_info.tag_line,
-                puuid=summoner_info.puuid,
+                tag_line=summoner_info.tag_line
             )
             logger.info(
                 "Created new tracked summoner",
                 game_name=request.game_name,
-                tag_line=request.tag_line,
-                puuid=summoner_info.puuid,
+                tag_line=request.tag_line
             )
 
             # Create summoner details response
             summoner_details = summoner_service_pb2.SummonerDetails(
-                puuid=summoner_info.puuid,
                 game_name=summoner_info.game_name,
                 tag_line=summoner_info.tag_line,
                 summoner_level=0,
@@ -210,9 +207,10 @@ class SummonerTrackingService(
             if summoner_info is None:
                 raise SummonerNotFoundError(f"Summoner '{request.game_name}#{request.tag_line}' not found")
             
-            # Find the tracked player by PUUID
-            tracked_player = await self.db_manager.get_tracked_player_by_puuid(
-                summoner_info.puuid
+            # Find the tracked player by Riot ID
+            tracked_player = await self.db_manager.get_tracked_player_by_riot_id(
+                summoner_info.game_name,
+                summoner_info.tag_line
             )
 
             if not tracked_player:

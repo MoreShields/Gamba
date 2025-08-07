@@ -201,6 +201,7 @@ class LoLTrackerService:
         # Initialize Riot API client
         self._riot_api_client = RiotAPIClient(
             self.config.riot_api_key,
+            self.config.tft_riot_api_key,
             base_url=self.config.riot_api_url,
             request_timeout=self.config.riot_api_timeout_seconds,
         )

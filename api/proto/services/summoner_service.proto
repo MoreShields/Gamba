@@ -45,11 +45,10 @@ message StopTrackingSummonerResponse {
 
 // Validated summoner details from Riot API
 message SummonerDetails {
-  string puuid = 1;                   // Player UUID (persistent across regions)
-  string game_name = 2;               // Exact game name from API (GameName without tag)
-  string tag_line = 3;                // Tag line from Riot ID (without #)
-  int32 summoner_level = 4;           // Current summoner level
-  int64 last_updated = 5;             // Unix timestamp of last profile update
+  string game_name = 1;               // Exact game name from API (GameName without tag)
+  string tag_line = 2;                // Tag line from Riot ID (without #)
+  int32 summoner_level = 3;           // Current summoner level
+  int64 last_updated = 4;             // Unix timestamp of last profile update
 }
 
 // Structured error codes for validation failures

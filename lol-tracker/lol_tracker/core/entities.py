@@ -40,7 +40,6 @@ class Player:
     # Riot ID components (replaces SummonerIdentity value object)
     game_name: str
     tag_line: str
-    puuid: Optional[str] = None
     
     # Tracking metadata
     created_at: datetime = field(default_factory=datetime.utcnow)
@@ -57,8 +56,7 @@ class Player:
     def can_be_tracked(self) -> bool:
         """Check if this player can be actively tracked."""
         return (
-            self.puuid is not None
-            and bool(self.game_name.strip())
+            bool(self.game_name.strip())
             and bool(self.tag_line.strip())
         )
     
@@ -178,7 +176,6 @@ class GameState:
             'player_id': player.id,
             'game_name': player.game_name,
             'tag_line': player.tag_line,
-            'puuid': player.puuid,
             'previous_status': previous_state.status.value,
             'new_status': self.status.value,
             'game_id': self.game_id or previous_state.game_id,
@@ -205,7 +202,7 @@ class GameState:
             # Default to LoL event for unknown queue types
             return LoLGameStateChangedEvent(**common_kwargs)
     
-    def update_from_match_info(self, match_info: Any, puuid: str) -> Optional[GameResult]:
+    def update_from_match_info(self, match_info: Any, game_name: str, tag_line: str) -> Optional[GameResult]:
         """Update game state from match information polymorphically.
         
         This method encapsulates all game-type-specific logic for processing
@@ -213,7 +210,8 @@ class GameState:
         
         Args:
             match_info: Match information object (MatchInfo or TFTMatchInfo)
-            puuid: Player's PUUID to find in participants
+            game_name: Player's game name to find in participants
+            tag_line: Player's tag line to find in participants
             
         Returns:
             GameResult if successfully updated, None if player not found
@@ -232,8 +230,8 @@ class GameState:
         # Build appropriate game result based on game type
         if game_type == GameType.LOL:
             # Handle LoL match
-            if hasattr(match_info, 'get_participant_result'):
-                participant_result = match_info.get_participant_result(puuid)
+            if hasattr(match_info, 'get_participant_result_by_name'):
+                participant_result = match_info.get_participant_result_by_name(game_name, tag_line)
                 if not participant_result:
                     return None
                 
@@ -247,8 +245,8 @@ class GameState:
                 
         elif game_type == GameType.TFT:
             # Handle TFT match
-            if hasattr(match_info, 'get_placement'):
-                placement = match_info.get_placement(puuid)
+            if hasattr(match_info, 'get_placement_by_name'):
+                placement = match_info.get_placement_by_name(game_name, tag_line)
                 if placement is None:
                     return None
                 

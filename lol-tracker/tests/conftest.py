@@ -53,6 +53,7 @@ def test_config(postgres_container):
     os.environ["DATABASE_URL"] = database_url
     os.environ["DATABASE_NAME"] = "test"
     os.environ["RIOT_API_KEY"] = "test-api-key"
+    os.environ["TFT_RIOT_API_KEY"] = "test-tft-api-key"
     os.environ["RIOT_API_URL"] = "http://localhost:8081"
     os.environ["POLL_INTERVAL_SECONDS"] = "1"
     os.environ["MESSAGE_BUS_URL"] = "nats://localhost:4222"
@@ -125,6 +126,12 @@ async def mock_event_publisher(test_config):
 @pytest_asyncio.fixture
 async def lol_tracker_service(test_config, database_manager, mock_event_publisher, mock_riot_api_server):
     """Create minimal LoL Tracker service for testing."""
+    # Clean database before starting service to avoid stale data
+    async with database_manager.get_session() as session:
+        await session.execute(text("DELETE FROM game_states"))
+        await session.execute(text("DELETE FROM tracked_players"))
+        await session.commit()
+    
     # Mock NATS to avoid connection issues
     mock_nats = AsyncMock()
     mock_nats.is_connected.return_value = True
@@ -137,6 +144,7 @@ async def lol_tracker_service(test_config, database_manager, mock_event_publishe
     service._event_publisher = mock_event_publisher
     service._riot_api_client = RiotAPIClient(
         api_key=test_config.riot_api_key,
+        tft_api_key=test_config.tft_riot_api_key,
         base_url=test_config.riot_api_url,
         request_timeout=test_config.riot_api_timeout_seconds
     )
@@ -189,9 +197,11 @@ class BaseE2ETest:
     
     async def setup_test_environment(self, mock_riot_control, mock_event_publisher, database_manager):
         """Clean slate setup for each test."""
-        await self._cleanup_database(database_manager)
+        # Database is already cleaned in the fixture, no need to clean again
+        # Just reset mock server
         await mock_riot_control.reset_server()
-        mock_event_publisher.published_messages.clear()
+        # Don't clear events here as polling may have already started publishing events
+        # Test should filter events by timestamp or clear at specific points if needed
     
     async def _cleanup_database(self, database_manager):
         """Clean up database from previous tests."""
@@ -214,12 +224,14 @@ class BaseE2ETest:
         )
         response = await grpc_client.StartTrackingSummoner(request)
         assert response.success is True
-        assert response.summoner_details.puuid == expected_puuid
+        # puuid field has been removed from proto - verify game_name and tag_line instead
+        assert response.summoner_details.game_name == game_name
+        assert response.summoner_details.tag_line == tag_line
         return response
     
-    async def verify_player_tracked_in_db(self, database_manager, puuid: str, game_name: str, tag_line: str):
+    async def verify_player_tracked_in_db(self, database_manager, game_name: str, tag_line: str):
         """Verify player is properly tracked in the database."""
-        tracked_player = await database_manager.get_tracked_player_by_puuid(puuid)
+        tracked_player = await database_manager.get_tracked_player_by_riot_id(game_name, tag_line)
         assert tracked_player is not None
         assert tracked_player.game_name == game_name
         assert tracked_player.tag_line == tag_line

@@ -28,7 +28,10 @@ class TestLoLTrackerE2E(BaseE2ETest):
         # Create and track player
         await self.create_test_player(mock_riot_control, game_name, tag_line, puuid)
         await self.track_summoner_via_grpc(grpc_client, game_name, tag_line, puuid)
-        tracked_player = await self.verify_player_tracked_in_db(database_manager, puuid, game_name, tag_line)
+        tracked_player = await self.verify_player_tracked_in_db(database_manager, game_name, tag_line)
+        
+        # Clear any events from initial setup/tracking
+        mock_event_publisher.published_messages.clear()
         
         # Start a LoL game for the player
         game_data = await mock_riot_control.start_game(
@@ -38,8 +41,8 @@ class TestLoLTrackerE2E(BaseE2ETest):
         )
         game_id = game_data["game_id"]
         
-        # Wait for polling to detect game start
-        await self.wait_for_polling_cycle()
+        # Wait for polling to detect game start (wait longer for slow test runs)
+        await self.wait_for_polling_cycle(wait_time=3.0)
         
         # Verify game start event and database state
         game_start_events = self.find_game_state_events(mock_event_publisher)

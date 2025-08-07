@@ -160,18 +160,31 @@ class PollingService:
         
         logger.debug(f"Polling game states for {len(active_players)} active players")
         
+        # Track successful polls
+        successful_polls = 0
+        failed_polls = 0
+        
         # Poll each player's game state
         for player in active_players:
             try:
                 update = await self._poll_single_player(player)
                 if update:
                     state_updates.append(update)
+                successful_polls += 1
             except Exception as e:
                 logger.error(f"Error polling player {player.game_name}#{player.tag_line}: {e}")
+                failed_polls += 1
                 # Continue with other players even if one fails
                 continue
-        if state_updates:
-            logger.debug(f"Detected {len(state_updates)} game state changes")
+        
+        # Log polling summary
+        logger.info(
+            f"Polling cycle complete: {successful_polls}/{len(active_players)} players polled successfully, "
+            f"{len(state_updates)} state changes detected"
+        )
+        if failed_polls > 0:
+            logger.warning(f"{failed_polls} players failed to poll in this cycle")
+        
         return state_updates
     
     async def _poll_single_player(
@@ -219,7 +232,7 @@ class PollingService:
         
         # Publish event for the state change
         try:
-            if player.id and player.puuid:
+            if player.id:
                 # Let the domain create the appropriate event
                 event = new_state.create_state_change_event(player, current_state)
                 await self.event_publisher.publish_game_state_changed(event)
@@ -302,11 +315,8 @@ class PollingService:
             Raw API response dict if player is in game, None otherwise
         """
         try:
-            if player.puuid is None:
-                logger.warning(f"Player {player.riot_id} has no PUUID")
-                return None
             # Use the parallel checking method that tries both LoL and TFT
-            current_game = await self.riot_api.get_active_game_info(player.puuid, player.game_name, player.tag_line)
+            current_game = await self.riot_api.get_active_game_info(player.game_name, player.tag_line)
             if current_game:
                 # Use the polymorphic to_dict method
                 return current_game.to_dict()
@@ -334,10 +344,6 @@ class PollingService:
             game_state: The current game state
         """
         try:
-            if player.puuid is None:
-                logger.warning(f"Player {player.riot_id} has no PUUID")
-                return
-            
             # Fetch match details - the API client handles game type internally
             match_info = await self.riot_api.get_match_for_game(
                 game_id, 
@@ -349,7 +355,7 @@ class PollingService:
                 return
             
             # Let domain entity handle all game-type-specific logic
-            game_result = game_state.update_from_match_info(match_info, player.puuid)
+            game_result = game_state.update_from_match_info(match_info, player.game_name, player.tag_line)
             
             if game_result:
                 logger.info(

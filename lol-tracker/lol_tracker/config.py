@@ -24,6 +24,7 @@ class Config:
     database_url: str
     database_name: str
     riot_api_key: str
+    tft_riot_api_key: str  # TFT-specific API key
 
     # Environment configuration
     environment: Environment = Environment.DEVELOPMENT
@@ -87,6 +88,7 @@ class Config:
             database_url=get_config("DATABASE_URL"),
             database_name=get_config("DATABASE_NAME", "lol_tracker_db"),
             riot_api_key=get_config("RIOT_API_KEY"),
+            tft_riot_api_key=get_config("TFT_RIOT_API_KEY"),
             # Environment
             environment=env,
             # Riot API
@@ -130,6 +132,10 @@ class Config:
     def is_production(self) -> bool:
         """Check if running in production environment."""
         return self.environment == Environment.PRODUCTION
+
+    def get_tft_api_key(self) -> str:
+        """Get the TFT API key."""
+        return self.tft_riot_api_key
 
     def get_database_url(self) -> str:
         """Construct the full database URL by combining base URL and database name."""

@@ -76,6 +76,7 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       DATABASE_NAME: lol_tracker_db
       RIOT_API_KEY: ${RIOT_API_KEY}
+      TFT_RIOT_API_KEY: ${TFT_RIOT_API_KEY}
     command: ["python", "-m", "alembic", "upgrade", "head"]
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -93,6 +94,7 @@ services:
       
       # LoL Tracker configuration
       RIOT_API_KEY: ${RIOT_API_KEY}
+      TFT_RIOT_API_KEY: ${TFT_RIOT_API_KEY}
       RIOT_API_BASE_URL: ${RIOT_API_BASE_URL:-https://na1.api.riotgames.com}
       POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-60}
       

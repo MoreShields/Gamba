@@ -87,6 +87,7 @@ services:
     image: lol-tracker-migrate:dev
     environment:
       RIOT_API_KEY: ${RIOT_API_KEY}
+      TFT_RIOT_API_KEY: ${TFT_RIOT_API_KEY}
       DATABASE_URL: postgres://gambler:gambler_dev_password@postgres:5432
       DATABASE_NAME: lol_tracker_db
       ENVIRONMENT: development
@@ -108,6 +109,7 @@ services:
     environment:
       RIOT_API_URL: ${RIOT_API_URL}
       RIOT_API_KEY: ${RIOT_API_KEY}
+      TFT_RIOT_API_KEY: ${TFT_RIOT_API_KEY}
       DATABASE_URL: postgres://gambler:gambler_dev_password@postgres:5432
       DATABASE_NAME: lol_tracker_db
       ENVIRONMENT: development

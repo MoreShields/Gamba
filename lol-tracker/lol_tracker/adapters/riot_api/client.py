@@ -2,7 +2,7 @@
 
 import asyncio
 import time
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any, Union, Tuple
 from dataclasses import dataclass
 
 from lol_tracker.core.enums import QueueType, GameType
@@ -125,10 +125,17 @@ class TFTMatchInfo:
     tft_set_name: str
     tft_set_number: int
 
-    def get_placement(self, puuid: str) -> Optional[int]:
-        """Get the player's placement (1-8) for the given PUUID."""
+    # Note: get_placement(puuid) removed - use get_placement_by_name instead
+    
+    def get_placement_by_name(self, game_name: str, tag_line: str) -> Optional[int]:
+        """Get the player's placement (1-8) for the given Riot ID.
+        
+        Note: This requires participants to have riotIdGameName and riotIdTagline fields,
+        which may not always be available. Falls back to None if not found.
+        """
         for participant in self.participants:
-            if participant.get("puuid") == puuid:
+            if (participant.get("riotIdGameName", "").lower() == game_name.lower() and 
+                participant.get("riotIdTagline", "").lower() == tag_line.lower()):
                 return participant.get("placement")
         return None
 
@@ -162,10 +169,17 @@ class MatchInfo:
         }
         return queue_map.get(self.queue_id, f"QUEUE_{self.queue_id}")
 
-    def get_participant_result(self, puuid: str) -> Optional[Dict[str, Any]]:
-        """Get the match result for a specific participant by PUUID."""
+    # Note: get_participant_result(puuid) removed - use get_participant_result_by_name instead
+    
+    def get_participant_result_by_name(self, game_name: str, tag_line: str) -> Optional[Dict[str, Any]]:
+        """Get the match result for a specific participant by Riot ID.
+        
+        Note: This requires participants to have riotIdGameName and riotIdTagline fields,
+        which may not always be available. Falls back to None if not found.
+        """
         for participant in self.participants:
-            if participant.get("puuid") == puuid:
+            if (participant.get("riotIdGameName", "").lower() == game_name.lower() and 
+                participant.get("riotIdTagline", "").lower() == tag_line.lower()):
                 return {
                     "won": participant.get("win", False),
                     "champion_name": participant.get("championName", "Unknown"),
@@ -212,15 +226,17 @@ class PlayerNotInGameError(RiotAPIError):
 class RiotAPIClient:
     """Riot API client with rate limiting and error handling."""
 
-    def __init__(self, api_key: str, base_url: Optional[str] = None, request_timeout: float = 10.0):
+    def __init__(self, api_key: str, tft_api_key: str, base_url: Optional[str] = None, request_timeout: float = 10.0):
         """Initialize the Riot API client.
 
         Args:
-            api_key: Riot API key
+            api_key: Riot API key for LoL endpoints
+            tft_api_key: Riot API key for TFT endpoints
             base_url: Base URL for the API (defaults to production Riot API)
             request_timeout: Request timeout in seconds
         """
         self.api_key = api_key
+        self.tft_api_key = tft_api_key
         self.base_url = base_url
         self.request_timeout = request_timeout
         self.client = httpx.AsyncClient(timeout=request_timeout)
@@ -231,6 +247,10 @@ class RiotAPIClient:
 
         # Rate limit tracking for 429 responses
         self._rate_limit_reset_time = 0.0
+        
+        # PUUID cache: {(game_name, tag_line, api_key_type): puuid}
+        # api_key_type is 'lol' or 'tft' to differentiate between keys
+        self._puuid_cache: Dict[Tuple[str, str, str], str] = {}
 
     async def __aenter__(self):
         """Async context manager entry."""
@@ -268,12 +288,19 @@ class RiotAPIClient:
         self._last_request_time = time.time()
 
     async def _make_request(
-        self, url: str, handle_404_as: str = "summoner_not_found"
+        self, url: str, handle_404_as: str = "summoner_not_found", use_tft_key: bool = False
     ) -> Dict[str, Any]:
-        """Make a request to the Riot API with rate limiting and error handling."""
+        """Make a request to the Riot API with rate limiting and error handling.
+        
+        Args:
+            url: The URL to request
+            handle_404_as: How to handle 404 responses
+            use_tft_key: Whether to use the TFT API key instead of the main key
+        """
         await self._rate_limit_delay()
 
-        headers = {"X-Riot-Token": self.api_key, "Accept": "application/json"}
+        api_key = self.tft_api_key if use_tft_key else self.api_key
+        headers = {"X-Riot-Token": api_key, "Accept": "application/json"}
 
         try:
             response = await self.client.get(url, headers=headers)
@@ -300,6 +327,7 @@ class RiotAPIClient:
             if response.status_code >= 400:
                 logger.error(
                     "Riot API error",
+                    url=url,
                     status_code=response.status_code,
                     response=response.text,
                 )
@@ -362,31 +390,128 @@ class RiotAPIClient:
         except Exception:
             raise
 
+    async def _get_puuid_for_key(self, game_name: str, tag_line: str, use_tft_key: bool) -> str:
+        """Get PUUID for a player using the appropriate API key.
+        
+        Caches PUUIDs per API key to avoid repeated lookups.
+        
+        Args:
+            game_name: Player's game name
+            tag_line: Player's tag line
+            use_tft_key: Whether to use TFT API key (True) or LoL API key (False)
+            
+        Returns:
+            Player's PUUID for the specified API key
+            
+        Raises:
+            SummonerNotFoundError: If player cannot be found
+        """
+        cache_key = (game_name, tag_line, 'tft' if use_tft_key else 'lol')
+        
+        # Check cache first
+        if cache_key in self._puuid_cache:
+            return self._puuid_cache[cache_key]
+        
+        # Fetch PUUID with appropriate key
+        # We need to make the request with the correct API key
+        api_key = self.tft_api_key if use_tft_key else self.api_key
+        summoner_info = await self._get_account_by_riot_id_with_key(game_name, tag_line, api_key)
+        puuid = summoner_info.puuid
+        
+        # Cache the result
+        self._puuid_cache[cache_key] = puuid
+        
+        return puuid
+    
+    async def _get_account_by_riot_id_with_key(
+        self, game_name: str, tag_line: str, api_key: str
+    ) -> SummonerInfo:
+        """Get account information by Riot ID using a specific API key.
+        
+        Internal method that allows specifying which API key to use.
+        """
+        # Account API uses americas endpoint, or custom base URL if provided
+        base_url = self.base_url if self.base_url else "https://americas.api.riotgames.com"
+        url = f"{base_url}/riot/account/v1/accounts/by-riot-id/{game_name}/{tag_line}"
+
+        logger.info(
+            "Fetching account by Riot ID",
+            game_name=game_name,
+            tag_line=tag_line,
+        )
+
+        # Make request with specified API key
+        headers = {"X-Riot-Token": api_key, "Accept": "application/json"}
+        
+        await self._rate_limit_delay()
+        
+        try:
+            response = await self.client.get(url, headers=headers)
+            
+            if response.status_code == 404:
+                raise SummonerNotFoundError("Account not found")
+            
+            if response.status_code == 429:
+                retry_after = int(response.headers.get("Retry-After", 60))
+                self._rate_limit_reset_time = time.time() + retry_after
+                logger.warning("Rate limited by Riot API", retry_after=retry_after)
+                raise RateLimitError(f"Rate limited. Retry after {retry_after} seconds")
+            
+            if response.status_code >= 400:
+                logger.error(
+                    "Riot API error",
+                    status_code=response.status_code,
+                    response=response.text,
+                )
+                raise RiotAPIError(f"API error: {response.status_code}")
+            
+            data = response.json()
+            summoner_info = SummonerInfo(
+                puuid=data["puuid"],
+                game_name=data["gameName"],
+                tag_line=data["tagLine"],
+            )
+
+            logger.info(
+                "Successfully fetched account",
+                game_name=summoner_info.game_name,
+                tag_line=summoner_info.tag_line,
+                puuid=summoner_info.puuid,
+            )
+
+            return summoner_info
+            
+        except httpx.RequestError as e:
+            logger.error("HTTP request failed", error=str(e))
+            raise RiotAPIError(f"Request failed: {e}")
+    
     async def get_current_lol_game_info(
-        self, puuid: str, game_name: str, tag_line: str
+        self, game_name: str, tag_line: str
     ) -> CurrentGameInfo:
-        """Get current LoL game information for a summoner by PUUID.
+        """Get current LoL game information for a summoner.
 
         Args:
-            puuid: Player's PUUID
-            region: Region to search in
+            game_name: Player's game name
+            tag_line: Player's tag line
 
         Returns:
             CurrentGameInfo object with current game details
 
         Raises:
             PlayerNotInGameError: If player is not currently in a game
-            InvalidRegionError: If region is invalid
+            SummonerNotFoundError: If player cannot be found
             RateLimitError: If rate limited
             RiotAPIError: For other API errors
         """
+        # Get PUUID with LoL API key
+        puuid = await self._get_puuid_for_key(game_name, tag_line, use_tft_key=False)
 
         base_url = self._get_base_url(tag_line)
         # Try spectator v5 with PUUID first, fall back to v4 if needed
         url = f"{base_url}/lol/spectator/v5/active-games/by-summoner/{puuid}"
 
         try:
-            data = await self._make_request(url, handle_404_as="not_in_game")
+            data = await self._make_request(url, handle_404_as="not_in_game", use_tft_key=False)
 
             current_game = CurrentGameInfo(
                 game_id=str(data["gameId"]),
@@ -601,12 +726,11 @@ class RiotAPIClient:
             raise
 
     async def get_current_tft_game_info(
-        self, puuid: str, game_name: str, tag_line: str
+        self, game_name: str, tag_line: str
     ) -> CurrentTFTGameInfo:
-        """Get current TFT game information for a summoner by PUUID.
+        """Get current TFT game information for a summoner.
 
         Args:
-            puuid: Player's PUUID
             game_name: Player's game name
             tag_line: Player's tag line
 
@@ -615,14 +739,17 @@ class RiotAPIClient:
 
         Raises:
             PlayerNotInGameError: If player is not currently in a TFT game
+            SummonerNotFoundError: If player cannot be found
             RateLimitError: If rate limited
             RiotAPIError: For other API errors
         """
+        # Get PUUID with TFT API key
+        puuid = await self._get_puuid_for_key(game_name, tag_line, use_tft_key=True)
         base_url = self._get_base_url(tag_line)
         url = f"{base_url}/lol/spectator/tft/v5/active-games/by-puuid/{puuid}"
 
         try:
-            data = await self._make_request(url, handle_404_as="not_in_game")
+            data = await self._make_request(url, handle_404_as="not_in_game", use_tft_key=True)
 
             current_game = CurrentTFTGameInfo(
                 game_id=str(data["gameId"]),
@@ -663,7 +790,7 @@ class RiotAPIClient:
         logger.info("Fetching TFT match info", match_id=match_id)
 
         try:
-            data = await self._make_request(url)
+            data = await self._make_request(url, use_tft_key=True)
 
             match_info = TFTMatchInfo(
                 match_id=data["metadata"]["match_id"],
@@ -727,7 +854,7 @@ class RiotAPIClient:
             return None
     
     async def get_active_game_info(
-        self, puuid: str, game_name: str, tag_line: str
+        self, game_name: str, tag_line: str
     ) -> Optional[Union[CurrentGameInfo, CurrentTFTGameInfo]]:
         """Get active game info by checking both LoL and TFT endpoints in parallel.
         
@@ -735,7 +862,6 @@ class RiotAPIClient:
         successful result (or None if both indicate player is not in game).
         
         Args:
-            puuid: Player's PUUID
             game_name: Player's game name  
             tag_line: Player's tag line
             
@@ -743,13 +869,14 @@ class RiotAPIClient:
             CurrentGameInfo or CurrentTFTGameInfo if player is in a game, None otherwise
             
         Raises:
+            SummonerNotFoundError: If player cannot be found
             RateLimitError: If rate limited
             RiotAPIError: For other API errors (but not PlayerNotInGameError)
         """
         # Check both LoL and TFT endpoints in parallel
         results = await asyncio.gather(
-            self.get_current_lol_game_info(puuid, game_name, tag_line),
-            self.get_current_tft_game_info(puuid, game_name, tag_line),
+            self.get_current_lol_game_info(game_name, tag_line),
+            self.get_current_tft_game_info(game_name, tag_line),
             return_exceptions=True
         )
         

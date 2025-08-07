@@ -27,7 +27,7 @@ class TrackedPlayer(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     game_name: Mapped[str] = mapped_column(String(16), nullable=False)
     tag_line: Mapped[str] = mapped_column(String(5), nullable=False)  # Tag line without # (e.g., "gamba")
-    puuid: Mapped[str] = mapped_column(String(78), nullable=False)  # Riot's persistent unique identifier
+    # Note: puuid column removed in migration 004 - PUUIDs are API-key specific
 
     # Tracking metadata
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=func.now())
@@ -43,11 +43,12 @@ class TrackedPlayer(Base):
     # Indexes for efficient querying
     __table_args__ = (
         Index("idx_tracked_players_game_name", "game_name"),
-        Index("idx_tracked_players_puuid", "puuid"),
+        # Unique constraint to prevent duplicate tracking
+        Index("uq_tracked_players_riot_id", "game_name", "tag_line", unique=True),
     )
 
     def __repr__(self) -> str:
-        return f"<TrackedPlayer(game_name='{self.game_name}', puuid='{self.puuid}')>"
+        return f"<TrackedPlayer(game_name='{self.game_name}', tag_line='{self.tag_line}')>"
 
 
 class GameState(Base):
