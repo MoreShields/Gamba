@@ -121,9 +121,7 @@ class TFTMatchInfo:
     participants: list[Dict[str, Any]]
     queue_id: int
     tft_game_type: Optional[str]
-    tft_set_core_name: str
-    tft_set_name: str
-    tft_set_number: int
+    tft_set_number: Optional[int]
 
     # Note: get_placement(puuid) removed - use get_placement_by_name instead
     
@@ -704,9 +702,7 @@ class RiotAPIClient:
                 participants=data["info"]["participants"],
                 queue_id=data["info"]["queue_id"],
                 tft_game_type=data["info"].get("tft_game_type"),
-                tft_set_core_name=data["info"]["tft_set_core_name"],
-                tft_set_name=data["info"]["tft_set_name"],
-                tft_set_number=data["info"]["tft_set_number"],
+                tft_set_number=data["info"].get("tft_set_number"),
             )
 
             logger.info(
