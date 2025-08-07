@@ -429,8 +429,14 @@ class RiotAPIClient:
         
         Internal method that allows specifying which API key to use.
         """
-        # Account API uses americas endpoint, or custom base URL if provided
-        base_url = self.base_url if self.base_url else "https://americas.api.riotgames.com"
+        # Account API ALWAYS uses americas endpoint, unless in test/mock environment
+        # The account API is global and doesn't use regional endpoints
+        if self.base_url and ("localhost" in self.base_url or "mock" in self.base_url):
+            # Use base_url for test/mock environments
+            base_url = self.base_url
+        else:
+            # Always use americas endpoint for production
+            base_url = "https://americas.api.riotgames.com"
         url = f"{base_url}/riot/account/v1/accounts/by-riot-id/{game_name}/{tag_line}"
 
         logger.info(
@@ -484,7 +490,8 @@ class RiotAPIClient:
         # Get PUUID with LoL API key
         puuid = await self._get_puuid_for_key(game_name, tag_line, use_tft_key=False)
 
-        base_url = self._get_base_url(tag_line)
+        # Use na1 region for spectator API (hardcoded for now, could be made configurable)
+        base_url = self._get_base_url("na1")
         # Try spectator v5 with PUUID first, fall back to v4 if needed
         url = f"{base_url}/lol/spectator/v5/active-games/by-summoner/{puuid}"
 
@@ -530,7 +537,7 @@ class RiotAPIClient:
         """
         try:
             # Delegate to the internal method with the default LoL API key
-            return await self._get_account_by_riot_id_with_key(game_name, tag_line, self.api_key)
+            return await self._get_account_by_riot_id_with_key(game_name, tag_line, use_tft_key=False)
         except SummonerNotFoundError:
             logger.info(
                 "Account not found",
@@ -637,7 +644,8 @@ class RiotAPIClient:
         """
         # Get PUUID with TFT API key
         puuid = await self._get_puuid_for_key(game_name, tag_line, use_tft_key=True)
-        base_url = self._get_base_url(tag_line)
+        # Use na1 region for TFT spectator API (hardcoded for now, could be made configurable)
+        base_url = self._get_base_url("na1")
         url = f"{base_url}/lol/spectator/tft/v5/active-games/by-puuid/{puuid}"
 
         try:
