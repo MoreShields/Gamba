@@ -224,6 +224,14 @@ class EventPublisher:
                         game_result.queue_type = event.queue_type
                     pb_event.game_result.CopyFrom(game_result)
         
+        # Log the event details
+        logger.info(
+            f"Publishing LoL game state event - Player: {event.game_name}#{event.tag_line}, "
+            f"Transition: {event.previous_status} -> {event.new_status}, "
+            f"Game ID: {event.game_id or 'N/A'}, "
+            f"Is game end: {event.is_game_end}"
+        )
+        
         # Publish to LoL subject
         subject = f"{self.config.game_state_events_subject}.state_changed"
         await self._publish_protobuf_message(subject, pb_event)
@@ -246,6 +254,15 @@ class EventPublisher:
             game_result.duration_seconds = event.duration_seconds
             pb_event.game_result.CopyFrom(game_result)
         
+        # Log the event details
+        logger.info(
+            f"Publishing TFT game state event - Player: {event.game_name}#{event.tag_line}, "
+            f"Transition: {event.previous_status} -> {event.new_status}, "
+            f"Game ID: {event.game_id or 'N/A'}, "
+            f"Is game end: {event.is_game_end}, "
+            f"Placement: {event.placement if event.placement else 'N/A'}"
+        )
+        
         # Publish to TFT subject
         subject = f"{self.config.tft_game_state_events_subject}.state_changed"
         await self._publish_protobuf_message(subject, pb_event)
@@ -258,7 +275,12 @@ class EventPublisher:
             # Serialize protobuf to bytes
             message_bytes = message.SerializeToString()
             ack = await self._js.publish(subject, message_bytes)
-            logger.debug(f"Published protobuf message to {subject}, ack: {ack}, type: {type(message).__name__}")
+            logger.info(
+                f"Successfully published to NATS - Subject: {subject}, "
+                f"Message type: {type(message).__name__}, "
+                f"Size: {len(message_bytes)} bytes, "
+                f"Stream: {ack.stream}, Seq: {ack.seq}"
+            )
         except Exception as e:
             logger.error(f"Failed to publish protobuf message to {subject}: {e}")
             raise

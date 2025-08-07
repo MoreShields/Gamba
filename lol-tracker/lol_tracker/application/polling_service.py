@@ -324,8 +324,7 @@ class PollingService:
         except PlayerNotInGameError:
             # Expected when player is not in game
             return None
-        except Exception as e:
-            logger.warning(f"Failed to get game info for {player.riot_id}: {e}")
+        except Exception:
             return None
     
     # Immediate match result processing

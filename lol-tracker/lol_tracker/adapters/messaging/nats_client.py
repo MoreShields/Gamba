@@ -188,7 +188,10 @@ class NATSMessageBusClient:
 
         try:
             ack = await self._js.publish(subject, data)
-            logger.debug(f"Published message to {subject}, ack: {ack}")
+            logger.info(
+                f"NATS message published - Subject: {subject}, "
+                f"Size: {len(data)} bytes, Stream: {ack.stream}, Seq: {ack.seq}"
+            )
         except Exception as e:
             logger.error(f"Failed to publish message to {subject}: {e}")
             raise

@@ -529,7 +529,8 @@ class RiotAPIClient:
 
         except PlayerNotInGameError:
             raise
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to get LoL game info for {game_name}#{tag_line}: {e}")
             raise
 
     async def get_account_by_riot_id(
@@ -767,7 +768,8 @@ class RiotAPIClient:
 
         except PlayerNotInGameError:
             raise
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to get TFT game info for {game_name}#{tag_line}: {e}")
             raise
 
     async def get_tft_match_info(self, match_id: str) -> TFTMatchInfo:
