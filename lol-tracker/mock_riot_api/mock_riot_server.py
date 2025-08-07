@@ -122,7 +122,6 @@ class MockRiotAPIServer:
         self.app.router.add_get('/riot/account/v1/accounts/by-riot-id/{game_name}/{tag_line}', self.get_account_by_riot_id)
         self.app.router.add_get('/lol/spectator/v5/active-games/by-summoner/{puuid}', self.get_current_game)
         self.app.router.add_get('/lol/match/v5/matches/{match_id}', self.get_match_info)
-        self.app.router.add_get('/lol/match/v5/matches/by-puuid/{puuid}/ids', self.get_recent_matches)
         
         # TFT endpoints
         self.app.router.add_get('/lol/spectator/tft/v5/active-games/by-puuid/{puuid}', self.get_current_tft_game)
@@ -245,26 +244,7 @@ class MockRiotAPIServer:
             {"status": {"message": "Match not found", "status_code": 404}},
             status=404
         )
-        
-    async def get_recent_matches(self, request: web.Request) -> web.Response:
-        """Mock /lol/match/v5/matches/by-puuid/{puuid}/ids endpoint."""
-        await self.apply_request_delay()
-        
-        if rate_limit_response := await self.check_rate_limit():
-            return rate_limit_response
-            
-        puuid = request.match_info['puuid']
-        count = int(request.rel_url.query.get('count', 5))
-        
-        # Return match IDs for matches where this player participated
-        match_ids = []
-        for match_id, match in self.match_results.items():
-            for participant in match.participants:
-                if participant["puuid"] == puuid:
-                    match_ids.append(match_id)
-                    break
-                    
-        return web.json_response(match_ids[:count])
+    
         
     # Control endpoints
     async def create_player(self, request: web.Request) -> web.Response:

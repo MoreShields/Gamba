@@ -324,8 +324,6 @@ class PollingService:
         except PlayerNotInGameError:
             # Expected when player is not in game
             return None
-        except Exception:
-            return None
     
     # Immediate match result processing
     

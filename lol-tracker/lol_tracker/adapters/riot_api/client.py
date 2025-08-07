@@ -414,8 +414,7 @@ class RiotAPIClient:
         
         # Fetch PUUID with appropriate key
         # We need to make the request with the correct API key
-        api_key = self.tft_api_key if use_tft_key else self.api_key
-        summoner_info = await self._get_account_by_riot_id_with_key(game_name, tag_line, api_key)
+        summoner_info = await self._get_account_by_riot_id_with_key(game_name, tag_line, use_tft_key)
         puuid = summoner_info.puuid
         
         # Cache the result
@@ -424,7 +423,7 @@ class RiotAPIClient:
         return puuid
     
     async def _get_account_by_riot_id_with_key(
-        self, game_name: str, tag_line: str, api_key: str
+        self, game_name: str, tag_line: str, use_tft_key: bool
     ) -> SummonerInfo:
         """Get account information by Riot ID using a specific API key.
         
@@ -436,36 +435,15 @@ class RiotAPIClient:
 
         logger.info(
             "Fetching account by Riot ID",
+            url=url,
+            use_tft_key=use_tft_key,
             game_name=game_name,
             tag_line=tag_line,
         )
-
-        # Make request with specified API key
-        headers = {"X-Riot-Token": api_key, "Accept": "application/json"}
-        
-        await self._rate_limit_delay()
         
         try:
-            response = await self.client.get(url, headers=headers)
+            data = await self._make_request(url, handle_404_as="account_not_found", use_tft_key=use_tft_key)
             
-            if response.status_code == 404:
-                raise SummonerNotFoundError("Account not found")
-            
-            if response.status_code == 429:
-                retry_after = int(response.headers.get("Retry-After", 60))
-                self._rate_limit_reset_time = time.time() + retry_after
-                logger.warning("Rate limited by Riot API", retry_after=retry_after)
-                raise RateLimitError(f"Rate limited. Retry after {retry_after} seconds")
-            
-            if response.status_code >= 400:
-                logger.error(
-                    "Riot API error",
-                    status_code=response.status_code,
-                    response=response.text,
-                )
-                raise RiotAPIError(f"API error: {response.status_code}")
-            
-            data = response.json()
             summoner_info = SummonerInfo(
                 puuid=data["puuid"],
                 game_name=data["gameName"],
@@ -474,6 +452,7 @@ class RiotAPIClient:
 
             logger.info(
                 "Successfully fetched account",
+                use_tft_key=use_tft_key,
                 game_name=summoner_info.game_name,
                 tag_line=summoner_info.tag_line,
                 puuid=summoner_info.puuid,
@@ -481,9 +460,8 @@ class RiotAPIClient:
 
             return summoner_info
             
-        except httpx.RequestError as e:
-            logger.error("HTTP request failed", error=str(e))
-            raise RiotAPIError(f"Request failed: {e}")
+        except Exception:
+            raise
     
     async def get_current_lol_game_info(
         self, game_name: str, tag_line: str
@@ -550,34 +528,9 @@ class RiotAPIClient:
             RateLimitError: If rate limited
             RiotAPIError: For other API errors
         """
-        # Account API uses americas endpoint, or custom base URL if provided
-        base_url = self.base_url if self.base_url else "https://americas.api.riotgames.com"
-        url = f"{base_url}/riot/account/v1/accounts/by-riot-id/{game_name}/{tag_line}"
-
-        logger.info(
-            "Fetching account by Riot ID",
-            game_name=game_name,
-            tag_line=tag_line,
-        )
-
         try:
-            data = await self._make_request(url, handle_404_as="account_not_found")
-
-            summoner_info = SummonerInfo(
-                puuid=data["puuid"],
-                game_name=data["gameName"],
-                tag_line=data["tagLine"],
-            )
-
-            logger.info(
-                "Successfully fetched account",
-                game_name=summoner_info.game_name,
-                tag_line=summoner_info.tag_line,
-                puuid=summoner_info.puuid,
-            )
-
-            return summoner_info
-
+            # Delegate to the internal method with the default LoL API key
+            return await self._get_account_by_riot_id_with_key(game_name, tag_line, self.api_key)
         except SummonerNotFoundError:
             logger.info(
                 "Account not found",
@@ -663,68 +616,6 @@ class RiotAPIClient:
         except Exception:
             raise
 
-    async def get_recent_matches(
-        self, puuid: str, region: str, count: int = 5
-    ) -> list[str]:
-        """Get recent match IDs for a player.
-
-        Args:
-            puuid: Player PUUID
-            region: Region for routing
-            count: Number of matches to retrieve (max 100)
-
-        Returns:
-            List of match IDs
-
-        Raises:
-            InvalidRegionError: If region is invalid
-            RateLimitError: If rate limited
-            RiotAPIError: For other API errors
-        """
-        # Skip region validation for now - regional mapping handles unknown regions
-
-        regional_url = self._get_regional_url(region)
-        url = f"{regional_url}/lol/match/v5/matches/by-puuid/{puuid}/ids"
-
-        # Add query parameters
-        params = {"count": min(count, 100)}
-
-        logger.info("Fetching recent matches", puuid=puuid, region=region, count=count)
-
-        try:
-            response = await self.client.get(
-                url,
-                headers={"X-Riot-Token": self.api_key, "Accept": "application/json"},
-                params=params,
-            )
-
-            if response.status_code == 404:
-                logger.info("No matches found for player", puuid=puuid, region=region)
-                return []
-
-            if response.status_code >= 400:
-                logger.error(
-                    "Error fetching recent matches",
-                    status_code=response.status_code,
-                    response=response.text,
-                )
-                raise RiotAPIError(f"API error: {response.status_code}")
-
-            match_ids = response.json()
-            logger.info(
-                "Successfully fetched recent matches",
-                puuid=puuid,
-                region=region,
-                match_count=len(match_ids),
-            )
-
-            return match_ids
-
-        except httpx.RequestError as e:
-            logger.error("HTTP request failed", error=str(e))
-            raise RiotAPIError(f"Request failed: {e}")
-        except Exception:
-            raise
 
     async def get_current_tft_game_info(
         self, game_name: str, tag_line: str
