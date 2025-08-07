@@ -551,11 +551,11 @@ class RiotAPIClient:
 
     def _get_regional_url(self, region: str) -> str:
         """Get the regional URL for Match API calls."""
-        # If custom base URL is provided, use it directly
-        if self.base_url:
+        # For test/mock environments, use the base_url
+        if self.base_url and ("localhost" in self.base_url or "mock" in self.base_url):
             return self.base_url
-            
-        # Otherwise use regional endpoints for production
+        
+        # For production, match endpoints ALWAYS use regional routing
         regional_map = {
             "na1": "americas",
             "br1": "americas",
@@ -684,9 +684,10 @@ class RiotAPIClient:
             RateLimitError: If rate limited
             RiotAPIError: For other API errors
         """
-        # TFT Match API uses americas endpoint, or custom base URL if provided
-        base_url = self.base_url if self.base_url else "https://americas.api.riotgames.com"
-        url = f"{base_url}/tft/match/v1/matches/{match_id}"
+        # TFT Match API uses regional routing like LoL
+        # For now, hardcode to na1 region (which maps to americas)
+        regional_url = self._get_regional_url("na1")
+        url = f"{regional_url}/tft/match/v1/matches/{match_id}"
 
         logger.info("Fetching TFT match info", match_id=match_id)
 
@@ -742,7 +743,7 @@ class RiotAPIClient:
         if not queue_type:
             return None
         
-        # Convert game_id to match_id format
+        # Convert game_id to match_id format (both LoL and TFT use same format)
         match_id = f"{region.upper()}_{game_id}"
         
         # Call appropriate API based on game type

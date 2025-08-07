@@ -213,22 +213,65 @@ class PollingService:
         # Get current state from Riot API
         api_response = await self._get_riot_game_info(player)
         
-        # Process state transition
-        new_state = await self._process_state_transition(player, current_state, api_response)
-        if not new_state:
+        # First check if state would change using domain service
+        potential_new_state, state_changed = self.game_state_transition_service.handle_riot_api_response(
+            player,
+            current_state,
+            api_response
+        )
+        
+        if not state_changed:
             return None
         
-        # Handle game end if it occurred
+        # If this is a game end transition, fetch match results BEFORE saving state
         if (current_state.status == GameStatus.IN_GAME and 
-            new_state.status == GameStatus.NOT_IN_GAME and 
+            potential_new_state.status == GameStatus.NOT_IN_GAME and 
             current_state.game_id):
-            await self._handle_game_end(current_state.game_id, player, new_state)
+            try:
+                # Fetch match details - REQUIRED for game end transitions
+                match_info = await self.riot_api.get_match_for_game(
+                    current_state.game_id, 
+                    current_state.queue_type,
+                    region="na1"
+                )
+                if not match_info:
+                    logger.error(f"Failed to fetch match details for game {current_state.game_id} - aborting state transition")
+                    return None  # Don't commit state change without match results
+                
+                # Update the state with match results
+                game_result = potential_new_state.update_from_match_info(
+                    match_info, player.game_name, player.tag_line
+                )
+                if game_result:
+                    logger.info(
+                        f"Fetched match result for {player.riot_id}: {game_result}"
+                    )
+                else:
+                    logger.warning(f"Could not process match result for player {player.riot_id} - aborting state transition")
+                    return None  # Don't commit if we can't process the match
+                    
+            except Exception as e:
+                logger.error(f"Error fetching match results for {current_state.game_id}: {e} - aborting state transition")
+                return None  # Don't commit state change on API errors
+        
+        # Now save the state to database
+        await self.database.create_game_state(
+            player_id=potential_new_state.player_id,
+            status=potential_new_state.status.value,
+            game_id=potential_new_state.game_id,
+            queue_type=potential_new_state.queue_type.value if potential_new_state.queue_type else None,
+            game_start_time=potential_new_state.game_start_time,
+            raw_api_response=str(api_response) if api_response else None
+        )
         
         # Log the state change
         logger.info(
             f"Game state changed for {player.riot_id}: "
-            f"{current_state.status.value} -> {new_state.status.value}"
+            f"{current_state.status.value} -> {potential_new_state.status.value}"
         )
+        
+        # Use the updated state as the new state
+        new_state = potential_new_state
         
         # Publish event for the state change
         try:
@@ -267,44 +310,6 @@ class PollingService:
         
         return current_state_record
     
-    async def _process_state_transition(
-        self, 
-        player: Player, 
-        current_state: GameState, 
-        api_response: Optional[Dict[str, Any]]
-    ) -> Optional[GameState]:
-        """Process state transition using domain service and save new state.
-        
-        Args:
-            player: The player being polled
-            current_state: Current game state
-            api_response: Riot API response
-            
-        Returns:
-            New GameState if changed, None otherwise
-        """
-        # Use domain service to handle the state transition
-        new_state, state_changed = self.game_state_transition_service.handle_riot_api_response(
-            player,
-            current_state,
-            api_response
-        )
-        
-        if not state_changed:
-            return None
-        
-        # Save the new state to database
-        await self.database.create_game_state(
-            player_id=new_state.player_id,
-            status=new_state.status.value,
-            game_id=new_state.game_id,
-            queue_type=new_state.queue_type.value if new_state.queue_type else None,
-            game_start_time=new_state.game_start_time,
-            raw_api_response=str(api_response) if api_response else None
-        )
-        
-        return new_state
-    
     async def _get_riot_game_info(self, player: Player) -> Optional[Dict[str, Any]]:
         """Get current game information from Riot API.
         
@@ -324,45 +329,4 @@ class PollingService:
         except PlayerNotInGameError:
             # Expected when player is not in game
             return None
-    
-    # Immediate match result processing
-    
-    async def _handle_game_end(
-        self, 
-        game_id: str, 
-        player: Player,
-        game_state: GameState
-    ) -> None:
-        """Handle game end by fetching and updating match results.
-        
-        Args:
-            game_id: The game ID to process
-            player: The player whose game just ended
-            game_state: The current game state
-        """
-        try:
-            # Fetch match details - the API client handles game type internally
-            match_info = await self.riot_api.get_match_for_game(
-                game_id, 
-                game_state.queue_type,
-                region="na1"
-            )
-            if not match_info:
-                logger.warning(f"Could not fetch match details for game {game_id}")
-                return
-            
-            # Let domain entity handle all game-type-specific logic
-            game_result = game_state.update_from_match_info(match_info, player.game_name, player.tag_line)
-            
-            if game_result:
-                logger.info(
-                    f"Fetched match result for {player.riot_id}: {game_result}"
-                )
-            else:
-                logger.warning(f"Could not process match result for player {player.riot_id}")
-            
-        except Exception as e:
-            logger.error(f"Error fetching immediate match results for {game_id}: {e}")
-            # Don't re-raise to avoid breaking the main polling flow
-    
     
