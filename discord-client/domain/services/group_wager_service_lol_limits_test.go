@@ -129,7 +129,7 @@ func TestGroupWagerService_PlaceBet_WithLolLimits(t *testing.T) {
 			},
 			betAmount:     15000,
 			expectError:   true,
-			errorContains: "bet amount exceeds maximum of 10k bits per LoL game",
+			errorContains: "bet amount exceeds maximum of 10k bits per game",
 		},
 		{
 			name: "LoL wager - way over limit",
@@ -156,7 +156,113 @@ func TestGroupWagerService_PlaceBet_WithLolLimits(t *testing.T) {
 			},
 			betAmount:     50000,
 			expectError:   true,
-			errorContains: "bet amount exceeds maximum of 10k bits per LoL game",
+			errorContains: "bet amount exceeds maximum of 10k bits per game",
+		},
+		{
+			name: "TFT wager - under limit",
+			setupWager: func() *entities.GroupWagerDetail {
+				return &entities.GroupWagerDetail{
+					Wager: &entities.GroupWager{
+						ID:      1,
+						GuildID: TestGuildID,
+						State:   entities.GroupWagerStateActive,
+						VotingEndsAt: func() *time.Time {
+							t := time.Now().Add(time.Hour)
+							return &t
+						}(),
+						ExternalRef: &entities.ExternalReference{
+							System: entities.SystemTFT,
+							ID:     "tft_match_123",
+						},
+					},
+					Options: []*entities.GroupWagerOption{
+						{ID: 1, GroupWagerID: 1, OptionText: "Top 4"},
+						{ID: 2, GroupWagerID: 1, OptionText: "Bottom 4"},
+					},
+				}
+			},
+			betAmount:   5000,
+			expectError: false,
+		},
+		{
+			name: "TFT wager - exactly at limit",
+			setupWager: func() *entities.GroupWagerDetail {
+				return &entities.GroupWagerDetail{
+					Wager: &entities.GroupWager{
+						ID:      1,
+						GuildID: TestGuildID,
+						State:   entities.GroupWagerStateActive,
+						VotingEndsAt: func() *time.Time {
+							t := time.Now().Add(time.Hour)
+							return &t
+						}(),
+						ExternalRef: &entities.ExternalReference{
+							System: entities.SystemTFT,
+							ID:     "tft_match_456",
+						},
+					},
+					Options: []*entities.GroupWagerOption{
+						{ID: 1, GroupWagerID: 1, OptionText: "Top 4"},
+						{ID: 2, GroupWagerID: 1, OptionText: "Bottom 4"},
+					},
+				}
+			},
+			betAmount:   10000, // Exactly at the limit
+			expectError: false,
+		},
+		{
+			name: "TFT wager - over limit",
+			setupWager: func() *entities.GroupWagerDetail {
+				return &entities.GroupWagerDetail{
+					Wager: &entities.GroupWager{
+						ID:      1,
+						GuildID: TestGuildID,
+						State:   entities.GroupWagerStateActive,
+						VotingEndsAt: func() *time.Time {
+							t := time.Now().Add(time.Hour)
+							return &t
+						}(),
+						ExternalRef: &entities.ExternalReference{
+							System: entities.SystemTFT,
+							ID:     "tft_match_789",
+						},
+					},
+					Options: []*entities.GroupWagerOption{
+						{ID: 1, GroupWagerID: 1, OptionText: "Top 4"},
+						{ID: 2, GroupWagerID: 1, OptionText: "Bottom 4"},
+					},
+				}
+			},
+			betAmount:     15000,
+			expectError:   true,
+			errorContains: "bet amount exceeds maximum of 10k bits per game",
+		},
+		{
+			name: "TFT wager - way over limit",
+			setupWager: func() *entities.GroupWagerDetail {
+				return &entities.GroupWagerDetail{
+					Wager: &entities.GroupWager{
+						ID:      1,
+						GuildID: TestGuildID,
+						State:   entities.GroupWagerStateActive,
+						VotingEndsAt: func() *time.Time {
+							t := time.Now().Add(time.Hour)
+							return &t
+						}(),
+						ExternalRef: &entities.ExternalReference{
+							System: entities.SystemTFT,
+							ID:     "tft_match_999",
+						},
+					},
+					Options: []*entities.GroupWagerOption{
+						{ID: 1, GroupWagerID: 1, OptionText: "Top 4"},
+						{ID: 2, GroupWagerID: 1, OptionText: "Bottom 4"},
+					},
+				}
+			},
+			betAmount:     50000,
+			expectError:   true,
+			errorContains: "bet amount exceeds maximum of 10k bits per game",
 		},
 	}
 
@@ -230,30 +336,63 @@ func TestGroupWagerService_PlaceBet_DifferentMaxLimits(t *testing.T) {
 
 	testCases := []struct {
 		name        string
+		system      entities.ExternalSystem
 		maxLimit    int64
 		betAmount   int64
 		expectError bool
 	}{
 		{
-			name:        "5k limit - under",
+			name:        "LoL 5k limit - under",
+			system:      entities.SystemLeagueOfLegends,
 			maxLimit:    5000,
 			betAmount:   4000,
 			expectError: false,
 		},
 		{
-			name:        "5k limit - over",
+			name:        "LoL 5k limit - over",
+			system:      entities.SystemLeagueOfLegends,
 			maxLimit:    5000,
 			betAmount:   6000,
 			expectError: true,
 		},
 		{
-			name:        "25k limit - under",
+			name:        "LoL 25k limit - under",
+			system:      entities.SystemLeagueOfLegends,
 			maxLimit:    25000,
 			betAmount:   20000,
 			expectError: false,
 		},
 		{
-			name:        "25k limit - over",
+			name:        "LoL 25k limit - over",
+			system:      entities.SystemLeagueOfLegends,
+			maxLimit:    25000,
+			betAmount:   30000,
+			expectError: true,
+		},
+		{
+			name:        "TFT 5k limit - under",
+			system:      entities.SystemTFT,
+			maxLimit:    5000,
+			betAmount:   4000,
+			expectError: false,
+		},
+		{
+			name:        "TFT 5k limit - over",
+			system:      entities.SystemTFT,
+			maxLimit:    5000,
+			betAmount:   6000,
+			expectError: true,
+		},
+		{
+			name:        "TFT 25k limit - under",
+			system:      entities.SystemTFT,
+			maxLimit:    25000,
+			betAmount:   20000,
+			expectError: false,
+		},
+		{
+			name:        "TFT 25k limit - over",
+			system:      entities.SystemTFT,
 			maxLimit:    25000,
 			betAmount:   30000,
 			expectError: true,
@@ -280,7 +419,7 @@ func TestGroupWagerService_PlaceBet_DifferentMaxLimits(t *testing.T) {
 				mockEventPublisher,
 			)
 
-			// Set up LoL wager
+			// Set up wager with specified system
 			wagerDetail := &entities.GroupWagerDetail{
 				Wager: &entities.GroupWager{
 					ID:      1,
@@ -291,7 +430,7 @@ func TestGroupWagerService_PlaceBet_DifferentMaxLimits(t *testing.T) {
 						return &t
 					}(),
 					ExternalRef: &entities.ExternalReference{
-						System: entities.SystemLeagueOfLegends,
+						System: tc.system,
 						ID:     "game123",
 					},
 				},
