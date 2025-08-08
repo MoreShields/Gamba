@@ -429,8 +429,8 @@ class RiotAPIClient:
         """
         # Account API ALWAYS uses americas endpoint, unless in test/mock environment
         # The account API is global and doesn't use regional endpoints
-        if self.base_url and ("localhost" in self.base_url or "mock" in self.base_url):
-            # Use base_url for test/mock environments
+        if self.base_url:
+            # Use provided base_url for test/mock environments
             base_url = self.base_url
         else:
             # Always use americas endpoint for production
@@ -550,7 +550,7 @@ class RiotAPIClient:
     def _get_regional_url(self, region: str) -> str:
         """Get the regional URL for Match API calls."""
         # For test/mock environments, use the base_url
-        if self.base_url and ("localhost" in self.base_url or "mock" in self.base_url):
+        if self.base_url:
             return self.base_url
         
         # For production, match endpoints ALWAYS use regional routing

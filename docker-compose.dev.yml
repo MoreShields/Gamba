@@ -110,6 +110,7 @@ services:
       RIOT_API_URL: ${RIOT_API_URL}
       RIOT_API_KEY: ${RIOT_API_KEY}
       TFT_RIOT_API_KEY: ${TFT_RIOT_API_KEY}
+      USE_GAME_CENTRIC_MODEL: true
       DATABASE_URL: postgres://gambler:gambler_dev_password@postgres:5432
       DATABASE_NAME: lol_tracker_db
       ENVIRONMENT: development

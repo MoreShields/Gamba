@@ -15,6 +15,7 @@ from lol_tracker.proto.services import summoner_service_pb2_grpc, summoner_servi
 from lol_tracker.adapters.database.manager import DatabaseManager
 from lol_tracker.adapters.riot_api.client import RiotAPIClient
 from lol_tracker.application.polling_service import PollingService
+from lol_tracker.application.game_centric_polling_service import GameCentricPollingService
 from lol_tracker.adapters.messaging.events import EventPublisher
 
 
@@ -212,13 +213,23 @@ class LoLTrackerService:
         self._event_publisher = EventPublisher(self.config)
         await self._event_publisher.initialize()
         
-        # Create polling service with direct infrastructure components
-        self._polling_service = PollingService(
-            database=self._database_manager,
-            riot_api=self._riot_api_client,
-            event_publisher=self._event_publisher,
-            config=self.config
-        )
+        # Create polling service based on feature flag
+        if self.config.use_game_centric_model:
+            logger.info("Using game-centric polling model")
+            self._polling_service = GameCentricPollingService(
+                database=self._database_manager,
+                riot_api=self._riot_api_client,
+                event_publisher=self._event_publisher,
+                config=self.config
+            )
+        else:
+            logger.info("Using legacy state-transition polling model")
+            self._polling_service = PollingService(
+                database=self._database_manager,
+                riot_api=self._riot_api_client,
+                event_publisher=self._event_publisher,
+                config=self.config
+            )
         
         logger.info("Infrastructure initialization completed")
 
