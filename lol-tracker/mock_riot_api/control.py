@@ -91,19 +91,24 @@ class MockRiotControlClient:
         duration_seconds: int = 1800,
         kills: int = 5,
         deaths: int = 3,
-        assists: int = 10
+        assists: int = 10,
+        game_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """End a game for a player with a result."""
         async with httpx.AsyncClient() as client:
+            data = {
+                "won": won,
+                "duration_seconds": duration_seconds,
+                "kills": kills,
+                "deaths": deaths,
+                "assists": assists
+            }
+            if game_id:
+                data["game_id"] = game_id
+                
             response = await client.post(
                 f"{self.control_url}/players/{puuid}/end-game",
-                json={
-                    "won": won,
-                    "duration_seconds": duration_seconds,
-                    "kills": kills,
-                    "deaths": deaths,
-                    "assists": assists
-                }
+                json=data
             )
             response.raise_for_status()
             return response.json()
@@ -131,16 +136,21 @@ class MockRiotControlClient:
         self,
         puuid: str,
         placement: int = 4,
-        duration_seconds: int = 1800
+        duration_seconds: int = 1800,
+        game_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """End a TFT game for a player with a result."""
         async with httpx.AsyncClient() as client:
+            data = {
+                "placement": placement,
+                "duration_seconds": duration_seconds
+            }
+            if game_id:
+                data["game_id"] = game_id
+                
             response = await client.post(
                 f"{self.control_url}/players/{puuid}/end-tft-game",
-                json={
-                    "placement": placement,
-                    "duration_seconds": duration_seconds
-                }
+                json=data
             )
             response.raise_for_status()
             return response.json()
@@ -394,13 +404,15 @@ def start_tft_game(ctx, puuid, queue_type_id):
 @click.option('--kills', default=5, type=int)
 @click.option('--deaths', default=3, type=int)
 @click.option('--assists', default=10, type=int)
+@click.option('--game-id', help='Specific game ID to end (defaults to current game)')
 @click.pass_context
-def end_game(ctx, puuid, won, duration, kills, deaths, assists):
+def end_game(ctx, puuid, won, duration, kills, deaths, assists, game_id):
     """End a League of Legends game for a player."""
     client = ctx.obj['client']
     result = asyncio.run(client.end_game(
         puuid, won=won, duration_seconds=duration,
-        kills=kills, deaths=deaths, assists=assists
+        kills=kills, deaths=deaths, assists=assists,
+        game_id=game_id
     ))
     click.echo(f"Game ended: {result}")
 
@@ -409,12 +421,14 @@ def end_game(ctx, puuid, won, duration, kills, deaths, assists):
 @click.argument('puuid')
 @click.option('--placement', default=4, type=int, help='Final placement (1-8)')
 @click.option('--duration', default=1800, type=int, help='Duration in seconds')
+@click.option('--game-id', help='Specific game ID to end (defaults to current game)')
 @click.pass_context
-def end_tft_game(ctx, puuid, placement, duration):
+def end_tft_game(ctx, puuid, placement, duration, game_id):
     """End a TFT game for a player."""
     client = ctx.obj['client']
     result = asyncio.run(client.end_tft_game(
-        puuid, placement=placement, duration_seconds=duration
+        puuid, placement=placement, duration_seconds=duration,
+        game_id=game_id
     ))
     click.echo(f"TFT game ended: {result}")
 

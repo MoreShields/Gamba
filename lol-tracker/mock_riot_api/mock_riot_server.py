@@ -8,7 +8,7 @@ import asyncio
 import time
 from enum import Enum
 from typing import Dict, Any, Optional, List
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import uuid
 
 from aiohttp import web
@@ -36,6 +36,7 @@ class MockPlayer:
     current_champion_id: Optional[int] = None
     last_match_result: Optional[Dict[str, Any]] = None
     queue_type_id: int = 420  # Default to ranked solo/duo
+    active_game_ids: List[str] = field(default_factory=list)  # Track all active games
 
 
 @dataclass
@@ -328,6 +329,7 @@ class MockRiotAPIServer:
         player.current_game_id = game_id
         player.current_game_start_time = game.game_start_time
         player.current_champion_id = champion_id
+        player.active_game_ids.append(game_id)  # Track this game
         
         logger.info("Started game for player", puuid=puuid, game_id=game_id)
         
@@ -347,8 +349,17 @@ class MockRiotAPIServer:
             
         player = self.players[puuid]
         
-        if not player.current_game_id:
-            return web.json_response({"error": "Player not in game"}, status=400)
+        # Get game_id from request data or use current game
+        game_id = data.get("game_id")
+        if game_id:
+            # Verify the game_id is in the player's active games
+            if game_id not in player.active_game_ids:
+                return web.json_response({"error": f"Game {game_id} not found for player"}, status=404)
+        else:
+            # Default to current game if no game_id specified
+            game_id = player.current_game_id
+            if not game_id:
+                return web.json_response({"error": "Player not in game"}, status=400)
             
         # Create match result
         won = data.get("won", True)
@@ -357,11 +368,18 @@ class MockRiotAPIServer:
         deaths = data.get("deaths", 3)
         assists = data.get("assists", 10)
         
-        game = self.games.get(player.current_game_id)
+        game = self.games.get(game_id)
         if not game:
             return web.json_response({"error": "Game not found"}, status=404)
             
-        match_id = f"NA1_{player.current_game_id}"
+        match_id = f"NA1_{game_id}"
+        
+        # Get champion_id from the game's participants
+        champion_id = player.current_champion_id if game_id == player.current_game_id else 1
+        for participant in game.participants:
+            if participant.get("puuid") == puuid:
+                champion_id = participant.get("championId", champion_id)
+                break
         
         match_result = MockMatchResult(
             match_id=match_id,
@@ -373,8 +391,8 @@ class MockRiotAPIServer:
                 "puuid": player.puuid,
                 "riotIdGameName": player.game_name,
                 "riotIdTagline": player.tag_line,
-                "championName": f"Champion{player.current_champion_id}",
-                "championId": player.current_champion_id,
+                "championName": f"Champion{champion_id}",
+                "championId": champion_id,
                 "win": won,
                 "kills": kills,
                 "deaths": deaths,
@@ -393,10 +411,15 @@ class MockRiotAPIServer:
         }
         
         # Clean up game
-        del self.games[player.current_game_id]
-        player.current_game_id = None
-        player.current_game_start_time = None
-        player.current_champion_id = None
+        del self.games[game_id]
+        if game_id in player.active_game_ids:
+            player.active_game_ids.remove(game_id)
+        
+        # Only reset current game info if this was the current game
+        if game_id == player.current_game_id:
+            player.current_game_id = None
+            player.current_game_start_time = None
+            player.current_champion_id = None
         
         logger.info("Ended game for player", 
                    puuid=puuid, 
@@ -522,6 +545,7 @@ class MockRiotAPIServer:
         player.state = PlayerGameState.IN_GAME
         player.current_game_id = game_id
         player.current_game_start_time = game.game_start_time
+        player.active_game_ids.append(game_id)  # Track this game
         
         logger.info("Started TFT game for player", puuid=puuid, game_id=game_id)
         
@@ -541,18 +565,27 @@ class MockRiotAPIServer:
             
         player = self.players[puuid]
         
-        if not player.current_game_id:
-            return web.json_response({"error": "Player not in game"}, status=400)
+        # Get game_id from request data or use current game
+        game_id = data.get("game_id")
+        if game_id:
+            # Verify the game_id is in the player's active games
+            if game_id not in player.active_game_ids:
+                return web.json_response({"error": f"Game {game_id} not found for player"}, status=404)
+        else:
+            # Default to current game if no game_id specified
+            game_id = player.current_game_id
+            if not game_id:
+                return web.json_response({"error": "Player not in game"}, status=400)
             
         # Create TFT match result
         placement = data.get("placement", 4)  # Default to 4th place
         duration_seconds = data.get("duration_seconds", 1800)  # Default 30 min
         
-        game = self.games.get(player.current_game_id)
+        game = self.games.get(game_id)
         if not game:
             return web.json_response({"error": "Game not found"}, status=404)
             
-        match_id = f"NA1_{player.current_game_id}"
+        match_id = f"NA1_{game_id}"
         
         # TFT-specific participant data
         match_result = MockMatchResult(
@@ -581,9 +614,14 @@ class MockRiotAPIServer:
         }
         
         # Clean up game
-        del self.games[player.current_game_id]
-        player.current_game_id = None
-        player.current_game_start_time = None
+        del self.games[game_id]
+        if game_id in player.active_game_ids:
+            player.active_game_ids.remove(game_id)
+        
+        # Only reset current game info if this was the current game
+        if game_id == player.current_game_id:
+            player.current_game_id = None
+            player.current_game_start_time = None
         
         logger.info("Ended TFT game for player", 
                    puuid=puuid, 

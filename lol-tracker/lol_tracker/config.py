@@ -35,6 +35,11 @@ class Config:
 
     # Polling configuration
     poll_interval_seconds: int = 60
+    
+    # Game-centric model configuration
+    use_game_centric_model: bool = False
+    detection_interval_seconds: int = 30
+    completion_interval_seconds: int = 60
 
     # Message bus configuration (NATS)
     message_bus_url: str = "nats://localhost:4222"
@@ -96,6 +101,10 @@ class Config:
             riot_api_timeout_seconds=get_config("RIOT_API_TIMEOUT_SECONDS", 30, int),
             # Polling
             poll_interval_seconds=get_config("POLL_INTERVAL_SECONDS", 60, int),
+            # Game-centric model
+            use_game_centric_model=get_config("USE_GAME_CENTRIC_MODEL", False, bool),
+            detection_interval_seconds=get_config("DETECTION_INTERVAL_SECONDS", 30, int),
+            completion_interval_seconds=get_config("COMPLETION_INTERVAL_SECONDS", 60, int),
             # Message bus
             message_bus_url=get_config("MESSAGE_BUS_URL", default_message_bus),
             message_bus_timeout_seconds=get_config("MESSAGE_BUS_TIMEOUT_SECONDS", 10, int),

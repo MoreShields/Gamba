@@ -16,7 +16,7 @@ from sqlalchemy import select, update, delete, func
 from sqlalchemy.orm import selectinload
 
 from ...config import Config
-from .models import Base, TrackedPlayer as TrackedPlayerModel, GameState as GameStateModel
+from .models import Base, TrackedPlayer as TrackedPlayerModel, GameState as GameStateModel, TrackedGame as TrackedGameModel
 from ...core.entities import Player, GameState
 from ...core.enums import GameStatus, QueueType
 
@@ -253,3 +253,107 @@ class DatabaseManager:
             )
             await session.commit()
             return result.rowcount > 0
+    
+    # TrackedGame repository methods (game-centric model)
+    
+    async def get_tracked_game(
+        self, 
+        player_id: int, 
+        game_id: str
+    ) -> Optional[TrackedGameModel]:
+        """Get a tracked game by player and game ID."""
+        async with self.get_session() as session:
+            result = await session.execute(
+                select(TrackedGameModel)
+                .where(
+                    TrackedGameModel.player_id == player_id,
+                    TrackedGameModel.game_id == game_id
+                )
+            )
+            return result.scalar_one_or_none()
+    
+    async def create_tracked_game(
+        self,
+        player_id: int,
+        game_id: str,
+        status: str = 'ACTIVE',
+        queue_type: Optional[str] = None,
+        started_at: Optional[datetime] = None,
+        raw_api_response: Optional[str] = None
+    ) -> TrackedGameModel:
+        """Create a new tracked game entry."""
+        async with self.get_session() as session:
+            game = TrackedGameModel(
+                player_id=player_id,
+                game_id=game_id,
+                status=status,
+                queue_type=queue_type,
+                started_at=started_at,
+                raw_api_response=raw_api_response
+            )
+            session.add(game)
+            await session.commit()
+            await session.refresh(game)
+            return game
+    
+    async def get_games_by_status(self, status: str) -> List[TrackedGameModel]:
+        """Get all games with a specific status."""
+        async with self.get_session() as session:
+            result = await session.execute(
+                select(TrackedGameModel)
+                .where(TrackedGameModel.status == status)
+                .order_by(TrackedGameModel.detected_at)
+            )
+            return list(result.scalars().all())
+    
+    async def complete_tracked_game(
+        self,
+        game_id: int,
+        game_result_data: Optional[dict] = None,
+        duration_seconds: Optional[int] = None,
+        completed_at: Optional[datetime] = None
+    ) -> bool:
+        """Mark a game as completed with results."""
+        async with self.get_session() as session:
+            result = await session.execute(
+                update(TrackedGameModel)
+                .where(TrackedGameModel.id == game_id)
+                .values(
+                    status='COMPLETED',
+                    game_result_data=game_result_data,
+                    duration_seconds=duration_seconds,
+                    completed_at=completed_at or datetime.utcnow(),
+                    last_error=None  # Clear any previous errors
+                )
+            )
+            await session.commit()
+            return result.rowcount > 0
+    
+    async def update_game_error(
+        self, 
+        player_id: int,
+        game_id: str, 
+        error: str
+    ) -> bool:
+        """Update the last error for a game."""
+        async with self.get_session() as session:
+            result = await session.execute(
+                update(TrackedGameModel)
+                .where(
+                    TrackedGameModel.player_id == player_id,
+                    TrackedGameModel.game_id == game_id
+                )
+                .values(last_error=error)
+            )
+            await session.commit()
+            return result.rowcount > 0
+    
+    async def get_player_by_id(self, player_id: int) -> Optional[Player]:
+        """Get a player by their database ID."""
+        async with self.get_session() as session:
+            result = await session.execute(
+                select(TrackedPlayerModel)
+                .where(TrackedPlayerModel.id == player_id)
+            )
+            player_record = result.scalar_one_or_none()
+            return self._convert_db_player_to_core_entity(player_record) if player_record else None
