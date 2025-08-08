@@ -200,10 +200,12 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 		return nil, fmt.Errorf("invalid option ID")
 	}
 
-	// Check LoL max wager limit if this is a League of Legends wager
-	if groupWager.ExternalRef != nil && groupWager.ExternalRef.System == entities.SystemLeagueOfLegends {
+	// Check max wager limit for LoL and TFT games
+	if groupWager.ExternalRef != nil && 
+		(groupWager.ExternalRef.System == entities.SystemLeagueOfLegends || 
+		 groupWager.ExternalRef.System == entities.SystemTFT) {
 		if amount > s.config.MaxLolWagerPerGame {
-			return nil, fmt.Errorf("bet amount exceeds maximum of %s bits per LoL game", utils.FormatShortNotation(s.config.MaxLolWagerPerGame))
+			return nil, fmt.Errorf("bet amount exceeds maximum of %s bits per game", utils.FormatShortNotation(s.config.MaxLolWagerPerGame))
 		}
 	}
 
