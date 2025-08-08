@@ -124,9 +124,9 @@ func (g *ScoreboardImageGenerator) GenerateBitsScoreboard(users []*entities.Scor
 	return g.generateTable(columns, rows)
 }
 
-// GenerateLoLScoreboard generates the LoL leaderboard image
-func (g *ScoreboardImageGenerator) GenerateLoLScoreboard(users []*entities.LOLLeaderboardEntry, usernames map[int64]string) ([]byte, error) {
-	// Define columns for LoL scoreboard - P/L first, then Win%
+// GenerateGameScoreboard generates a game leaderboard image (works for both LoL and TFT)
+func (g *ScoreboardImageGenerator) GenerateGameScoreboard(users []*entities.LOLLeaderboardEntry, usernames map[int64]string) ([]byte, error) {
+	// Define columns for game scoreboard - P/L first, then Win%
 	columns := []TableColumn{
 		{Header: "#", Width: 20, XPosition: g.style.Padding, ColorRGB: [3]float64{0.85, 0.85, 0.9}},
 		{Header: "User", Width: 120, XPosition: g.style.Padding + 20, ColorRGB: [3]float64{1.0, 1.0, 1.0}},
@@ -176,6 +176,7 @@ func (g *ScoreboardImageGenerator) GenerateLoLScoreboard(users []*entities.LOLLe
 
 	return g.generateTable(columns, rows)
 }
+
 
 // generateTable creates the actual image
 func (g *ScoreboardImageGenerator) generateTable(columns []TableColumn, rows []TableRow) ([]byte, error) {

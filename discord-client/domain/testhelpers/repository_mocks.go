@@ -52,6 +52,14 @@ func (m *MockUserRepository) GetAll(ctx context.Context) ([]*entities.User, erro
 	return args.Get(0).([]*entities.User), args.Error(1)
 }
 
+func (m *MockUserRepository) GetScoreboardData(ctx context.Context) ([]*entities.ScoreboardEntry, int64, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, 0, args.Error(2)
+	}
+	return args.Get(0).([]*entities.ScoreboardEntry), args.Get(1).(int64), args.Error(2)
+}
+
 // MockBalanceHistoryRepository is a mock implementation of BalanceHistoryRepository
 type MockBalanceHistoryRepository struct {
 	mock.Mock

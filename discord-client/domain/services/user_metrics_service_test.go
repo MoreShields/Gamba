@@ -208,42 +208,35 @@ func TestUserMetricsService_GetScoreboard(t *testing.T) {
 		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
 		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
 
-		// Mock users
-		users := []*entities.User{
-			{DiscordID: 100, Username: "user1", Balance: 5000, AvailableBalance: 4000},
-			{DiscordID: 200, Username: "user2", Balance: 3000, AvailableBalance: 3000},
-			{DiscordID: 300, Username: "user3", Balance: 0, AvailableBalance: 0}, // Should be filtered
+		// Mock scoreboard data from the optimized query
+		scoreboardEntries := []*entities.ScoreboardEntry{
+			{
+				Rank:             1,
+				DiscordID:        100,
+				Username:         "user1",
+				TotalBalance:     5000,
+				AvailableBalance: 4000,
+				ActiveWagerCount: 2,
+				WagerWinRate:     60,
+				BetWinRate:       75,
+				TotalVolume:      10000,
+				TotalDonations:   2000,
+			},
+			{
+				Rank:             2,
+				DiscordID:        200,
+				Username:         "user2",
+				TotalBalance:     3000,
+				AvailableBalance: 3000,
+				ActiveWagerCount: 1,
+				WagerWinRate:     40,
+				BetWinRate:       30,
+				TotalVolume:      5000,
+				TotalDonations:   1000,
+			},
 		}
-		mockUserRepo.On("GetAll", ctx).Return(users, nil)
-
-		// Mock active wagers
-		activeWagers1 := []*entities.Wager{{ID: 1}, {ID: 2}}
-		activeWagers2 := []*entities.Wager{{ID: 3}}
-		mockWagerRepo.On("GetActiveByUser", ctx, int64(100)).Return(activeWagers1, nil)
-		mockWagerRepo.On("GetActiveByUser", ctx, int64(200)).Return(activeWagers2, nil)
-		// Note: user3 with 0 balance is skipped by GetScoreboard, so no calls expected
-
-		// Mock wager stats
-		wagerStats1 := &entities.WagerStats{TotalResolved: 10, TotalWon: 6}
-		wagerStats2 := &entities.WagerStats{TotalResolved: 5, TotalWon: 2}
-		mockWagerRepo.On("GetStats", ctx, int64(100)).Return(wagerStats1, nil)
-		mockWagerRepo.On("GetStats", ctx, int64(200)).Return(wagerStats2, nil)
-		// Note: user3 with 0 balance is skipped by GetScoreboard, so no calls expected
-
-		// Mock bet stats
-		betStats1 := &entities.BetStats{TotalBets: 20, TotalWins: 15}
-		betStats2 := &entities.BetStats{TotalBets: 10, TotalWins: 3}
-		mockBetRepo.On("GetStats", ctx, int64(100)).Return(betStats1, nil)
-		mockBetRepo.On("GetStats", ctx, int64(200)).Return(betStats2, nil)
-		// Note: user3 with 0 balance is skipped by GetScoreboard, so no calls expected
-
-		// Mock volume for each user
-		mockBalanceHistoryRepo.On("GetTotalVolumeByUser", ctx, int64(100)).Return(int64(10000), nil)
-		mockBalanceHistoryRepo.On("GetTotalVolumeByUser", ctx, int64(200)).Return(int64(5000), nil)
-		
-		// Mock donations for each user
-		mockBalanceHistoryRepo.On("GetTotalDonationsByUser", ctx, int64(100)).Return(int64(2000), nil)
-		mockBalanceHistoryRepo.On("GetTotalDonationsByUser", ctx, int64(200)).Return(int64(1000), nil)
+		// Mock GetScoreboardData to return entries and total
+		mockUserRepo.On("GetScoreboardData", ctx).Return(scoreboardEntries, int64(8000), nil)
 
 		// Execute
 		entries, totalBits, err := service.GetScoreboard(ctx, 10)
@@ -285,26 +278,28 @@ func TestUserMetricsService_GetScoreboard(t *testing.T) {
 		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
 		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
 
-		// Mock many users
-		users := make([]*entities.User, 5)
+		// Mock scoreboard entries (5 users)
+		scoreboardEntries := make([]*entities.ScoreboardEntry, 5)
 		for i := 0; i < 5; i++ {
-			users[i] = &entities.User{
+			scoreboardEntries[i] = &entities.ScoreboardEntry{
+				Rank:             i + 1,
 				DiscordID:        int64(100 + i),
 				Username:         fmt.Sprintf("user%d", i+1),
-				Balance:          int64(5000 - i*1000),
+				TotalBalance:     int64(5000 - i*1000),
 				AvailableBalance: int64(5000 - i*1000),
+				ActiveWagerCount: 0,
+				WagerWinRate:     0,
+				BetWinRate:       0,
+				TotalVolume:      0,
+				TotalDonations:   0,
 			}
 		}
-		mockUserRepo.On("GetAll", ctx).Return(users, nil)
-
-		// Mock empty stats for all users
-		for i := 0; i < 5; i++ {
-			mockWagerRepo.On("GetActiveByUser", ctx, int64(100+i)).Return([]*entities.Wager{}, nil)
-			mockWagerRepo.On("GetStats", ctx, int64(100+i)).Return(&entities.WagerStats{}, nil)
-			mockBetRepo.On("GetStats", ctx, int64(100+i)).Return(&entities.BetStats{}, nil)
-			mockBalanceHistoryRepo.On("GetTotalVolumeByUser", ctx, int64(100+i)).Return(int64(0), nil)
-			mockBalanceHistoryRepo.On("GetTotalDonationsByUser", ctx, int64(100+i)).Return(int64(0), nil)
+		// Mock GetScoreboardData to return entries and total
+		var totalBits int64
+		for _, entry := range scoreboardEntries {
+			totalBits += entry.TotalBalance
 		}
+		mockUserRepo.On("GetScoreboardData", ctx).Return(scoreboardEntries, totalBits, nil)
 
 		// Execute with limit
 		entries, _, err := service.GetScoreboard(ctx, 3)

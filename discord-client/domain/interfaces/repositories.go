@@ -24,6 +24,11 @@ type UserRepository interface {
 
 	// GetAll returns all users
 	GetAll(ctx context.Context) ([]*entities.User, error)
+
+	// GetScoreboardData returns all user scoreboard data in a single optimized query
+	// This method fetches user balances, wager stats, bet stats, volume, donations,
+	// and the total server bits in one database query to avoid N+1 query problems
+	GetScoreboardData(ctx context.Context) ([]*entities.ScoreboardEntry, int64, error)
 }
 
 // BalanceHistoryRepository defines the interface for balance history tracking
