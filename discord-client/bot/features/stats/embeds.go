@@ -20,13 +20,14 @@ import (
 const (
 	PageBits = "Bits"
 	PageLoL  = "LoL"
+	PageTFT  = "TFT"
 )
 
 // ScoreboardPages defines the available pages
-var ScoreboardPages = []string{PageBits, PageLoL}
+var ScoreboardPages = []string{PageBits, PageLoL, PageTFT}
 
 // Constants for leaderboard display
-const MinLoLWagersForLeaderboard = 5
+const MinGameWagersForLeaderboard = 5
 
 // getMedalForRank returns the appropriate medal emoji or rank number
 func getMedalForRank(rank int) string {
@@ -54,7 +55,7 @@ func formatProfitLoss(amount int64) string {
 // BuildScoreboardEmbed creates the scoreboard embed with pagination support
 func BuildScoreboardEmbed(ctx context.Context, metricsService interfaces.UserMetricsService, entry []*entities.ScoreboardEntry, totalBits int64, session *discordgo.Session, guildID string, currentPage string, userResolver application.UserResolver) (*discordgo.MessageEmbed, []byte) {
 	// Default to first page if invalid
-	if currentPage != PageBits && currentPage != PageLoL {
+	if currentPage != PageBits && currentPage != PageLoL && currentPage != PageTFT {
 		currentPage = PageBits
 	}
 
@@ -68,10 +69,12 @@ func BuildScoreboardEmbed(ctx context.Context, metricsService interfaces.UserMet
 	case PageBits:
 		imageData = buildBitsPage(ctx, embed, entry, totalBits, guildID, userResolver)
 	case PageLoL:
-		imageData = buildLoLPage(ctx, embed, metricsService, session, guildID, userResolver)
+		imageData = buildGamePage(ctx, embed, metricsService, session, guildID, userResolver, "LoL")
+	case PageTFT:
+		imageData = buildGamePage(ctx, embed, metricsService, session, guildID, userResolver, "TFT")
 	}
 
-	// Set footer after page build (so LoL page can add extra text)
+	// Set footer after page build (so LoL/TFT pages can add extra text)
 	embed.Footer = buildFooter(currentPage)
 
 	return embed, imageData
@@ -134,21 +137,34 @@ func buildBitsPage(ctx context.Context, embed *discordgo.MessageEmbed, entry []*
 	return imageData
 }
 
-// buildLoLPage populates the embed with LoL wager leaderboard using real data
-func buildLoLPage(ctx context.Context, embed *discordgo.MessageEmbed, metricsService interfaces.UserMetricsService, session *discordgo.Session, guildID string, userResolver application.UserResolver) []byte {
+// buildGamePage is a generic function to build game-specific wager leaderboard pages
+func buildGamePage(ctx context.Context, embed *discordgo.MessageEmbed, metricsService interfaces.UserMetricsService, session *discordgo.Session, guildID string, userResolver application.UserResolver, gameName string) []byte {
 	// Clear description
 	embed.Description = ""
 
-	// Get LoL leaderboard data with minimum wagers
-	entries, totalBitsWagered, err := metricsService.GetLOLLeaderboard(ctx, MinLoLWagersForLeaderboard)
+	// Get leaderboard data based on game type
+	var entries []*entities.LOLLeaderboardEntry
+	var totalBitsWagered int64
+	var err error
+
+	switch gameName {
+	case "LoL":
+		entries, totalBitsWagered, err = metricsService.GetLOLLeaderboard(ctx, MinGameWagersForLeaderboard)
+	case "TFT":
+		entries, totalBitsWagered, err = metricsService.GetTFTLeaderboard(ctx, MinGameWagersForLeaderboard)
+	default:
+		embed.Description = "⚠️ Unknown game type"
+		return nil
+	}
+
 	if err != nil {
-		log.WithError(err).Error("Failed to get LoL leaderboard data")
-		embed.Description = "⚠️ Error loading LoL wager data"
+		log.WithError(err).Errorf("Failed to get %s leaderboard data", gameName)
+		embed.Description = fmt.Sprintf("⚠️ Error loading %s wager data", gameName)
 		return nil
 	}
 
 	if len(entries) == 0 {
-		embed.Description = fmt.Sprintf("No LoL wager data available yet\n\n*Minimum %d LoL wagers to qualify*", MinLoLWagersForLeaderboard)
+		embed.Description = fmt.Sprintf("No %s wager data available yet\n\n*Minimum %d %s wagers to qualify*", gameName, MinGameWagersForLeaderboard, gameName)
 		return nil
 	}
 
@@ -165,9 +181,9 @@ func buildLoLPage(ctx context.Context, embed *discordgo.MessageEmbed, metricsSer
 
 	// Generate the image
 	generator := NewScoreboardImageGenerator()
-	imageData, err := generator.GenerateLoLScoreboard(entries, usernames)
+	imageData, err := generator.GenerateGameScoreboard(entries, usernames)
 	if err != nil {
-		log.WithError(err).Error("Failed to generate LoL scoreboard image")
+		log.WithError(err).Errorf("Failed to generate %s scoreboard image", gameName)
 		embed.Description = "⚠️ Error generating scoreboard image"
 		return nil
 	}
@@ -178,7 +194,7 @@ func buildLoLPage(ctx context.Context, embed *discordgo.MessageEmbed, metricsSer
 	}
 
 	// Add total wagered to description
-	embed.Description = fmt.Sprintf("**Total LoL Bits Wagered: %s**", common.FormatBalance(totalBitsWagered))
+	embed.Description = fmt.Sprintf("**Total %s Bits Wagered: %s**", gameName, common.FormatBalance(totalBitsWagered))
 
 	return imageData
 }

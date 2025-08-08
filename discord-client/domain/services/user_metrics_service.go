@@ -44,84 +44,13 @@ func NewUserMetricsService(
 
 // GetScoreboard returns the top users with their statistics
 func (s *userMetricsService) GetScoreboard(ctx context.Context, limit int) ([]*entities.ScoreboardEntry, int64, error) {
-	// Get all users
-	users, err := s.userRepo.GetAll(ctx)
+	// Single optimized query gets all scoreboard data AND total server bits
+	entries, totalBits, err := s.userRepo.GetScoreboardData(ctx)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get users: %w", err)
+		return nil, 0, fmt.Errorf("failed to get scoreboard data: %w", err)
 	}
 
-	entries := make([]*entities.ScoreboardEntry, 0, len(users))
-	var totalBits int64
-
-	for _, user := range users {
-		// Add to total bits count
-		totalBits += user.Balance
-
-		// Skip users with zero balance for scoreboard display
-		if user.Balance == 0 {
-			continue
-		}
-
-		// Get active wagers count
-		activeWagers, err := s.wagerRepo.GetActiveByUser(ctx, user.DiscordID)
-		if err != nil {
-			return nil, 0, fmt.Errorf("failed to get active wagers for user %d: %w", user.DiscordID, err)
-		}
-
-		// Get wager stats for win rate
-		wagerStats, err := s.wagerRepo.GetStats(ctx, user.DiscordID)
-		if err != nil {
-			return nil, 0, fmt.Errorf("failed to get wager stats for user %d: %w", user.DiscordID, err)
-		}
-
-		// Get bet stats for win rate
-		betStats, err := s.betRepo.GetStats(ctx, user.DiscordID)
-		if err != nil {
-			return nil, 0, fmt.Errorf("failed to get bet stats for user %d: %w", user.DiscordID, err)
-		}
-
-		// Calculate win rates
-		wagerWinRate := calculateWinRate(wagerStats.TotalWon, wagerStats.TotalResolved)
-		betWinRate := calculateWinRate(betStats.TotalWins, betStats.TotalBets)
-
-		// Get total volume for the user
-		totalVolume, err := s.balanceHistoryRepo.GetTotalVolumeByUser(ctx, user.DiscordID)
-		if err != nil {
-			return nil, 0, fmt.Errorf("failed to get total volume for user %d: %w", user.DiscordID, err)
-		}
-
-		// Get total donations for the user
-		totalDonations, err := s.balanceHistoryRepo.GetTotalDonationsByUser(ctx, user.DiscordID)
-		if err != nil {
-			return nil, 0, fmt.Errorf("failed to get total donations for user %d: %w", user.DiscordID, err)
-		}
-
-		entry := &entities.ScoreboardEntry{
-			DiscordID:        user.DiscordID,
-			Username:         user.Username,
-			TotalBalance:     user.Balance,
-			AvailableBalance: user.AvailableBalance,
-			ActiveWagerCount: len(activeWagers),
-			WagerWinRate:     wagerWinRate,
-			BetWinRate:       betWinRate,
-			TotalVolume:      totalVolume,
-			TotalDonations:   totalDonations,
-		}
-
-		entries = append(entries, entry)
-	}
-
-	// Sort by total balance descending
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].TotalBalance > entries[j].TotalBalance
-	})
-
-	// Add rank
-	for i := range entries {
-		entries[i].Rank = i + 1
-	}
-
-	// Apply limit
+	// Apply limit if specified
 	if limit > 0 && len(entries) > limit {
 		entries = entries[:limit]
 	}
@@ -279,13 +208,12 @@ func (s *userMetricsService) GetWagerPredictionStats(ctx context.Context, extern
 	return userStats, nil
 }
 
-// GetLOLLeaderboard returns LoL prediction leaderboard entries
-func (s *userMetricsService) GetLOLLeaderboard(ctx context.Context, minWagers int) ([]*entities.LOLLeaderboardEntry, int64, error) {
-	// Get all LOL wager predictions with full details
-	lolSystem := entities.SystemLeagueOfLegends
-	predictions, err := s.groupWagerRepo.GetGroupWagerPredictions(ctx, &lolSystem)
+// getGameLeaderboard is a generic method to get prediction leaderboard entries for a specific game system
+func (s *userMetricsService) getGameLeaderboard(ctx context.Context, minWagers int, system entities.ExternalSystem) ([]*entities.LOLLeaderboardEntry, int64, error) {
+	// Get all wager predictions for the specified system
+	predictions, err := s.groupWagerRepo.GetGroupWagerPredictions(ctx, &system)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get LOL wager predictions: %w", err)
+		return nil, 0, fmt.Errorf("failed to get %s wager predictions: %w", system, err)
 	}
 
 	// Group predictions by user for profit/loss calculation
@@ -315,7 +243,7 @@ func (s *userMetricsService) GetLOLLeaderboard(ctx context.Context, minWagers in
 
 			if pred.WasCorrect {
 				entry.CorrectPredictions++
-				// For LoL wagers, assume 1:1 odds - winner gets double their bet
+				// For game wagers, assume 1:1 odds - winner gets double their bet
 				entry.ProfitLoss += pred.Amount
 			} else {
 				// Lost the bet amount
@@ -347,4 +275,14 @@ func (s *userMetricsService) GetLOLLeaderboard(ctx context.Context, minWagers in
 	}
 
 	return entries, totalBitsWagered, nil
+}
+
+// GetLOLLeaderboard returns LoL prediction leaderboard entries
+func (s *userMetricsService) GetLOLLeaderboard(ctx context.Context, minWagers int) ([]*entities.LOLLeaderboardEntry, int64, error) {
+	return s.getGameLeaderboard(ctx, minWagers, entities.SystemLeagueOfLegends)
+}
+
+// GetTFTLeaderboard returns TFT prediction leaderboard entries
+func (s *userMetricsService) GetTFTLeaderboard(ctx context.Context, minWagers int) ([]*entities.LOLLeaderboardEntry, int64, error) {
+	return s.getGameLeaderboard(ctx, minWagers, entities.SystemTFT)
 }
