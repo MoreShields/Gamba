@@ -1,0 +1,59 @@
+# Shadow deployment configuration for game-centric model testing
+# This runs alongside the main lol-tracker service for validation
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.shadow.yml up -d
+#
+# To run only the shadow service:
+#   docker-compose -f docker-compose.yml -f docker-compose.shadow.yml --profile shadow up -d
+
+services:
+  # Shadow LoL Tracker service - runs game-centric model in parallel
+  lol-tracker-shadow:
+    container_name: lol-tracker-shadow
+    image: ghcr.io/moreshields/lol-tracker:latest
+    environment:
+      # Database configuration (shares with main service)
+      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_NAME: lol_tracker_db
+      
+      # LoL Tracker configuration
+      RIOT_API_KEY: ${RIOT_API_KEY}
+      TFT_RIOT_API_KEY: ${TFT_RIOT_API_KEY}
+      RIOT_API_BASE_URL: ${RIOT_API_BASE_URL:-https://na1.api.riotgames.com}
+      
+      # Game-centric model configuration
+      USE_GAME_CENTRIC_MODEL: "true"
+      DETECTION_INTERVAL_SECONDS: ${DETECTION_INTERVAL_SECONDS:-30}
+      COMPLETION_INTERVAL_SECONDS: ${COMPLETION_INTERVAL_SECONDS:-60}
+      
+      # Shadow mode configuration
+      EMIT_EVENTS: "false"  # Don't duplicate events in shadow mode
+      LOG_PREFIX: "[SHADOW]"
+      
+      # Message bus configuration (disabled for shadow)
+      MESSAGE_BUS_URL: ""  # Empty to disable event publishing
+      
+      # Environment
+      ENVIRONMENT: production
+      LOG_LEVEL: ${SHADOW_LOG_LEVEL:-INFO}
+      
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      lol-tracker-migrate:
+        condition: service_completed_successfully
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import asyncio; import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    profiles: ["shadow"]
+    labels:
+      com.gambler.service: "lol-tracker-shadow"
+      com.gambler.mode: "shadow"
+      com.gambler.model: "game-centric"
