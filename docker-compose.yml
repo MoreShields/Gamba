@@ -98,6 +98,11 @@ services:
       RIOT_API_BASE_URL: ${RIOT_API_BASE_URL:-https://na1.api.riotgames.com}
       POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-60}
       
+      # Game-centric model configuration
+      USE_GAME_CENTRIC_MODEL: ${USE_GAME_CENTRIC_MODEL:-false}
+      DETECTION_INTERVAL_SECONDS: ${DETECTION_INTERVAL_SECONDS:-30}
+      COMPLETION_INTERVAL_SECONDS: ${COMPLETION_INTERVAL_SECONDS:-60}
+      
       # Message bus configuration
       MESSAGE_BUS_URL: nats://nats:4222
       
