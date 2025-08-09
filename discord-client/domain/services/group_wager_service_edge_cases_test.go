@@ -350,10 +350,28 @@ func TestGroupWagerService_DataIntegrityEdgeCases(t *testing.T) {
 			Participants: []*entities.GroupWagerParticipant{}, // Empty
 		})
 
-		resolverID := int64(TestResolverID)
-		_, err := fixture.Service.ResolveGroupWager(fixture.Ctx, TestWagerID, &resolverID, TestOption1ID)
+		// Expect successful resolution with no participant updates (nil when empty)
+		fixture.Mocks.GroupWagerRepo.On("UpdateParticipantPayouts", fixture.Ctx, 
+			mock.MatchedBy(func(participants []*entities.GroupWagerParticipant) bool {
+				return participants == nil || len(participants) == 0
+			})).Return(nil)
 
-		fixture.Assertions.AssertValidationError(err, "insufficient participants")
+		fixture.Mocks.GroupWagerRepo.On("Update", fixture.Ctx, 
+			mock.MatchedBy(func(wager *entities.GroupWager) bool {
+				return wager.State == entities.GroupWagerStateResolved &&
+					wager.WinningOptionID != nil && *wager.WinningOptionID == TestOption1ID
+			})).Return(nil)
+
+		fixture.Mocks.EventPublisher.On("Publish", mock.AnythingOfType("events.GroupWagerStateChangeEvent")).Return(nil)
+
+		resolverID := int64(TestResolverID)
+		result, err := fixture.Service.ResolveGroupWager(fixture.Ctx, TestWagerID, &resolverID, TestOption1ID)
+
+		// With no participants, the wager should resolve without error
+		fixture.Assertions.AssertNoError(err)
+		assert.NotNil(t, result)
+		assert.Empty(t, result.Winners)
+		assert.Empty(t, result.Losers)
 		fixture.AssertAllMocks()
 	})
 }

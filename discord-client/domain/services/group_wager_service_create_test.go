@@ -243,10 +243,7 @@ func TestGroupWagerService_CreateGroupWager_Success(t *testing.T) {
 			fixture.Helper.ExpectUserLookup(TestResolverID, creator)
 
 			// Setup create expectations
-			expectedMinParticipants := 3 // Default for pool wagers
-			if tt.wagerType == entities.GroupWagerTypeHouse {
-				expectedMinParticipants = 0 // House wagers don't require minimum participants
-			}
+			expectedMinParticipants := 0 // All wager types now allow any number of participants
 
 			fixture.Mocks.GroupWagerRepo.On("CreateWithOptions", fixture.Ctx,
 				mock.MatchedBy(func(gw *entities.GroupWager) bool {
@@ -349,7 +346,7 @@ func TestGroupWagerService_CreateGroupWager_SystemUser(t *testing.T) {
 				gw.State == entities.GroupWagerStateActive &&
 				gw.WagerType == entities.GroupWagerTypeHouse &&
 				gw.TotalPot == 0 &&
-				gw.MinParticipants == 0 && // House wagers don't require minimum participants
+				gw.MinParticipants == 0 && // All wager types now allow any number of participants
 				gw.VotingPeriodMinutes == 60 &&
 				gw.MessageID == TestMessageID &&
 				gw.ChannelID == TestChannelID

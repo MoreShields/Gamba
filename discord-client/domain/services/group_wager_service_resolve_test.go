@@ -194,48 +194,6 @@ func TestGroupWagerService_ResolveGroupWager_ValidationErrors(t *testing.T) {
 			expectedError: "cannot be resolved",
 		},
 		{
-			name: "insufficient participants",
-			setupFunc: func(mocks *TestMocks, helper *MockHelper) int64 {
-				scenario := NewGroupWagerScenario().
-					WithPoolWager(TestResolverID, "Test").
-					WithOptions("Yes", "No").
-					WithParticipant(TestUser1ID, 0, 1000). // Only 1 participant
-					Build()
-
-				helper.ExpectWagerDetailLookup(TestWagerID, &entities.GroupWagerDetail{
-					Wager:        scenario.Wager,
-					Options:      scenario.Options,
-					Participants: scenario.Participants,
-				})
-
-				return scenario.Options[0].ID
-			},
-			resolverID:    TestResolverID,
-			expectedError: "insufficient participants",
-		},
-		{
-			name: "single option with all participants",
-			setupFunc: func(mocks *TestMocks, helper *MockHelper) int64 {
-				scenario := NewGroupWagerScenario().
-					WithPoolWager(TestResolverID, "Test").
-					WithOptions("Yes", "No").
-					WithParticipant(TestUser1ID, 0, 1000).
-					WithParticipant(TestUser2ID, 0, 2000).
-					WithParticipant(TestUser3ID, 0, 1500). // All on option 0
-					Build()
-
-				helper.ExpectWagerDetailLookup(TestWagerID, &entities.GroupWagerDetail{
-					Wager:        scenario.Wager,
-					Options:      scenario.Options,
-					Participants: scenario.Participants,
-				})
-
-				return scenario.Options[0].ID
-			},
-			resolverID:    TestResolverID,
-			expectedError: "need participants on at least 2 different options",
-		},
-		{
 			name: "invalid winning option",
 			setupFunc: func(mocks *TestMocks, helper *MockHelper) int64 {
 				scenario := NewGroupWagerScenario().

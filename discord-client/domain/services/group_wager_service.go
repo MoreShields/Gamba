@@ -98,11 +98,9 @@ func (s *groupWagerService) CreateGroupWager(ctx context.Context, creatorID *int
 	now := time.Now()
 	votingEndTime := now.Add(time.Duration(votingPeriodMinutes) * time.Minute)
 
-	// Set minimum participants based on wager type
-	minParticipants := 3 // Default for pool wagers
-	if wagerType == entities.GroupWagerTypeHouse {
-		minParticipants = 0 // House wagers don't require minimum participants
-	}
+	// Set minimum participants to 0 for all wager types
+	// Allow wagers to resolve with any number of participants
+	minParticipants := 0
 
 	// Create the group wager
 	groupWager := &entities.GroupWager{
@@ -413,23 +411,7 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 		participantsByOption[p.OptionID] = append(participantsByOption[p.OptionID], p)
 	}
 
-	// Skip participant validation for house wagers
-	// House wagers should resolve regardless of participation since the house provides liquidity
-	if !groupWager.IsHouseWager() {
-		if len(participants) < groupWager.MinParticipants {
-			return nil, fmt.Errorf("insufficient participants: have %d, need %d", len(participants), groupWager.MinParticipants)
-		}
-
-		optionsWithParticipants := 0
-		for _, parts := range participantsByOption {
-			if len(parts) > 0 {
-				optionsWithParticipants++
-			}
-		}
-		if optionsWithParticipants < 2 {
-			return nil, fmt.Errorf("need participants on at least 2 different options")
-		}
-	}
+	// No restrictions on participant distribution - allow resolution in any case
 
 	// Get the winning option from detail by ID
 	options := detail.Options
