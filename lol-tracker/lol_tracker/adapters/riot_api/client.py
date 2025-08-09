@@ -427,13 +427,14 @@ class RiotAPIClient:
         
         Internal method that allows specifying which API key to use.
         """
-        # Account API ALWAYS uses americas endpoint, unless in test/mock environment
-        # The account API is global and doesn't use regional endpoints
-        if self.base_url:
+        # Account API ALWAYS uses americas endpoint for production
+        # Only use base_url for test/mock environments
+        if self.base_url and ("localhost" in self.base_url or "mock" in self.base_url):
             # Use provided base_url for test/mock environments
             base_url = self.base_url
         else:
-            # Always use americas endpoint for production
+            # Always use americas endpoint for production, regardless of configured base_url
+            # Account API is global and doesn't use regional endpoints
             base_url = "https://americas.api.riotgames.com"
         url = f"{base_url}/riot/account/v1/accounts/by-riot-id/{game_name}/{tag_line}"
 
@@ -550,10 +551,11 @@ class RiotAPIClient:
     def _get_regional_url(self, region: str) -> str:
         """Get the regional URL for Match API calls."""
         # For test/mock environments, use the base_url
-        if self.base_url:
+        if self.base_url and ("localhost" in self.base_url or "mock" in self.base_url):
             return self.base_url
         
         # For production, match endpoints ALWAYS use regional routing
+        # regardless of any configured base_url
         regional_map = {
             "na1": "americas",
             "br1": "americas",
