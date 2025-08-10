@@ -13,6 +13,7 @@ import (
 	"gambler/discord-client/config"
 	"gambler/discord-client/database"
 	"gambler/discord-client/infrastructure"
+	"gambler/discord-client/infrastructure/observability"
 
 	summoner_pb "gambler/discord-client/proto/services"
 
@@ -44,6 +45,12 @@ func Run(ctx context.Context) error {
 
 	// Load configuration
 	cfg := config.Get()
+
+	// Initialize OpenTelemetry metrics
+	if err := initializeMetrics(ctx, cfg); err != nil {
+		log.Printf("Warning: Failed to initialize metrics: %v", err)
+		// Continue running without metrics
+	}
 
 	/// Initialize infrastructure connections
 	db, err := initializeDatabase(ctx, cfg)
@@ -97,6 +104,21 @@ func Run(ctx context.Context) error {
 	// Graceful shutdown
 	performGracefulShutdown(messageConsumer, discordBot, natsClient, summonerConn, db, cleanupFuncs)
 
+	return nil
+}
+
+// initializeMetrics sets up OpenTelemetry metrics
+func initializeMetrics(ctx context.Context, cfg *config.Config) error {
+	if !cfg.OTelEnabled {
+		log.Println("OpenTelemetry metrics disabled")
+		return nil
+	}
+	
+	log.Println("Initializing OpenTelemetry metrics...")
+	if err := observability.InitializeGlobalMetrics(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to initialize metrics: %w", err)
+	}
+	log.Println("OpenTelemetry metrics initialized successfully")
 	return nil
 }
 
@@ -300,6 +322,12 @@ func performGracefulShutdown(
 	// Give cleanup operations time to complete
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	// Shutdown metrics provider
+	log.Println("Shutting down metrics provider...")
+	if err := observability.ShutdownGlobalMetrics(shutdownCtx); err != nil {
+		log.Printf("Error shutting down metrics provider: %v", err)
+	}
 
 	// Close database connection
 	log.Println("Closing database connection...")
