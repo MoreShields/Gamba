@@ -66,13 +66,17 @@ func TestTFTHandler_EndToEndFlow(t *testing.T) {
 		assert.Equal(t, guildID, post.GuildID)
 		assert.Contains(t, post.Title, summonerName)
 		assert.Contains(t, post.Title, "TFT Match")
-		assert.Len(t, post.Options, 2) // Top 4/Bottom 4 options
+		assert.Len(t, post.Options, 4) // 4 placement range options
 
 		// Verify TFT-specific options
-		assert.Equal(t, "Top 4", post.Options[0].Text)
-		assert.Equal(t, "Bottom 4", post.Options[1].Text)
-		assert.Equal(t, float64(2.0), post.Options[0].Multiplier)
-		assert.Equal(t, float64(2.0), post.Options[1].Multiplier)
+		assert.Equal(t, "1-2", post.Options[0].Text)
+		assert.Equal(t, "3-4", post.Options[1].Text)
+		assert.Equal(t, "5-6", post.Options[2].Text)
+		assert.Equal(t, "7-8", post.Options[3].Text)
+		assert.Equal(t, float64(4.0), post.Options[0].Multiplier)
+		assert.Equal(t, float64(4.0), post.Options[1].Multiplier)
+		assert.Equal(t, float64(4.0), post.Options[2].Multiplier)
+		assert.Equal(t, float64(4.0), post.Options[3].Multiplier)
 
 		// Verify wager was created in database
 		uow := uowFactory.CreateForGuild(guildID)
@@ -96,14 +100,14 @@ func TestTFTHandler_EndToEndFlow(t *testing.T) {
 		assert.Equal(t, entities.SystemTFT, wager.ExternalRef.System)
 	})
 
-	t.Run("Game End Resolves TFT House Wager - Top 4", func(t *testing.T) {
+	t.Run("Game End Resolves TFT House Wager - 3rd Place", func(t *testing.T) {
 		// Don't use t.Parallel() in sub-tests when parent cleans up resources
-		// TFT game end event - player gets 3rd place (Top 4)
+		// TFT game end event - player gets 3rd place (3-4 range)
 		gameEnded := dto.TFTGameEndedDTO{
 			SummonerName:    summonerName,
 			TagLine:         tagLine,
 			GameID:          gameID,
-			Placement:       3, // Top 4
+			Placement:       3, // 3-4 range
 			DurationSeconds: 1800, // 30 minutes
 			QueueType:       "RANKED_TFT",
 		}
@@ -129,7 +133,7 @@ func TestTFTHandler_EndToEndFlow(t *testing.T) {
 		assert.Equal(t, entities.GroupWagerStateResolved, wager.State)
 		assert.NotNil(t, wager.WinningOptionID)
 
-		// Verify the correct option won (Top 4 option)
+		// Verify the correct option won (3-4 option)
 		detail, err := uow.GroupWagerRepository().GetDetailByID(ctx, wager.ID)
 		require.NoError(t, err)
 		require.NotNil(t, detail)
@@ -142,11 +146,11 @@ func TestTFTHandler_EndToEndFlow(t *testing.T) {
 			}
 		}
 		require.NotNil(t, winOption)
-		assert.Equal(t, "Top 4", winOption.OptionText)
+		assert.Equal(t, "3-4", winOption.OptionText)
 	})
 }
 
-func TestTFTHandler_EndToEndFlow_Bottom4(t *testing.T) {
+func TestTFTHandler_EndToEndFlow_6thPlace(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
@@ -188,12 +192,12 @@ func TestTFTHandler_EndToEndFlow_Bottom4(t *testing.T) {
 	err := handler.HandleGameStarted(ctx, gameStarted)
 	require.NoError(t, err)
 
-	// Game end - player gets 6th place (Bottom 4)
+	// Game end - player gets 6th place (5-6 range)
 	gameEnded := dto.TFTGameEndedDTO{
 		SummonerName:    summonerName,
 		TagLine:         tagLine,
 		GameID:          gameID,
-		Placement:       6, // Bottom 4
+		Placement:       6, // 5-6 range
 		DurationSeconds: 1200, // 20 minutes
 		QueueType:       "RANKED_TFT",
 	}
@@ -201,7 +205,7 @@ func TestTFTHandler_EndToEndFlow_Bottom4(t *testing.T) {
 	err = handler.HandleGameEnded(ctx, gameEnded)
 	require.NoError(t, err)
 
-	// Verify wager was resolved with Bottom 4 option
+	// Verify wager was resolved with 5-6 option
 	uow := uowFactory.CreateForGuild(guildID)
 	require.NoError(t, uow.Begin(ctx))
 	defer uow.Rollback()
@@ -218,7 +222,7 @@ func TestTFTHandler_EndToEndFlow_Bottom4(t *testing.T) {
 	assert.Equal(t, entities.GroupWagerStateResolved, wager.State)
 	assert.NotNil(t, wager.WinningOptionID)
 
-	// Verify the correct option won (Bottom 4 option)
+	// Verify the correct option won (5-6 option)
 	detail, err := uow.GroupWagerRepository().GetDetailByID(ctx, wager.ID)
 	require.NoError(t, err)
 	require.NotNil(t, detail)
@@ -231,7 +235,7 @@ func TestTFTHandler_EndToEndFlow_Bottom4(t *testing.T) {
 		}
 	}
 	require.NotNil(t, winOption)
-	assert.Equal(t, "Bottom 4", winOption.OptionText)
+	assert.Equal(t, "5-6", winOption.OptionText)
 }
 
 func TestTFTHandler_PlacementBoundaries(t *testing.T) {
@@ -245,10 +249,14 @@ func TestTFTHandler_PlacementBoundaries(t *testing.T) {
 		placement         int32
 		expectedWinOption string
 	}{
-		{"1st place", 1, "Top 4"},
-		{"4th place exactly", 4, "Top 4"},
-		{"5th place", 5, "Bottom 4"},
-		{"8th place", 8, "Bottom 4"},
+		{"1st place", 1, "1-2"},
+		{"2nd place", 2, "1-2"},
+		{"3rd place", 3, "3-4"},
+		{"4th place", 4, "3-4"},
+		{"5th place", 5, "5-6"},
+		{"6th place", 6, "5-6"},
+		{"7th place", 7, "7-8"},
+		{"8th place", 8, "7-8"},
 	}
 
 	for _, tc := range testCases {
@@ -401,7 +409,7 @@ func TestTFTHandler_NoCancellationLogic(t *testing.T) {
 		SummonerName:    summonerName,
 		TagLine:         tagLine,
 		GameID:          gameID,
-		Placement:       7, // Bottom 4
+		Placement:       7, // 7-8 range
 		DurationSeconds: 300, // 5 minutes - would trigger cancellation in LoL
 		QueueType:       "RANKED_TFT",
 	}
@@ -420,7 +428,7 @@ func TestTFTHandler_NoCancellationLogic(t *testing.T) {
 	assert.Equal(t, entities.GroupWagerStateResolved, wager.State)
 	assert.NotNil(t, wager.WinningOptionID)
 
-	// Verify the correct option won (Bottom 4 for placement 7)
+	// Verify the correct option won (7-8 for placement 7)
 	detail, err := uow.GroupWagerRepository().GetDetailByID(ctx, wager.ID)
 	require.NoError(t, err)
 	require.NotNil(t, detail)
@@ -433,7 +441,7 @@ func TestTFTHandler_NoCancellationLogic(t *testing.T) {
 		}
 	}
 	require.NotNil(t, winOption)
-	assert.Equal(t, "Bottom 4", winOption.OptionText)
+	assert.Equal(t, "7-8", winOption.OptionText)
 }
 
 func TestTFTHandler_MultipleGuilds(t *testing.T) {
@@ -514,7 +522,7 @@ func TestTFTHandler_MultipleGuilds(t *testing.T) {
 		SummonerName:    summonerName,
 		TagLine:         tagLine,
 		GameID:          gameID,
-		Placement:       2, // Top 4
+		Placement:       2, // 1-2 range
 		DurationSeconds: 1500,
 		QueueType:       "RANKED_TFT",
 	}

@@ -86,9 +86,9 @@ func (h *TFTHandlerImpl) HandleGameStarted(ctx context.Context, gameStarted dto.
 			SummonerName:        gameStarted.SummonerName,
 			TagLine:             gameStarted.TagLine,
 			Condition:           condition,
-			Options:             []string{"Top 4", "Bottom 4"}, // TFT-specific options
-			OddsMultipliers:     []float64{2.0, 2.0},           // 2:1 odds for both
-			VotingPeriodMinutes: 5,                             // 5 minutes for betting
+			Options:             []string{"1-2", "3-4", "5-6", "7-8"}, // TFT placement ranges
+			OddsMultipliers:     []float64{4.0, 4.0, 4.0, 4.0},        // 4:1 odds for all
+			VotingPeriodMinutes: 5,                                    // 5 minutes for betting
 			ChannelIDGetter: func(gs *entities.GuildSettings) *int64 {
 				return gs.TftChannelID
 			},
@@ -190,13 +190,29 @@ func (h *TFTHandlerImpl) HandleGameEnded(ctx context.Context, gameEnded dto.TFTG
 
 		guildUow.Rollback() // Close the query transaction
 
-		// TFT winner selector: Top 4 (placement <= 4) vs Bottom 4 (placement > 4)
+		// TFT winner selector: Match placement to the correct range
 		tftWinnerSelector := func(options []entities.GroupWagerOption, result interface{}) int64 {
 			gameResult := result.(dto.TFTGameEndedDTO)
-			isTop4 := gameResult.Placement <= 4
+			placement := gameResult.Placement
+			
+			// Determine which option wins based on placement
+			var winningOption string
+			switch placement {
+			case 1, 2:
+				winningOption = "1-2"
+			case 3, 4:
+				winningOption = "3-4"
+			case 5, 6:
+				winningOption = "5-6"
+			case 7, 8:
+				winningOption = "7-8"
+			default:
+				// Invalid placement
+				return 0
+			}
 			
 			for _, opt := range options {
-				if (isTop4 && opt.OptionText == "Top 4") || (!isTop4 && opt.OptionText == "Bottom 4") {
+				if opt.OptionText == winningOption {
 					return opt.ID
 				}
 			}
