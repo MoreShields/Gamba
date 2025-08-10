@@ -49,6 +49,14 @@ type Config struct {
 
 	// Environment
 	Environment string // "development" or "production"
+
+	// OpenTelemetry configuration
+	OTelEnabled              bool   // Enable/disable OpenTelemetry metrics
+	OTelExporterType         string // "otlp", "console", or "none"
+	OTelOTLPEndpoint         string // OTLP collector endpoint
+	OTelServiceName          string // Service name for metrics
+	OTelExportIntervalMillis int    // Export interval in milliseconds
+	OTelExportTimeoutMillis  int    // Export timeout in milliseconds
 }
 
 var (
@@ -125,6 +133,14 @@ func load() (*Config, error) {
 
 		// Environment
 		Environment: os.Getenv("ENVIRONMENT"),
+
+		// OpenTelemetry defaults
+		OTelEnabled:              true,
+		OTelExporterType:         "otlp",
+		OTelOTLPEndpoint:         "localhost:4317",
+		OTelServiceName:          "discord-client",
+		OTelExportIntervalMillis: 5000,
+		OTelExportTimeoutMillis:  10000,
 	}
 
 	// Override defaults if environment variables are set
@@ -159,6 +175,32 @@ func load() (*Config, error) {
 					config.ResolverDiscordIDs = append(config.ResolverDiscordIDs, id)
 				}
 			}
+		}
+	}
+
+	// Parse OpenTelemetry configuration
+	if enabled := os.Getenv("OTEL_ENABLED"); enabled != "" {
+		if parsedEnabled, err := strconv.ParseBool(enabled); err == nil {
+			config.OTelEnabled = parsedEnabled
+		}
+	}
+	if exporterType := os.Getenv("OTEL_EXPORTER_TYPE"); exporterType != "" {
+		config.OTelExporterType = exporterType
+	}
+	if endpoint := os.Getenv("OTEL_OTLP_ENDPOINT"); endpoint != "" {
+		config.OTelOTLPEndpoint = endpoint
+	}
+	if serviceName := os.Getenv("OTEL_SERVICE_NAME"); serviceName != "" {
+		config.OTelServiceName = serviceName
+	}
+	if interval := os.Getenv("OTEL_EXPORT_INTERVAL_MILLIS"); interval != "" {
+		if parsedInterval, err := strconv.Atoi(interval); err == nil {
+			config.OTelExportIntervalMillis = parsedInterval
+		}
+	}
+	if timeout := os.Getenv("OTEL_EXPORT_TIMEOUT_MILLIS"); timeout != "" {
+		if parsedTimeout, err := strconv.Atoi(timeout); err == nil {
+			config.OTelExportTimeoutMillis = parsedTimeout
 		}
 	}
 

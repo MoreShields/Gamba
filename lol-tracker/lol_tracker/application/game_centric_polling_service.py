@@ -16,6 +16,7 @@ from ..core.events import GameStateChangedEvent
 from ..adapters.database.manager import DatabaseManager
 from ..adapters.riot_api.client import RiotAPIClient, PlayerNotInGameError
 from ..adapters.messaging.events import EventPublisher
+from ..adapters.observability import MetricsProvider
 from ..config import Config
 
 
@@ -38,6 +39,7 @@ class GameCentricPollingService:
         database: DatabaseManager,
         riot_api: RiotAPIClient,
         event_publisher: EventPublisher,
+        metrics: MetricsProvider,
         config: Config
     ):
         """Initialize the game-centric polling service.
@@ -51,6 +53,7 @@ class GameCentricPollingService:
         self.database = database
         self.riot_api = riot_api
         self.event_publisher = event_publisher
+        self.metrics = metrics
         self.config = config
         
         # Extract polling intervals from config
@@ -147,6 +150,7 @@ class GameCentricPollingService:
         
         while self._is_running:
             try:
+                self.metrics.record_polling_iteration("detection")
                 await self._detect_new_games()
                 await asyncio.sleep(self.detection_interval)
                 
@@ -155,6 +159,7 @@ class GameCentricPollingService:
                 break
             except Exception as e:
                 logger.error(f"Error in detection loop: {e}")
+                self.metrics.record_polling_error("detection", type(e).__name__)
                 # Wait before retrying on error
                 await asyncio.sleep(min(self.detection_interval, 30))
         
@@ -236,6 +241,18 @@ class GameCentricPollingService:
                 f"(Queue: {queue_type.value if queue_type else 'Unknown'})"
             )
             
+            # Record metrics for game detection
+            game_type = queue_type.game_type.value if queue_type and queue_type.game_type else "unknown"
+            self.metrics.record_game_detected(
+                game_type=game_type,
+                queue_type=queue_type.value if queue_type else None
+            )
+            self.metrics.record_game_state_change(
+                game_type=game_type,
+                queue_type=queue_type.value if queue_type else None,
+                transition_type="game_started"
+            )
+            
             # Create domain entity for event creation
             tracked_game_entity = TrackedGame(
                 player_id=player.id,
@@ -272,6 +289,7 @@ class GameCentricPollingService:
         
         while self._is_running:
             try:
+                self.metrics.record_polling_iteration("completion")
                 await self._check_active_games()
                 await asyncio.sleep(self.completion_interval)
                 
@@ -280,6 +298,7 @@ class GameCentricPollingService:
                 break
             except Exception as e:
                 logger.error(f"Error in completion loop: {e}")
+                self.metrics.record_polling_error("completion", type(e).__name__)
                 # Wait before retrying on error
                 await asyncio.sleep(min(self.completion_interval, 30))
         
@@ -443,6 +462,18 @@ class GameCentricPollingService:
             logger.info(
                 f"Completed game {game.game_id} for {player.riot_id} "
                 f"(Result: {game_result_data})"
+            )
+            
+            # Record metrics for game completion
+            game_type = queue_type.game_type.value if queue_type and queue_type.game_type else "unknown"
+            self.metrics.record_game_completed(
+                game_type=game_type,
+                queue_type=queue_type.value if queue_type else None
+            )
+            self.metrics.record_game_state_change(
+                game_type=game_type,
+                queue_type=queue_type.value if queue_type else None,
+                transition_type="game_ended"
             )
             
             # Emit game completed event using proper event object

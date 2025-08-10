@@ -110,6 +110,11 @@ services:
       ENVIRONMENT: production
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       
+      # OpenTelemetry configuration
+      OTEL_ENABLED: ${OTEL_ENABLED:-true}
+      OTEL_OTLP_ENDPOINT: ${OTEL_OTLP_ENDPOINT}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-lol-tracker}
+      
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
