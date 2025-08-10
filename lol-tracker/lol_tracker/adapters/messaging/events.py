@@ -15,6 +15,7 @@ from ...config import Config
 from ...proto.events import lol_events_pb2, tft_events_pb2
 from ...core.events import GameStateChangedEvent, LoLGameStateChangedEvent, TFTGameStateChangedEvent
 from ...core.enums import GameStatus
+from ..observability import MetricsProvider
 
 logger = logging.getLogger(__name__)
 
@@ -22,13 +23,15 @@ logger = logging.getLogger(__name__)
 class EventPublisher:
     """Simple NATS event publisher for LoL Tracker events."""
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, metrics: MetricsProvider):
         """Initialize the event publisher.
         
         Args:
             config: Application configuration
+            metrics: Metrics provider for recording publish metrics
         """
         self.config = config
+        self.metrics = metrics
         self._client: Optional[NATSClient] = None
         self._js: Optional[JetStreamContext] = None
         self._connected = False
@@ -271,19 +274,49 @@ class EventPublisher:
         if not self._js:
             raise RuntimeError("Not connected to NATS JetStream")
 
+        message_type = type(message).__name__
+        stream_name = self._get_stream_name_for_subject(subject)
+        
         try:
             # Serialize protobuf to bytes
             message_bytes = message.SerializeToString()
             ack = await self._js.publish(subject, message_bytes)
             logger.info(
                 f"Successfully published to NATS - Subject: {subject}, "
-                f"Message type: {type(message).__name__}, "
+                f"Message type: {message_type}, "
                 f"Size: {len(message_bytes)} bytes, "
                 f"Stream: {ack.stream}, Seq: {ack.seq}"
             )
+            
+            # Record successful publish
+            self.metrics.record_message_published(
+                event_type=message_type,
+                subject=subject,
+                stream=stream_name,
+                success=True
+            )
         except Exception as e:
             logger.error(f"Failed to publish protobuf message to {subject}: {e}")
+            
+            # Record failed publish
+            self.metrics.record_message_published(
+                event_type=message_type,
+                subject=subject,
+                stream=stream_name,
+                success=False
+            )
             raise
+    
+    def _get_stream_name_for_subject(self, subject: str) -> str:
+        """Determine the stream name based on the subject."""
+        if subject.startswith(self.config.game_state_events_subject):
+            return self.config.lol_events_stream
+        elif subject.startswith(self.config.tft_game_state_events_subject):
+            return self.config.tft_events_stream
+        elif subject.startswith(self.config.tracking_events_subject):
+            return self.config.tracking_events_stream
+        else:
+            return "unknown"
 
     # NATS callbacks
     
@@ -305,8 +338,8 @@ class EventPublisher:
 class MockEventPublisher(EventPublisher):
     """Mock event publisher for testing that reuses real protobuf serialization logic."""
 
-    def __init__(self, config: Config):
-        super().__init__(config)
+    def __init__(self, config: Config, metrics: MetricsProvider):
+        super().__init__(config, metrics)
         self.published_messages = []  # Store (subject, protobuf_bytes, protobuf_message) tuples
 
     async def initialize(self) -> None:

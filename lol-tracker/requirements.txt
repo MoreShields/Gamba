@@ -26,6 +26,12 @@ python-decouple>=3.8
 # Logging and monitoring
 structlog>=23.2.0
 
+# OpenTelemetry
+opentelemetry-api>=1.21.0
+opentelemetry-sdk>=1.21.0
+opentelemetry-instrumentation>=0.42b0
+opentelemetry-exporter-otlp>=1.21.0
+
 # Development dependencies (will be moved to requirements-dev.txt later)
 pytest>=7.4.0
 pytest-asyncio>=0.21.0

@@ -17,6 +17,7 @@ from lol_tracker.adapters.riot_api.client import RiotAPIClient
 from lol_tracker.application.polling_service import PollingService
 from lol_tracker.application.game_centric_polling_service import GameCentricPollingService
 from lol_tracker.adapters.messaging.events import EventPublisher
+from lol_tracker.adapters.observability import initialize_metrics, shutdown_metrics
 
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,7 @@ class LoLTrackerService:
         self._riot_api_client: Optional[RiotAPIClient] = None
         self._event_publisher: Optional[EventPublisher] = None
         self._polling_service: Optional[PollingService] = None
+        self._metrics_provider = None
         
         # Provided dependencies
         self._provided_message_bus_client = message_bus_client
@@ -171,6 +173,9 @@ class LoLTrackerService:
         """Initialize all infrastructure components."""
         logger.info("Initializing infrastructure components")
         
+        # Initialize metrics provider first
+        self._metrics_provider = initialize_metrics(self.config)
+        
         # Initialize database
         self._database_manager = DatabaseManager(self.config)
         await self._database_manager.initialize()
@@ -203,6 +208,7 @@ class LoLTrackerService:
         self._riot_api_client = RiotAPIClient(
             self.config.riot_api_key,
             self.config.tft_riot_api_key,
+            metrics=self._metrics_provider,
             base_url=self.config.riot_api_url,
             request_timeout=self.config.riot_api_timeout_seconds,
         )
@@ -210,7 +216,7 @@ class LoLTrackerService:
         logger.info(f"Using Riot API at: {self.config.riot_api_url}")
         
         # Initialize event publisher
-        self._event_publisher = EventPublisher(self.config)
+        self._event_publisher = EventPublisher(self.config, self._metrics_provider)
         await self._event_publisher.initialize()
         
         # Create polling service based on feature flag
@@ -220,6 +226,7 @@ class LoLTrackerService:
                 database=self._database_manager,
                 riot_api=self._riot_api_client,
                 event_publisher=self._event_publisher,
+                metrics=self._metrics_provider,
                 config=self.config
             )
         else:
@@ -261,5 +268,8 @@ class LoLTrackerService:
                 await self._database_manager.close()
             except Exception as e:
                 logger.error(f"Error during database disconnect: {e}")
+        
+        # Shutdown metrics provider
+        shutdown_metrics()
         
         logger.info("Infrastructure cleanup completed")

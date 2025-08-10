@@ -4,8 +4,10 @@ import asyncio
 import time
 from typing import Optional, Dict, Any, Union, Tuple
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 from lol_tracker.core.enums import QueueType, GameType
+from lol_tracker.adapters.observability import MetricsProvider
 
 import httpx
 import structlog
@@ -224,7 +226,7 @@ class PlayerNotInGameError(RiotAPIError):
 class RiotAPIClient:
     """Riot API client with rate limiting and error handling."""
 
-    def __init__(self, api_key: str, tft_api_key: str, base_url: Optional[str] = None, request_timeout: float = 10.0):
+    def __init__(self, api_key: str, tft_api_key: str, metrics: MetricsProvider, base_url: Optional[str] = None, request_timeout: float = 10.0):
         """Initialize the Riot API client.
 
         Args:
@@ -235,6 +237,7 @@ class RiotAPIClient:
         """
         self.api_key = api_key
         self.tft_api_key = tft_api_key
+        self.metrics = metrics
         self.base_url = base_url
         self.request_timeout = request_timeout
         self.client = httpx.AsyncClient(timeout=request_timeout)
@@ -266,6 +269,27 @@ class RiotAPIClient:
         """Get the base URL for a region."""
         # Always use the provided base URL if available
         return self.base_url if self.base_url else f"https://{region}.api.riotgames.com"
+    
+    def _extract_endpoint_type(self, url: str) -> str:
+        """Extract the endpoint type from a URL for metrics."""
+        try:
+            path = urlparse(url).path
+            if "/account/" in path:
+                return "account"
+            elif "/spectator/" in path:
+                if "/tft/" in path:
+                    return "tft_spectator"
+                return "lol_spectator"
+            elif "/match/" in path:
+                if "/tft/" in path:
+                    return "tft_match"
+                return "lol_match"
+            elif "/summoner/" in path:
+                return "summoner"
+            else:
+                return "unknown"
+        except Exception:
+            return "unknown"
 
     async def _rate_limit_delay(self):
         """Apply rate limiting delay."""
@@ -299,19 +323,30 @@ class RiotAPIClient:
 
         api_key = self.tft_api_key if use_tft_key else self.api_key
         headers = {"X-Riot-Token": api_key, "Accept": "application/json"}
+        
+        # Extract endpoint type from URL for metrics
+        endpoint_type = self._extract_endpoint_type(url)
+        api_key_type = "tft" if use_tft_key else "lol"
+        
+        start_time = time.time()
+        status_code = 0
+        error_type = None
 
         try:
             response = await self.client.get(url, headers=headers)
+            status_code = response.status_code
 
             # Handle rate limiting
             if response.status_code == 429:
                 retry_after = int(response.headers.get("Retry-After", 60))
                 self._rate_limit_reset_time = time.time() + retry_after
                 logger.warning("Rate limited by Riot API", retry_after=retry_after)
+                error_type = "rate_limit"
                 raise RateLimitError(f"Rate limited. Retry after {retry_after} seconds")
 
             # Handle not found - context dependent
             if response.status_code == 404:
+                error_type = handle_404_as
                 if handle_404_as == "summoner_not_found":
                     raise SummonerNotFoundError("Summoner not found")
                 elif handle_404_as == "account_not_found":
@@ -323,6 +358,7 @@ class RiotAPIClient:
 
             # Handle other errors
             if response.status_code >= 400:
+                error_type = "api_error"
                 logger.error(
                     "Riot API error",
                     url=url,
@@ -334,8 +370,20 @@ class RiotAPIClient:
             return response.json()
 
         except httpx.RequestError as e:
+            status_code = 0  # Network error, no status code
+            error_type = "network_error"
             logger.error("HTTP request failed", error=str(e))
             raise RiotAPIError(f"Request failed: {e}")
+        finally:
+            # Record metrics
+            duration = time.time() - start_time
+            self.metrics.record_riot_api_call(
+                endpoint_type=endpoint_type,
+                api_key_type=api_key_type,
+                status_code=status_code,
+                duration=duration,
+                error_type=error_type
+            )
 
     async def get_summoner_by_name(self, game_name: str, tag_line: str) -> SummonerInfo:
         """Get summoner information by summoner name.

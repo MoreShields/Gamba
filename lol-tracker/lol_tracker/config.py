@@ -63,6 +63,14 @@ class Config:
     log_level: str = "INFO"
     log_format: str = "json"
 
+    # OpenTelemetry configuration
+    otel_enabled: bool = True
+    otel_exporter_type: str = "otlp"  # "otlp", "console", or "none"
+    otel_otlp_endpoint: str = "http://localhost:4317"
+    otel_service_name: str = "lol-tracker"
+    otel_export_interval_millis: int = 5000
+    otel_export_timeout_millis: int = 10000
+
     # gRPC server configuration
     grpc_server_port: int = 50051
     grpc_server_max_workers: int = 10
@@ -124,6 +132,13 @@ class Config:
             # Logging
             log_level=get_config("LOG_LEVEL", "INFO"),
             log_format=get_config("LOG_FORMAT", "json", Choices(["json", "text"])),
+            # OpenTelemetry
+            otel_enabled=get_config("OTEL_ENABLED", True, bool),
+            otel_exporter_type=get_config("OTEL_EXPORTER_TYPE", "otlp", Choices(["otlp", "console", "none"])),
+            otel_otlp_endpoint=get_config("OTEL_OTLP_ENDPOINT", "http://localhost:4317"),
+            otel_service_name=get_config("OTEL_SERVICE_NAME", "lol-tracker"),
+            otel_export_interval_millis=get_config("OTEL_EXPORT_INTERVAL_MILLIS", 5000, int),
+            otel_export_timeout_millis=get_config("OTEL_EXPORT_TIMEOUT_MILLIS", 10000, int),
             # gRPC server
             grpc_server_port=get_config("GRPC_SERVER_PORT", 9000, int),
             grpc_server_max_workers=get_config("GRPC_SERVER_MAX_WORKERS", 10, int),
