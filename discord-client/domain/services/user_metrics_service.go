@@ -216,11 +216,38 @@ func (s *userMetricsService) getGameLeaderboard(ctx context.Context, minWagers i
 		return nil, 0, fmt.Errorf("failed to get %s wager predictions: %w", system, err)
 	}
 
+	// Determine valid option texts and odds based on the system
+	var isValidOption func(string) bool
+	var getOddsMultiplier func(string) float64
+	
+	switch system {
+	case entities.SystemLeagueOfLegends:
+		// LoL uses Win/Loss options with 1:1 odds
+		isValidOption = func(text string) bool {
+			return text == "Win" || text == "Loss"
+		}
+		getOddsMultiplier = func(text string) float64 {
+			return 1.0 // 1:1 odds for LoL
+		}
+	case entities.SystemTFT:
+		// TFT uses placement range options with 4:1 odds
+		isValidOption = func(text string) bool {
+			return text == "1-2" || text == "3-4" || text == "5-6" || text == "7-8"
+		}
+		getOddsMultiplier = func(text string) float64 {
+			return 3.0 // 4:1 odds means winners get 3x profit (bet + 3x)
+		}
+	default:
+		// Default behavior for unknown systems
+		isValidOption = func(_ string) bool { return true }
+		getOddsMultiplier = func(_ string) float64 { return 1.0 }
+	}
+
 	// Group predictions by user for profit/loss calculation
 	userPredictions := make(map[int64][]*entities.GroupWagerPrediction)
 	for _, pred := range predictions {
-		// Only count predictions on Win/Loss options
-		if pred.OptionText != "Win" && pred.OptionText != "Loss" {
+		// Only count predictions with valid option texts for this system
+		if !isValidOption(pred.OptionText) {
 			continue
 		}
 		userPredictions[pred.DiscordID] = append(userPredictions[pred.DiscordID], pred)
@@ -243,8 +270,9 @@ func (s *userMetricsService) getGameLeaderboard(ctx context.Context, minWagers i
 
 			if pred.WasCorrect {
 				entry.CorrectPredictions++
-				// For game wagers, assume 1:1 odds - winner gets double their bet
-				entry.ProfitLoss += pred.Amount
+				// Calculate profit based on system-specific odds
+				profit := int64(float64(pred.Amount) * getOddsMultiplier(pred.OptionText))
+				entry.ProfitLoss += profit
 			} else {
 				// Lost the bet amount
 				entry.ProfitLoss -= pred.Amount

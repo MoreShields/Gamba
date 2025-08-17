@@ -419,3 +419,269 @@ func TestUserMetricsService_GetUserStats(t *testing.T) {
 		mockUserRepo.AssertExpectations(t)
 	})
 }
+
+func TestUserMetricsService_GetTFTLeaderboard(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("calculates TFT leaderboard with placement options and 4:1 odds", func(t *testing.T) {
+		mockUserRepo := new(testhelpers.MockUserRepository)
+		mockWagerRepo := new(testhelpers.MockWagerRepository)
+		mockBetRepo := new(testhelpers.MockBetRepository)
+		mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
+		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
+
+		// Mock TFT predictions with placement options and 4:1 odds (3x profit multiplier)
+		predictions := []*entities.GroupWagerPrediction{
+			// User 1: Mixed results - net loss
+			{DiscordID: 100, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 1000, WasCorrect: true},  // +3000 profit
+			{DiscordID: 100, GroupWagerID: 2, OptionID: 3, OptionText: "3-4", WinningOptionID: 5, Amount: 500, WasCorrect: false}, // -500 loss
+			{DiscordID: 100, GroupWagerID: 3, OptionID: 5, OptionText: "5-6", WinningOptionID: 7, Amount: 750, WasCorrect: false}, // -750 loss
+			{DiscordID: 100, GroupWagerID: 4, OptionID: 7, OptionText: "7-8", WinningOptionID: 1, Amount: 800, WasCorrect: false}, // -800 loss
+			// Net: +3000 - 500 - 750 - 800 = +950
+
+			// User 2: Better performance - net gain
+			{DiscordID: 200, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 2000, WasCorrect: true}, // +6000 profit
+			{DiscordID: 200, GroupWagerID: 2, OptionID: 3, OptionText: "3-4", WinningOptionID: 3, Amount: 1500, WasCorrect: true}, // +4500 profit
+			{DiscordID: 200, GroupWagerID: 3, OptionID: 5, OptionText: "5-6", WinningOptionID: 7, Amount: 1000, WasCorrect: false}, // -1000 loss
+			// Net: +6000 + 4500 - 1000 = +9500
+
+			// User 3: Perfect record but fewer predictions
+			{DiscordID: 300, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 500, WasCorrect: true}, // +1500 profit
+			{DiscordID: 300, GroupWagerID: 2, OptionID: 3, OptionText: "3-4", WinningOptionID: 3, Amount: 500, WasCorrect: true}, // +1500 profit
+			// Net: +1500 + 1500 = +3000
+		}
+
+		tftSystem := entities.SystemTFT
+		mockGroupWagerRepo.On("GetGroupWagerPredictions", ctx, &tftSystem).Return(predictions, nil)
+
+		// Execute
+		entries, totalBits, err := service.GetTFTLeaderboard(ctx, 1)
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, entries, 3)
+		assert.Equal(t, int64(8550), totalBits) // User1: 3050 + User2: 4500 + User3: 1000 = 8550
+
+		// Check sorting by profit/loss (descending)
+		assert.Equal(t, 1, entries[0].Rank)
+		assert.Equal(t, int64(200), entries[0].DiscordID)
+		assert.Equal(t, int64(9500), entries[0].ProfitLoss)
+		assert.Equal(t, 3, entries[0].TotalPredictions)
+		assert.Equal(t, 2, entries[0].CorrectPredictions)
+		assert.InDelta(t, 66.67, entries[0].AccuracyPercentage, 0.01)
+		assert.Equal(t, int64(4500), entries[0].TotalAmountWagered)
+
+		assert.Equal(t, 2, entries[1].Rank)
+		assert.Equal(t, int64(300), entries[1].DiscordID)
+		assert.Equal(t, int64(3000), entries[1].ProfitLoss)
+		assert.Equal(t, 2, entries[1].TotalPredictions)
+		assert.Equal(t, 2, entries[1].CorrectPredictions)
+		assert.Equal(t, float64(100), entries[1].AccuracyPercentage)
+		assert.Equal(t, int64(1000), entries[1].TotalAmountWagered)
+
+		assert.Equal(t, 3, entries[2].Rank)
+		assert.Equal(t, int64(100), entries[2].DiscordID)
+		assert.Equal(t, int64(950), entries[2].ProfitLoss)
+		assert.Equal(t, 4, entries[2].TotalPredictions)
+		assert.Equal(t, 1, entries[2].CorrectPredictions)
+		assert.Equal(t, float64(25), entries[2].AccuracyPercentage)
+		assert.Equal(t, int64(3050), entries[2].TotalAmountWagered)
+
+		mockGroupWagerRepo.AssertExpectations(t)
+	})
+
+	t.Run("filters out non-TFT placement options", func(t *testing.T) {
+		mockUserRepo := new(testhelpers.MockUserRepository)
+		mockWagerRepo := new(testhelpers.MockWagerRepository)
+		mockBetRepo := new(testhelpers.MockBetRepository)
+		mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
+		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
+
+		// Include TFT placement options and legacy options that should be filtered
+		predictions := []*entities.GroupWagerPrediction{
+			{DiscordID: 100, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 1000, WasCorrect: true},
+			{DiscordID: 100, GroupWagerID: 2, OptionID: 3, OptionText: "Win", WinningOptionID: 3, Amount: 500, WasCorrect: true}, // Should be filtered
+			{DiscordID: 100, GroupWagerID: 3, OptionID: 5, OptionText: "3-4", WinningOptionID: 5, Amount: 750, WasCorrect: true},
+			{DiscordID: 100, GroupWagerID: 4, OptionID: 7, OptionText: "Loss", WinningOptionID: 7, Amount: 250, WasCorrect: true}, // Should be filtered
+			{DiscordID: 100, GroupWagerID: 5, OptionID: 9, OptionText: "Top 4", WinningOptionID: 9, Amount: 300, WasCorrect: true}, // Should be filtered
+		}
+
+		tftSystem := entities.SystemTFT
+		mockGroupWagerRepo.On("GetGroupWagerPredictions", ctx, &tftSystem).Return(predictions, nil)
+
+		// Execute
+		entries, totalBits, err := service.GetTFTLeaderboard(ctx, 1)
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, entries, 1)
+
+		userStats := entries[0]
+		assert.Equal(t, int64(100), userStats.DiscordID)
+		assert.Equal(t, 2, userStats.TotalPredictions) // Only "1-2" and "3-4" counted
+		assert.Equal(t, 2, userStats.CorrectPredictions)
+		assert.Equal(t, float64(100), userStats.AccuracyPercentage)
+		assert.Equal(t, int64(1750), userStats.TotalAmountWagered) // Only 1000 + 750
+		assert.Equal(t, int64(5250), userStats.ProfitLoss) // (1000*3) + (750*3) = 5250 profit
+		assert.Equal(t, int64(1750), totalBits) // Only valid TFT options counted
+
+		mockGroupWagerRepo.AssertExpectations(t)
+	})
+
+	t.Run("applies minimum wager requirement correctly", func(t *testing.T) {
+		mockUserRepo := new(testhelpers.MockUserRepository)
+		mockWagerRepo := new(testhelpers.MockWagerRepository)
+		mockBetRepo := new(testhelpers.MockBetRepository)
+		mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
+		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
+
+		predictions := []*entities.GroupWagerPrediction{
+			// User with 3 predictions - should qualify for minWagers=3
+			{DiscordID: 100, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 1000, WasCorrect: true},
+			{DiscordID: 100, GroupWagerID: 2, OptionID: 3, OptionText: "3-4", WinningOptionID: 5, Amount: 500, WasCorrect: false},
+			{DiscordID: 100, GroupWagerID: 3, OptionID: 5, OptionText: "5-6", WinningOptionID: 5, Amount: 750, WasCorrect: true},
+
+			// User with only 2 predictions - should NOT qualify for minWagers=3
+			{DiscordID: 200, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 2000, WasCorrect: true},
+			{DiscordID: 200, GroupWagerID: 2, OptionID: 3, OptionText: "3-4", WinningOptionID: 3, Amount: 1500, WasCorrect: true},
+		}
+
+		tftSystem := entities.SystemTFT
+		mockGroupWagerRepo.On("GetGroupWagerPredictions", ctx, &tftSystem).Return(predictions, nil)
+
+		// Execute with minimum 3 wagers
+		entries, totalBits, err := service.GetTFTLeaderboard(ctx, 3)
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, entries, 1) // Only user 100 qualifies
+		assert.Equal(t, int64(5750), totalBits) // All predictions counted in total
+
+		userStats := entries[0]
+		assert.Equal(t, int64(100), userStats.DiscordID)
+		assert.Equal(t, 3, userStats.TotalPredictions)
+		assert.Equal(t, 2, userStats.CorrectPredictions)
+
+		mockGroupWagerRepo.AssertExpectations(t)
+	})
+
+	t.Run("handles tiebreaker logic - same profit/loss sorted by total predictions", func(t *testing.T) {
+		mockUserRepo := new(testhelpers.MockUserRepository)
+		mockWagerRepo := new(testhelpers.MockWagerRepository)
+		mockBetRepo := new(testhelpers.MockBetRepository)
+		mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
+		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
+
+		predictions := []*entities.GroupWagerPrediction{
+			// User 1: 1 correct prediction = +2000 profit/loss
+			{DiscordID: 100, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 1000, WasCorrect: true},
+			{DiscordID: 100, GroupWagerID: 2, OptionID: 3, OptionText: "3-4", WinningOptionID: 5, Amount: 1000, WasCorrect: false},
+
+			// User 2: 1 correct prediction = +2000 profit/loss but more predictions
+			{DiscordID: 200, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 1000, WasCorrect: true},
+			{DiscordID: 200, GroupWagerID: 2, OptionID: 3, OptionText: "3-4", WinningOptionID: 5, Amount: 500, WasCorrect: false},
+			{DiscordID: 200, GroupWagerID: 3, OptionID: 5, OptionText: "5-6", WinningOptionID: 7, Amount: 500, WasCorrect: false},
+		}
+
+		tftSystem := entities.SystemTFT
+		mockGroupWagerRepo.On("GetGroupWagerPredictions", ctx, &tftSystem).Return(predictions, nil)
+
+		// Execute
+		entries, _, err := service.GetTFTLeaderboard(ctx, 1)
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, entries, 2)
+
+		// User 200 should be ranked higher due to more total predictions (tiebreaker)
+		assert.Equal(t, 1, entries[0].Rank)
+		assert.Equal(t, int64(200), entries[0].DiscordID)
+		assert.Equal(t, int64(2000), entries[0].ProfitLoss) // 3000 - 500 - 500
+		assert.Equal(t, 3, entries[0].TotalPredictions)
+
+		assert.Equal(t, 2, entries[1].Rank)
+		assert.Equal(t, int64(100), entries[1].DiscordID)
+		assert.Equal(t, int64(2000), entries[1].ProfitLoss) // 3000 - 1000
+		assert.Equal(t, 2, entries[1].TotalPredictions)
+
+		mockGroupWagerRepo.AssertExpectations(t)
+	})
+
+	t.Run("handles empty predictions", func(t *testing.T) {
+		mockUserRepo := new(testhelpers.MockUserRepository)
+		mockWagerRepo := new(testhelpers.MockWagerRepository)
+		mockBetRepo := new(testhelpers.MockBetRepository)
+		mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
+		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
+
+		// No predictions
+		var predictions []*entities.GroupWagerPrediction
+
+		tftSystem := entities.SystemTFT
+		mockGroupWagerRepo.On("GetGroupWagerPredictions", ctx, &tftSystem).Return(predictions, nil)
+
+		// Execute
+		entries, totalBits, err := service.GetTFTLeaderboard(ctx, 1)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Len(t, entries, 0)
+		assert.Equal(t, int64(0), totalBits)
+
+		mockGroupWagerRepo.AssertExpectations(t)
+	})
+
+	t.Run("handles repository error", func(t *testing.T) {
+		mockUserRepo := new(testhelpers.MockUserRepository)
+		mockWagerRepo := new(testhelpers.MockWagerRepository)
+		mockBetRepo := new(testhelpers.MockBetRepository)
+		mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
+		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
+
+		expectedErr := fmt.Errorf("database connection failed")
+		tftSystem := entities.SystemTFT
+		mockGroupWagerRepo.On("GetGroupWagerPredictions", ctx, &tftSystem).Return(nil, expectedErr)
+
+		// Execute
+		entries, totalBits, err := service.GetTFTLeaderboard(ctx, 1)
+
+		// Assert
+		require.Error(t, err)
+		assert.Nil(t, entries)
+		assert.Equal(t, int64(0), totalBits)
+		assert.Contains(t, err.Error(), "failed to get teamfight_tactics wager predictions")
+		assert.Contains(t, err.Error(), "database connection failed")
+
+		mockGroupWagerRepo.AssertExpectations(t)
+	})
+
+	t.Run("verifies SystemTFT is passed correctly to repository", func(t *testing.T) {
+		mockUserRepo := new(testhelpers.MockUserRepository)
+		mockWagerRepo := new(testhelpers.MockWagerRepository)
+		mockBetRepo := new(testhelpers.MockBetRepository)
+		mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
+		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
+
+		predictions := []*entities.GroupWagerPrediction{
+			{DiscordID: 100, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 1000, WasCorrect: true},
+		}
+
+		tftSystem := entities.SystemTFT
+		// Verify that SystemTFT constant is passed exactly
+		mockGroupWagerRepo.On("GetGroupWagerPredictions", ctx, &tftSystem).Return(predictions, nil)
+
+		// Execute
+		_, _, err := service.GetTFTLeaderboard(ctx, 1)
+
+		// Assert
+		require.NoError(t, err)
+		mockGroupWagerRepo.AssertExpectations(t)
+	})
+}
