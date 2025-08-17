@@ -281,6 +281,7 @@ class RiotAPIClient:
         time_since_last = current_time - self._last_request_time
         if time_since_last < self._min_request_interval:
             wait_time = self._min_request_interval - time_since_last
+            # Rate limiting: wait before next request
             await asyncio.sleep(wait_time)
 
         self._last_request_time = time.time()
@@ -318,6 +319,8 @@ class RiotAPIClient:
                     raise SummonerNotFoundError("Account not found")
                 elif handle_404_as == "not_in_game":
                     raise PlayerNotInGameError("Player is not currently in a game")
+                elif handle_404_as == "match_not_found":
+                    raise RiotAPIError("Match not found")
                 else:
                     raise RiotAPIError("Resource not found")
 
@@ -595,7 +598,7 @@ class RiotAPIClient:
         logger.info("Fetching match info", match_id=match_id, region=region)
 
         try:
-            data = await self._make_request(url)
+            data = await self._make_request(url, handle_404_as="match_not_found")
 
             match_info = MatchInfo(
                 match_id=data["metadata"]["matchId"],
@@ -738,14 +741,20 @@ class RiotAPIClient:
         # Convert game_id to match_id format (both LoL and TFT use same format)
         match_id = f"{region.upper()}_{game_id}"
         
-        # Call appropriate API based on game type
-        if game_type == 'LOL':
-            return await self.get_match_info(match_id, region)
-        elif game_type == 'TFT':
-            return await self.get_tft_match_info(match_id)
-        else:
-            logger.warning(f"Unknown game type: {game_type}")
-            return None
+        try:
+            # Call appropriate API based on game type
+            if game_type == 'LOL':
+                return await self.get_match_info(match_id, region)
+            elif game_type == 'TFT':
+                return await self.get_tft_match_info(match_id)
+            else:
+                logger.warning(f"Unknown game type: {game_type}")
+                return None
+        except RiotAPIError as e:
+            # If it's a 404, the match might not be available yet
+            if "404" in str(e) or "not found" in str(e).lower():
+                return None
+            raise
     
     async def get_active_game_info(
         self, game_name: str, tag_line: str

@@ -16,8 +16,8 @@ from sqlalchemy import select, update, delete, func
 from sqlalchemy.orm import selectinload
 
 from ...config import Config
-from .models import Base, TrackedPlayer as TrackedPlayerModel, GameState as GameStateModel, TrackedGame as TrackedGameModel
-from ...core.entities import Player, GameState
+from .models import Base, TrackedPlayer as TrackedPlayerModel, TrackedGame as TrackedGameModel
+from ...core.entities import Player
 from ...core.enums import GameStatus, QueueType
 
 logger = logging.getLogger(__name__)
@@ -98,38 +98,6 @@ class DatabaseManager:
             updated_at=player_record.updated_at
         )
     
-    def _convert_db_gamestate_to_core_entity(self, gamestate_record: GameStateModel) -> GameState:
-        """Convert database GameState model to core GameState entity.
-        
-        Args:
-            gamestate_record: SQLAlchemy GameState instance
-            
-        Returns:
-            Core GameState entity
-        """
-        # Parse queue type
-        queue_type = None
-        if gamestate_record.queue_type:
-            queue_type = QueueType.from_string(gamestate_record.queue_type)
-        
-        # Let the domain entity handle game result parsing
-        game_result = GameState.parse_game_result(
-            queue_type, 
-            gamestate_record.game_result_data
-        )
-        
-        return GameState(
-            status=GameStatus(gamestate_record.status),
-            player_id=gamestate_record.player_id,
-            game_id=gamestate_record.game_id,
-            queue_type=queue_type,
-            game_result=game_result,
-            created_at=gamestate_record.created_at,
-            game_start_time=gamestate_record.game_start_time,
-            game_end_time=gamestate_record.game_end_time,
-            id=gamestate_record.id
-        )
-
     # TrackedPlayer repository methods
     async def create_tracked_player(
         self,
@@ -185,75 +153,6 @@ class DatabaseManager:
             await session.commit()
             return result.rowcount > 0
 
-    # GameState repository methods
-    async def create_game_state(
-        self,
-        player_id: int,
-        status: str,
-        game_id: Optional[str] = None,
-        queue_type: Optional[str] = None,
-        game_start_time: Optional[datetime] = None,
-        raw_api_response: Optional[str] = None,
-    ) -> GameState:
-        """Create a new game state record."""
-        async with self.get_session() as session:
-            game_state = GameStateModel(
-                player_id=player_id,
-                status=status,
-                game_id=game_id,
-                queue_type=queue_type,
-                game_start_time=game_start_time,
-                raw_api_response=raw_api_response,
-            )
-            session.add(game_state)
-            await session.commit()
-            await session.refresh(game_state)
-            return self._convert_db_gamestate_to_core_entity(game_state)
-
-    async def get_latest_game_state_for_player(self, player_id: int) -> Optional[GameState]:
-        """Get the latest game state for a player."""
-        async with self.get_session() as session:
-            result = await session.execute(
-                select(GameStateModel)
-                .where(GameStateModel.player_id == player_id)
-                .order_by(GameStateModel.created_at.desc())
-                .limit(1)
-            )
-            game_state_record = result.scalar_one_or_none()
-            return self._convert_db_gamestate_to_core_entity(game_state_record) if game_state_record else None
-
-    async def update_game_result(
-        self,
-        game_state_id: int,
-        game_result_data: dict,
-        game_end_time: Optional[datetime] = None,
-    ) -> bool:
-        """Update game result information.
-        
-        Args:
-            game_state_id: ID of the game state to update
-            game_result_data: Dictionary containing game result data
-                             (will be stored as JSON)
-            game_end_time: Optional game end time
-        
-        Returns:
-            True if update was successful
-        """
-        async with self.get_session() as session:
-            update_values = {
-                "game_result_data": game_result_data,
-                "duration_seconds": game_result_data.get("duration_seconds"),
-                "game_end_time": game_end_time or datetime.utcnow(),
-            }
-            
-            result = await session.execute(
-                update(GameStateModel)
-                .where(GameStateModel.id == game_state_id)
-                .values(**update_values)
-            )
-            await session.commit()
-            return result.rowcount > 0
-    
     # TrackedGame repository methods (game-centric model)
     
     async def get_tracked_game(

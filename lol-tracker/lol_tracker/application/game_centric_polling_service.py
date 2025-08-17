@@ -10,7 +10,7 @@ import asyncio
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
-from ..core.entities import Player, TrackedGame, GameState, LoLGameResult, TFTGameResult
+from ..core.entities import Player, TrackedGame, LoLGameResult, TFTGameResult
 from ..core.enums import GameStatus, QueueType
 from ..core.events import GameStateChangedEvent
 from ..adapters.database.manager import DatabaseManager
@@ -65,36 +65,63 @@ class GameCentricPollingService:
     # Event Creation Helpers
     
     def _create_game_start_event(self, player: Player, game: TrackedGame) -> GameStateChangedEvent:
-        """Create event for game start using existing GameState logic."""
-        # Create synthetic states for event generation
-        previous_state = GameState.create_not_in_game(player.id)
-        new_state = GameState.create_in_game(
-            player.id, 
-            game.game_id, 
-            game.queue_type,
-            game.started_at or game.detected_at
-        )
-        return new_state.create_state_change_event(player, previous_state)
+        """Create event for game start."""
+        from ..core.events import LoLGameStateChangedEvent, TFTGameStateChangedEvent
+        
+        common_kwargs = {
+            'player_id': player.id,
+            'game_name': player.game_name,
+            'tag_line': player.tag_line,
+            'previous_status': 'NOT_IN_GAME',
+            'new_status': 'IN_GAME',
+            'game_id': game.game_id,
+            'queue_type': game.queue_type.value if game.queue_type else None,
+            'changed_at': datetime.utcnow(),
+            'is_game_start': True,
+            'is_game_end': False,
+            'duration_seconds': None
+        }
+        
+        # Create appropriate event type based on game type
+        if game.game_type == 'TFT':
+            return TFTGameStateChangedEvent(**common_kwargs)
+        else:
+            return LoLGameStateChangedEvent(**common_kwargs)
     
     def _create_game_end_event(self, player: Player, game: TrackedGame) -> Optional[GameStateChangedEvent]:
-        """Create event for game end using existing GameState logic.
+        """Create event for game end.
         Returns None if no game result available."""
         if not game.game_result:
             return None  # Critical: no event without results
         
-        # Create synthetic states for event generation
-        previous_state = GameState.create_in_game(
-            player.id,
-            game.game_id,
-            game.queue_type,
-            game.started_at or game.detected_at
-        )
-        new_state = GameState.create_not_in_game(player.id)
-        new_state.game_result = game.game_result  # Transfer the result
-        new_state.game_end_time = game.completed_at or datetime.utcnow()
-        new_state.queue_type = game.queue_type  # Need queue_type to create correct event type
-        new_state.game_id = game.game_id  # Keep game_id for reference
-        return new_state.create_state_change_event(player, previous_state)
+        from ..core.events import LoLGameStateChangedEvent, TFTGameStateChangedEvent
+        
+        common_kwargs = {
+            'player_id': player.id,
+            'game_name': player.game_name,
+            'tag_line': player.tag_line,
+            'previous_status': 'IN_GAME',
+            'new_status': 'NOT_IN_GAME',
+            'game_id': game.game_id,
+            'queue_type': game.queue_type.value if game.queue_type else None,
+            'changed_at': datetime.utcnow(),
+            'is_game_start': False,
+            'is_game_end': True,
+            'duration_seconds': game.duration_seconds
+        }
+        
+        # Create appropriate event type based on game type
+        if game.game_type == 'TFT':
+            return TFTGameStateChangedEvent(
+                **common_kwargs,
+                placement=game.game_result.placement if isinstance(game.game_result, TFTGameResult) else None
+            )
+        else:
+            return LoLGameStateChangedEvent(
+                **common_kwargs,
+                won=game.game_result.won if isinstance(game.game_result, LoLGameResult) else None,
+                champion_played=game.game_result.champion_played if isinstance(game.game_result, LoLGameResult) else None
+            )
     
     # Public API
     
@@ -223,11 +250,7 @@ class GameCentricPollingService:
             queue_type = QueueType.from_queue_id(queue_id) if queue_id else None
             
             # Extract game_type from API response
-            game_type = game_data.get('game_type')  # 'LOL' or 'TFT' marker
-            if not game_type:
-                # Fallback if marker missing: check gameMode
-                game_mode = game_data.get('gameMode', '')
-                game_type = 'TFT' if game_mode == 'TFT' else 'LOL'
+            game_type = game_data.get('game_type', 'LOL')  # Default to LOL if not specified
             
             tracked_game_model = await self.database.create_tracked_game(
                 player_id=player.id,

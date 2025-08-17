@@ -14,7 +14,6 @@ from lol_tracker.adapters.grpc.summoner_service import SummonerTrackingService
 from lol_tracker.proto.services import summoner_service_pb2_grpc, summoner_service_pb2
 from lol_tracker.adapters.database.manager import DatabaseManager
 from lol_tracker.adapters.riot_api.client import RiotAPIClient
-from lol_tracker.application.polling_service import PollingService
 from lol_tracker.application.game_centric_polling_service import GameCentricPollingService
 from lol_tracker.adapters.messaging.events import EventPublisher
 
@@ -48,7 +47,7 @@ class LoLTrackerService:
         self._message_bus_client: Optional[MessageBusClient] = None
         self._riot_api_client: Optional[RiotAPIClient] = None
         self._event_publisher: Optional[EventPublisher] = None
-        self._polling_service: Optional[PollingService] = None
+        self._polling_service: Optional[GameCentricPollingService] = None
         
         # Provided dependencies
         self._provided_message_bus_client = message_bus_client
@@ -213,23 +212,14 @@ class LoLTrackerService:
         self._event_publisher = EventPublisher(self.config)
         await self._event_publisher.initialize()
         
-        # Create polling service based on feature flag
-        if self.config.use_game_centric_model:
-            logger.info("Using game-centric polling model")
-            self._polling_service = GameCentricPollingService(
-                database=self._database_manager,
-                riot_api=self._riot_api_client,
-                event_publisher=self._event_publisher,
-                config=self.config
-            )
-        else:
-            logger.info("Using legacy state-transition polling model")
-            self._polling_service = PollingService(
-                database=self._database_manager,
-                riot_api=self._riot_api_client,
-                event_publisher=self._event_publisher,
-                config=self.config
-            )
+        # Create game-centric polling service
+        logger.info("Initializing game-centric polling service")
+        self._polling_service = GameCentricPollingService(
+            database=self._database_manager,
+            riot_api=self._riot_api_client,
+            event_publisher=self._event_publisher,
+            config=self.config
+        )
         
         logger.info("Infrastructure initialization completed")
 

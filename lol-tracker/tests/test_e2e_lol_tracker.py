@@ -62,8 +62,8 @@ class TestLoLTrackerE2E(BaseE2ETest):
             assists=8
         )
         
-        # Wait for polling to detect game end
-        await self.wait_for_polling_cycle()
+        # Wait for polling to detect game end (completion loop runs every 1 second)
+        await self.wait_for_polling_cycle(wait_time=3.0)
         
         # Verify game end event and LoL-specific results
         game_end_events = self.find_game_end_events(mock_event_publisher)

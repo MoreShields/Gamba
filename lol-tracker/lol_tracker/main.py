@@ -43,18 +43,10 @@ def start_with_reloader():
         # reloader.watch_files(['config.yaml'])
 
 
-async def main(use_game_centric: bool = False):
-    """Main entry point for the LoL Tracker service.
-    
-    Args:
-        use_game_centric: Override config to use game-centric model
-    """
+async def main():
+    """Main entry point for the LoL Tracker service."""
     # Load configuration
     config = Config.from_env()
-    
-    # Override with CLI flag if provided
-    if use_game_centric:
-        config.use_game_centric_model = True
 
     # Set up logging
     logging.basicConfig(
@@ -92,25 +84,11 @@ async def main(use_game_centric: bool = False):
 
 
 if __name__ == "__main__":
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(description='LoL Tracker Service')
-    parser.add_argument(
-        '--game-centric', 
-        action='store_true',
-        help='Use game-centric polling model instead of state-transition model'
-    )
-    args = parser.parse_args()
-    
     # Entry point for direct execution
     config = Config.from_env()
     
     # Enable hot reload in development
     if config.environment == Environment.DEVELOPMENT:
-        # For development with reloader, we need to pass the flag differently
-        # since hupper restarts the process
-        if args.game_centric:
-            import os
-            os.environ['USE_GAME_CENTRIC_MODEL'] = 'true'
         start_with_reloader()
     else:
-        asyncio.run(main(use_game_centric=args.game_centric))
+        asyncio.run(main())

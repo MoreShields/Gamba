@@ -22,7 +22,7 @@ from lol_tracker.service import LoLTrackerService
 from lol_tracker.adapters.database.manager import DatabaseManager
 from lol_tracker.adapters.riot_api.client import RiotAPIClient
 from lol_tracker.adapters.messaging.events import MockEventPublisher
-from lol_tracker.application.polling_service import PollingService
+from lol_tracker.application.game_centric_polling_service import GameCentricPollingService
 from lol_tracker.proto.services import summoner_service_pb2_grpc, summoner_service_pb2
 from lol_tracker.proto.events import lol_events_pb2, tft_events_pb2
 from mock_riot_api.mock_riot_server import MockRiotAPIServer
@@ -56,6 +56,8 @@ def test_config(postgres_container):
     os.environ["TFT_RIOT_API_KEY"] = "test-tft-api-key"
     os.environ["RIOT_API_URL"] = "http://localhost:8081"
     os.environ["POLL_INTERVAL_SECONDS"] = "1"
+    os.environ["DETECTION_INTERVAL_SECONDS"] = "1"
+    os.environ["COMPLETION_INTERVAL_SECONDS"] = "1"
     os.environ["MESSAGE_BUS_URL"] = "nats://localhost:4222"
     os.environ["ENVIRONMENT"] = "CI"
     os.environ["GRPC_SERVER_PORT"] = "50052"
@@ -128,7 +130,7 @@ async def lol_tracker_service(test_config, database_manager, mock_event_publishe
     """Create minimal LoL Tracker service for testing."""
     # Clean database before starting service to avoid stale data
     async with database_manager.get_session() as session:
-        await session.execute(text("DELETE FROM game_states"))
+        await session.execute(text("DELETE FROM tracked_games"))
         await session.execute(text("DELETE FROM tracked_players"))
         await session.commit()
     
@@ -142,18 +144,21 @@ async def lol_tracker_service(test_config, database_manager, mock_event_publishe
     # Manually wire dependencies
     service._database_manager = database_manager
     service._event_publisher = mock_event_publisher
-    service._riot_api_client = RiotAPIClient(
+    riot_client = RiotAPIClient(
         api_key=test_config.riot_api_key,
         tft_api_key=test_config.tft_riot_api_key,
         base_url=test_config.riot_api_url,
         request_timeout=test_config.riot_api_timeout_seconds
     )
+    # Reduce rate limiting for tests
+    riot_client._min_request_interval = 0.1  # 100ms instead of 1.2s
+    service._riot_api_client = riot_client
     service._message_bus_client = mock_nats
     
-    # Create polling service
-    service._polling_service = PollingService(
+    # Create game-centric polling service
+    service._polling_service = GameCentricPollingService(
         database=database_manager,
-        riot_api=service._riot_api_client,
+        riot_api=riot_client,  # Use the same client with reduced rate limiting
         event_publisher=mock_event_publisher,
         config=test_config
     )
@@ -206,7 +211,7 @@ class BaseE2ETest:
     async def _cleanup_database(self, database_manager):
         """Clean up database from previous tests."""
         async with database_manager.get_session() as session:
-            await session.execute(text("DELETE FROM game_states"))
+            await session.execute(text("DELETE FROM tracked_games"))
             await session.execute(text("DELETE FROM tracked_players"))
             await session.commit()
     
@@ -327,10 +332,29 @@ class BaseE2ETest:
         return result_dict
     
     async def verify_game_state_in_db(self, database_manager, tracked_player, expected_status: str, expected_game_id: str = None):
-        """Verify game state is correctly stored in database."""
-        game_state = await database_manager.get_latest_game_state_for_player(tracked_player.id)
-        assert game_state is not None
-        assert game_state.status.value == expected_status
-        if expected_game_id:
-            assert game_state.game_id == expected_game_id
-        return game_state
+        """Verify game state is correctly stored in database (game-centric model)."""
+        # For game-centric model, check tracked_games table
+        games = await database_manager.get_games_by_status('ACTIVE')
+        player_games = [g for g in games if g.player_id == tracked_player.id]
+        
+        if expected_status == 'IN_GAME':
+            assert len(player_games) > 0, f"No active games found for player {tracked_player.id}"
+            if expected_game_id:
+                # Find the specific game if game_id is provided
+                for game in player_games:
+                    if game.game_id == expected_game_id:
+                        return game
+                assert False, f"Game {expected_game_id} not found in active games. Active games: {[g.game_id for g in player_games]}"
+            else:
+                # Return the first active game if no specific game_id is expected
+                return player_games[0]
+        else:  # NOT_IN_GAME
+            # Check if there are any completed games with the expected_game_id
+            if expected_game_id:
+                completed_games = await database_manager.get_games_by_status('COMPLETED')
+                player_completed = [g for g in completed_games if g.player_id == tracked_player.id and g.game_id == expected_game_id]
+                if player_completed:
+                    return player_completed[0]
+            # No active games means player is not in game
+            assert len(player_games) == 0, f"Active games found when player should be NOT_IN_GAME"
+            return None
