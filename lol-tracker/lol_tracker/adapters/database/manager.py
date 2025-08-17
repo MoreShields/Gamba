@@ -276,6 +276,7 @@ class DatabaseManager:
         self,
         player_id: int,
         game_id: str,
+        game_type: str,
         status: str = 'ACTIVE',
         queue_type: Optional[str] = None,
         started_at: Optional[datetime] = None,
@@ -286,6 +287,7 @@ class DatabaseManager:
             game = TrackedGameModel(
                 player_id=player_id,
                 game_id=game_id,
+                game_type=game_type,
                 status=status,
                 queue_type=queue_type,
                 started_at=started_at,

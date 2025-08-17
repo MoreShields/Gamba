@@ -11,7 +11,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 from ..core.entities import Player, TrackedGame, GameState, LoLGameResult, TFTGameResult
-from ..core.enums import GameStatus, QueueType, GameType
+from ..core.enums import GameStatus, QueueType
 from ..core.events import GameStateChangedEvent
 from ..adapters.database.manager import DatabaseManager
 from ..adapters.riot_api.client import RiotAPIClient, PlayerNotInGameError
@@ -222,9 +222,17 @@ class GameCentricPollingService:
             queue_id = game_data.get('gameQueueConfigId')
             queue_type = QueueType.from_queue_id(queue_id) if queue_id else None
             
+            # Extract game_type from API response
+            game_type = game_data.get('game_type')  # 'LOL' or 'TFT' marker
+            if not game_type:
+                # Fallback if marker missing: check gameMode
+                game_mode = game_data.get('gameMode', '')
+                game_type = 'TFT' if game_mode == 'TFT' else 'LOL'
+            
             tracked_game_model = await self.database.create_tracked_game(
                 player_id=player.id,
                 game_id=str(game_id),
+                game_type=game_type,
                 status='ACTIVE',
                 queue_type=queue_type.value if queue_type else None,
                 started_at=datetime.utcnow(),
@@ -240,6 +248,7 @@ class GameCentricPollingService:
             tracked_game_entity = TrackedGame(
                 player_id=player.id,
                 game_id=str(game_id),
+                game_type=game_type,
                 status='ACTIVE',
                 detected_at=tracked_game_model.detected_at,
                 started_at=tracked_game_model.started_at,
@@ -350,7 +359,7 @@ class GameCentricPollingService:
         # Game has ended - fetch match results
         logger.info(f"Game {game.game_id} has ended for {player.riot_id}, fetching results...")
         
-        # Determine queue type for API call
+        # Determine queue type for display/events (optional)
         queue_type = None
         if game.queue_type:
             # Find queue type by matching the value
@@ -360,10 +369,10 @@ class GameCentricPollingService:
                     break
         
         try:
-            # Fetch match details - retry indefinitely
+            # Fetch match details using game_type from database
             match_info = await self.riot_api.get_match_for_game(
                 game.game_id,
-                queue_type,
+                game.game_type,
                 region="na1"
             )
             
@@ -382,7 +391,7 @@ class GameCentricPollingService:
             duration_seconds = None
             
             # Extract result based on game type
-            if queue_type and queue_type.game_type == GameType.LOL:
+            if game.game_type == 'LOL':
                 # LoL game
                 if hasattr(match_info, 'get_participant_result_by_name'):
                     result = match_info.get_participant_result_by_name(
@@ -398,7 +407,7 @@ class GameCentricPollingService:
                             duration_seconds=duration_seconds,
                             champion_played=result.get('champion_name', '')
                         )
-            elif queue_type and queue_type.game_type == GameType.TFT:
+            elif game.game_type == 'TFT':
                 # TFT game
                 if hasattr(match_info, 'get_placement_by_name'):
                     placement = match_info.get_placement_by_name(player.game_name, player.tag_line)
@@ -423,6 +432,7 @@ class GameCentricPollingService:
             tracked_game_entity = TrackedGame(
                 player_id=game.player_id,
                 game_id=game.game_id,
+                game_type=game.game_type,
                 status='COMPLETED',
                 detected_at=game.detected_at,
                 started_at=game.started_at,

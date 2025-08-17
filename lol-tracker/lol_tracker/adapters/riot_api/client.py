@@ -5,7 +5,7 @@ import time
 from typing import Optional, Dict, Any, Union, Tuple
 from dataclasses import dataclass
 
-from lol_tracker.core.enums import QueueType, GameType
+from lol_tracker.core.enums import QueueType
 
 import httpx
 import structlog
@@ -720,16 +720,13 @@ class RiotAPIClient:
             raise
 
     async def get_match_for_game(
-        self, game_id: str, queue_type: Optional[QueueType], region: str = "na1"
+        self, game_id: str, game_type: str, region: str = "na1"
     ) -> Optional[Union["MatchInfo", "TFTMatchInfo"]]:
-        """Get match information for a completed game based on queue type.
-        
-        This method abstracts away the complexity of determining which API to call,
-        allowing the application layer to remain game-type agnostic.
+        """Get match information for a completed game.
         
         Args:
             game_id: The game ID to fetch
-            queue_type: QueueType enum that contains game type information
+            game_type: 'LOL' or 'TFT'
             region: Region for API calls (default: "na1")
             
         Returns:
@@ -738,19 +735,16 @@ class RiotAPIClient:
         Raises:
             RiotAPIError: For API errors
         """
-        if not queue_type:
-            return None
-        
         # Convert game_id to match_id format (both LoL and TFT use same format)
         match_id = f"{region.upper()}_{game_id}"
         
         # Call appropriate API based on game type
-        if queue_type.game_type == GameType.LOL:
+        if game_type == 'LOL':
             return await self.get_match_info(match_id, region)
-        elif queue_type.game_type == GameType.TFT:
+        elif game_type == 'TFT':
             return await self.get_tft_match_info(match_id)
         else:
-            logger.warning(f"Unknown game type: {queue_type.game_type}")
+            logger.warning(f"Unknown game type: {game_type}")
             return None
     
     async def get_active_game_info(
