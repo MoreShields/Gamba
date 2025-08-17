@@ -123,6 +123,7 @@ class TrackedGame(Base):
     # Core game identification
     game_id: Mapped[str] = mapped_column(String(20), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="ACTIVE")
+    game_type: Mapped[str] = mapped_column(String(10), nullable=False)
     
     # Timestamps
     detected_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=func.now())

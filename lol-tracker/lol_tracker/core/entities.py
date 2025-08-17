@@ -306,6 +306,7 @@ class TrackedGame:
     completed_at: Optional[datetime] = None
     
     # Game information
+    game_type: str = 'LOL'  # 'LOL' or 'TFT'
     queue_type: Optional[QueueType] = None
     game_result: Optional[GameResult] = None
     duration_seconds: Optional[int] = None
@@ -345,7 +346,7 @@ class TrackedGame:
             raise ValueError(f"Cannot complete game {self.game_id} - not active")
         
         # Extract result based on game type
-        if self.queue_type and self.queue_type.game_type == GameType.LOL:
+        if self.game_type == 'LOL':
             # LoL game - check for get_participant_result_by_name method
             if hasattr(match_info, 'get_participant_result_by_name'):
                 participant = match_info.get_participant_result_by_name(game_name, tag_line)
@@ -356,7 +357,7 @@ class TrackedGame:
                         champion_played=participant["champion_name"]
                     )
                     self.duration_seconds = match_info.game_duration
-        elif self.queue_type and self.queue_type.game_type == GameType.TFT:
+        elif self.game_type == 'TFT':
             # TFT game - check for get_placement_by_name method
             if hasattr(match_info, 'get_placement_by_name'):
                 placement = match_info.get_placement_by_name(game_name, tag_line)
