@@ -206,6 +206,14 @@ class MockRiotAPIServer:
         # Return current game info
         if player.current_game_id and player.current_game_id in self.games:
             game = self.games[player.current_game_id]
+            
+            # Check if this is a TFT game - if so, return 404 for LoL endpoint
+            if game.game_mode == "TFT":
+                return web.json_response(
+                    {"status": {"message": "Player is not currently in a game", "status_code": 404}},
+                    status=404
+                )
+            
             # Update game length based on current time
             if game.game_start_time:
                 game.game_length = int((time.time() * 1000 - game.game_start_time) / 1000)
@@ -458,6 +466,14 @@ class MockRiotAPIServer:
         # Return current TFT game info
         if player.current_game_id and player.current_game_id in self.games:
             game = self.games[player.current_game_id]
+            
+            # Check if this is NOT a TFT game - if so, return 404 for TFT endpoint
+            if game.game_mode != "TFT":
+                return web.json_response(
+                    {"status": {"message": "Player is not currently in a game", "status_code": 404}},
+                    status=404
+                )
+            
             # Update game length based on current time
             if game.game_start_time:
                 game.game_length = int((time.time() * 1000 - game.game_start_time) / 1000)
@@ -467,6 +483,7 @@ class MockRiotAPIServer:
         game_id = str(uuid.uuid4().int)[:10]
         game = MockGameInfo(
             game_id=game_id,
+            game_mode="TFT",  # Set game mode to TFT
             game_queue_config_id=player.queue_type_id,
             participants=[{
                 "puuid": player.puuid,
@@ -533,6 +550,7 @@ class MockRiotAPIServer:
         
         game = MockGameInfo(
             game_id=game_id,
+            game_mode="TFT",  # Set game mode to TFT
             game_queue_config_id=queue_type_id,
             participants=[{
                 "puuid": player.puuid,

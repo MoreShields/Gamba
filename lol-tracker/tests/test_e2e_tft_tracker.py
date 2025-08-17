@@ -58,8 +58,8 @@ class TestTFTTrackerE2E(BaseE2ETest):
             duration_seconds=2400  # 40 minutes
         )
         
-        # Wait for polling to detect game end
-        await self.wait_for_polling_cycle()
+        # Wait for polling to detect game end (completion loop runs every 1 second)
+        await self.wait_for_polling_cycle(wait_time=3.0)
         
         # Verify game end event and TFT-specific results
         game_end_events = self.find_game_end_events(mock_event_publisher)

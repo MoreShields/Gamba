@@ -40,51 +40,51 @@ class QueueType(Enum):
     
     Each queue type contains:
     - value: String identifier for the queue
-    - game_type: The GameType this queue belongs to
     - queue_id: The Riot API queue ID
     
     Data from: https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/queues.json
     """
     
-    # Format: (string_value, game_type, queue_id)
+    # Format: (string_value, queue_id)
     
     # Core Summoner's Rift PvP
-    NORMAL_DRAFT = ("NORMAL_DRAFT", GameType.LOL, 400)           # Normal (Draft Pick)
-    RANKED_SOLO_5X5 = ("RANKED_SOLO_5x5", GameType.LOL, 420)    # Ranked Solo/Duo
-    NORMAL_BLIND = ("NORMAL_BLIND", GameType.LOL, 430)           # Normal (Blind Pick)
-    RANKED_FLEX_SR = ("RANKED_FLEX_SR", GameType.LOL, 440)      # Ranked Flex
-    QUICKPLAY = ("QUICKPLAY", GameType.LOL, 490)                 # Quickplay
+    NORMAL_DRAFT = ("NORMAL_DRAFT", 400)           # Normal (Draft Pick)
+    RANKED_SOLO_5X5 = ("RANKED_SOLO_5x5", 420)    # Ranked Solo/Duo
+    NORMAL_BLIND = ("NORMAL_BLIND", 430)           # Normal (Blind Pick)
+    RANKED_FLEX_SR = ("RANKED_FLEX_SR", 440)      # Ranked Flex
+    QUICKPLAY = ("QUICKPLAY", 490)                 # Quickplay
     
     # Alternative LoL modes
-    ARAM = ("ARAM", GameType.LOL, 450)                           # ARAM
-    CLASH = ("CLASH", GameType.LOL, 700)                         # Clash tournament
-    ARENA = ("ARENA", GameType.LOL, 1700)                        # Arena 2v2v2v2
+    ARAM = ("ARAM", 450)                           # ARAM
+    CLASH = ("CLASH", 700)                         # Clash tournament
+    ARAM_CLASH = ("ARAM_CLASH", 720)              # ARAM Clash games
+    ARENA = ("ARENA", 1700)                        # Arena 2v2v2v2
     
     # Rotating game modes
-    URF = ("URF", GameType.LOL, 1900)                            # Ultra Rapid Fire
-    ARURF = ("ARURF", GameType.LOL, 900)                         # All Random URF
-    ONE_FOR_ALL = ("ONE_FOR_ALL", GameType.LOL, 1020)            # One For All
-    ULTIMATE_SPELLBOOK = ("ULTIMATE_SPELLBOOK", GameType.LOL, 1400)  # Ultimate Spellbook
-    NEXUS_BLITZ = ("NEXUS_BLITZ", GameType.LOL, 1300)           # Nexus Blitz
+    URF = ("URF", 1900)                            # Ultra Rapid Fire
+    ARURF = ("ARURF", 900)                         # All Random URF
+    ONE_FOR_ALL = ("ONE_FOR_ALL", 1020)            # One For All
+    ULTIMATE_SPELLBOOK = ("ULTIMATE_SPELLBOOK", 1400)  # Ultimate Spellbook
+    NEXUS_BLITZ = ("NEXUS_BLITZ", 1300)           # Nexus Blitz
     
     # Bot games
-    BOT_INTRO_5X5 = ("BOT_INTRO_5x5", GameType.LOL, 830)        # Intro bots
-    BOT_BEGINNER_5X5 = ("BOT_BEGINNER_5x5", GameType.LOL, 840)  # Beginner bots
-    BOT_INTERMEDIATE_5X5 = ("BOT_INTERMEDIATE_5x5", GameType.LOL, 850)  # Intermediate bots
+    BOT_INTRO_5X5 = ("BOT_INTRO_5x5", 830)        # Intro bots
+    BOT_BEGINNER_5X5 = ("BOT_BEGINNER_5x5", 840)  # Beginner bots
+    BOT_INTERMEDIATE_5X5 = ("BOT_INTERMEDIATE_5x5", 850)  # Intermediate bots
     
     # TFT queue types
-    TFT_NORMAL = ("TFT_NORMAL", GameType.TFT, 1090)              # Teamfight Tactics (Normal)
-    TFT_RANKED = ("TFT_RANKED", GameType.TFT, 1100)              # Teamfight Tactics (Ranked)
-    TFT_TUTORIAL = ("TFT_TUTORIAL", GameType.TFT, 1110)          # Teamfight Tactics (Tutorial)
-    TFT_HYPER_ROLL = ("TFT_HYPER_ROLL", GameType.TFT, 1130)      # Teamfight Tactics (Hyper Roll)
-    TFT_DOUBLE_UP = ("TFT_DOUBLE_UP", GameType.TFT, 1150)        # Teamfight Tactics (Double Up workshop)
-    TFT_NORMAL_HYPER_ROLL = ("TFT_NORMAL_HYPER_ROLL", GameType.TFT, 1120)  # Teamfight Tactics (Normal Hyper Roll)
-    TFT_NORMAL_DOUBLE_UP = ("TFT_NORMAL_DOUBLE_UP", GameType.TFT, 1140)    # Teamfight Tactics (Normal Double Up)
+    TFT_NORMAL = ("TFT_NORMAL", 1090)              # Teamfight Tactics (Normal)
+    TFT_RANKED = ("TFT_RANKED", 1100)              # Teamfight Tactics (Ranked)
+    TFT_TUTORIAL = ("TFT_TUTORIAL", 1110)          # Teamfight Tactics (Tutorial)
+    TFT_HYPER_ROLL = ("TFT_HYPER_ROLL", 1130)      # Teamfight Tactics (Hyper Roll)
+    TFT_DOUBLE_UP = ("TFT_DOUBLE_UP", 1150)        # Teamfight Tactics (Double Up workshop)
+    TFT_NORMAL_HYPER_ROLL = ("TFT_NORMAL_HYPER_ROLL", 1120)  # Teamfight Tactics (Normal Hyper Roll)
+    TFT_NORMAL_DOUBLE_UP = ("TFT_NORMAL_DOUBLE_UP", 1140)
+    TFT_UNKNOWN_1160 = ("TFT_UNKNOWN_1160", 1160)  # Unknown TFT queue from earlier issue    # Teamfight Tactics (Normal Double Up)
     
-    def __init__(self, value: str, game_type: GameType, queue_id: int):
+    def __init__(self, value: str, queue_id: int):
         """Initialize queue type with metadata."""
         self._value_ = value
-        self.game_type = game_type
         self.queue_id = queue_id
     
     @property

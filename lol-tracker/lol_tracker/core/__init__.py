@@ -1,17 +1,18 @@
 """Simplified core layer for the lol-tracker service.
 
-This module provides a pragmatic alternative to the complex clean architecture
-implementation, focusing on essential functionality without unnecessary abstraction.
+This module provides the core domain entities and enums for the game-centric
+tracking model.
 """
 
-from .entities import Player, GameState
-from .enums import GameStatus, QueueType
-from .services import GameStateTransitionService
+from .entities import Player, TrackedGame, LoLGameResult, TFTGameResult
+from .enums import GameStatus, QueueType, GameType
 
 __all__ = [
     "Player",
-    "GameState", 
+    "TrackedGame",
+    "LoLGameResult",
+    "TFTGameResult",
     "GameStatus",
     "QueueType",
-    "GameStateTransitionService",
+    "GameType",
 ]
