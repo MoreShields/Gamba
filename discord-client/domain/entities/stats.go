@@ -115,6 +115,7 @@ type GroupWagerPrediction struct {
 	WinningOptionID int64
 	Amount          int64
 	WasCorrect      bool
+	PayoutAmount    *int64           // Actual payout from database (nil for unresolved, 0 for losers)
 	ExternalSystem  *ExternalSystem // nil for regular wagers
 	ExternalID      *string
 }
