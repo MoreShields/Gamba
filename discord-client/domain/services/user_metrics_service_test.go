@@ -12,6 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Helper function to create a pointer to an int64
+func ptr(i int64) *int64 {
+	return &i
+}
+
 func TestUserMetricsService_GetLOLPredictionStats(t *testing.T) {
 	ctx := context.Background()
 
@@ -431,24 +436,24 @@ func TestUserMetricsService_GetTFTLeaderboard(t *testing.T) {
 		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
 		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
 
-		// Mock TFT predictions with placement options and 4:1 odds (3x profit multiplier)
+		// Mock TFT predictions with placement options and 4:1 odds (4x payout)
 		predictions := []*entities.GroupWagerPrediction{
 			// User 1: Mixed results - net loss
-			{DiscordID: 100, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 1000, WasCorrect: true},  // +3000 profit
-			{DiscordID: 100, GroupWagerID: 2, OptionID: 3, OptionText: "3-4", WinningOptionID: 5, Amount: 500, WasCorrect: false}, // -500 loss
-			{DiscordID: 100, GroupWagerID: 3, OptionID: 5, OptionText: "5-6", WinningOptionID: 7, Amount: 750, WasCorrect: false}, // -750 loss
-			{DiscordID: 100, GroupWagerID: 4, OptionID: 7, OptionText: "7-8", WinningOptionID: 1, Amount: 800, WasCorrect: false}, // -800 loss
+			{DiscordID: 100, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 1000, WasCorrect: true, PayoutAmount: ptr(4000)},  // +3000 profit
+			{DiscordID: 100, GroupWagerID: 2, OptionID: 3, OptionText: "3-4", WinningOptionID: 5, Amount: 500, WasCorrect: false, PayoutAmount: ptr(0)}, // -500 loss
+			{DiscordID: 100, GroupWagerID: 3, OptionID: 5, OptionText: "5-6", WinningOptionID: 7, Amount: 750, WasCorrect: false, PayoutAmount: ptr(0)}, // -750 loss
+			{DiscordID: 100, GroupWagerID: 4, OptionID: 7, OptionText: "7-8", WinningOptionID: 1, Amount: 800, WasCorrect: false, PayoutAmount: ptr(0)}, // -800 loss
 			// Net: +3000 - 500 - 750 - 800 = +950
 
 			// User 2: Better performance - net gain
-			{DiscordID: 200, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 2000, WasCorrect: true}, // +6000 profit
-			{DiscordID: 200, GroupWagerID: 2, OptionID: 3, OptionText: "3-4", WinningOptionID: 3, Amount: 1500, WasCorrect: true}, // +4500 profit
-			{DiscordID: 200, GroupWagerID: 3, OptionID: 5, OptionText: "5-6", WinningOptionID: 7, Amount: 1000, WasCorrect: false}, // -1000 loss
+			{DiscordID: 200, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 2000, WasCorrect: true, PayoutAmount: ptr(8000)}, // +6000 profit
+			{DiscordID: 200, GroupWagerID: 2, OptionID: 3, OptionText: "3-4", WinningOptionID: 3, Amount: 1500, WasCorrect: true, PayoutAmount: ptr(6000)}, // +4500 profit
+			{DiscordID: 200, GroupWagerID: 3, OptionID: 5, OptionText: "5-6", WinningOptionID: 7, Amount: 1000, WasCorrect: false, PayoutAmount: ptr(0)}, // -1000 loss
 			// Net: +6000 + 4500 - 1000 = +9500
 
 			// User 3: Perfect record but fewer predictions
-			{DiscordID: 300, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 500, WasCorrect: true}, // +1500 profit
-			{DiscordID: 300, GroupWagerID: 2, OptionID: 3, OptionText: "3-4", WinningOptionID: 3, Amount: 500, WasCorrect: true}, // +1500 profit
+			{DiscordID: 300, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 500, WasCorrect: true, PayoutAmount: ptr(2000)}, // +1500 profit
+			{DiscordID: 300, GroupWagerID: 2, OptionID: 3, OptionText: "3-4", WinningOptionID: 3, Amount: 500, WasCorrect: true, PayoutAmount: ptr(2000)}, // +1500 profit
 			// Net: +1500 + 1500 = +3000
 		}
 
@@ -491,7 +496,7 @@ func TestUserMetricsService_GetTFTLeaderboard(t *testing.T) {
 		mockGroupWagerRepo.AssertExpectations(t)
 	})
 
-	t.Run("filters out non-TFT placement options", func(t *testing.T) {
+	t.Run("handles null payout amounts gracefully", func(t *testing.T) {
 		mockUserRepo := new(testhelpers.MockUserRepository)
 		mockWagerRepo := new(testhelpers.MockWagerRepository)
 		mockBetRepo := new(testhelpers.MockBetRepository)
@@ -499,13 +504,12 @@ func TestUserMetricsService_GetTFTLeaderboard(t *testing.T) {
 		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
 		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
 
-		// Include TFT placement options and legacy options that should be filtered
+		// Include predictions with various payout states
 		predictions := []*entities.GroupWagerPrediction{
-			{DiscordID: 100, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 1000, WasCorrect: true},
-			{DiscordID: 100, GroupWagerID: 2, OptionID: 3, OptionText: "Win", WinningOptionID: 3, Amount: 500, WasCorrect: true}, // Should be filtered
-			{DiscordID: 100, GroupWagerID: 3, OptionID: 5, OptionText: "3-4", WinningOptionID: 5, Amount: 750, WasCorrect: true},
-			{DiscordID: 100, GroupWagerID: 4, OptionID: 7, OptionText: "Loss", WinningOptionID: 7, Amount: 250, WasCorrect: true}, // Should be filtered
-			{DiscordID: 100, GroupWagerID: 5, OptionID: 9, OptionText: "Top 4", WinningOptionID: 9, Amount: 300, WasCorrect: true}, // Should be filtered
+			{DiscordID: 100, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 1000, WasCorrect: true, PayoutAmount: ptr(4000)}, // Normal winner
+			{DiscordID: 100, GroupWagerID: 2, OptionID: 3, OptionText: "3-4", WinningOptionID: 5, Amount: 500, WasCorrect: false, PayoutAmount: ptr(0)},    // Normal loser
+			{DiscordID: 100, GroupWagerID: 3, OptionID: 5, OptionText: "5-6", WinningOptionID: 5, Amount: 750, WasCorrect: true, PayoutAmount: nil},        // Null payout (treated as 0)
+			{DiscordID: 100, GroupWagerID: 4, OptionID: 7, OptionText: "7-8", WinningOptionID: 9, Amount: 250, WasCorrect: false, PayoutAmount: nil},       // Null payout loser
 		}
 
 		tftSystem := entities.SystemTFT
@@ -520,12 +524,13 @@ func TestUserMetricsService_GetTFTLeaderboard(t *testing.T) {
 
 		userStats := entries[0]
 		assert.Equal(t, int64(100), userStats.DiscordID)
-		assert.Equal(t, 2, userStats.TotalPredictions) // Only "1-2" and "3-4" counted
+		assert.Equal(t, 4, userStats.TotalPredictions)
 		assert.Equal(t, 2, userStats.CorrectPredictions)
-		assert.Equal(t, float64(100), userStats.AccuracyPercentage)
-		assert.Equal(t, int64(1750), userStats.TotalAmountWagered) // Only 1000 + 750
-		assert.Equal(t, int64(5250), userStats.ProfitLoss) // (1000*3) + (750*3) = 5250 profit
-		assert.Equal(t, int64(1750), totalBits) // Only valid TFT options counted
+		assert.Equal(t, float64(50), userStats.AccuracyPercentage)
+		assert.Equal(t, int64(2500), userStats.TotalAmountWagered)
+		// Profit: (4000-1000) + (0-500) + (0-750) + (0-250) = 3000 - 1500 = 1500
+		assert.Equal(t, int64(1500), userStats.ProfitLoss)
+		assert.Equal(t, int64(2500), totalBits)
 
 		mockGroupWagerRepo.AssertExpectations(t)
 	})
@@ -578,13 +583,13 @@ func TestUserMetricsService_GetTFTLeaderboard(t *testing.T) {
 
 		predictions := []*entities.GroupWagerPrediction{
 			// User 1: 1 correct prediction = +2000 profit/loss
-			{DiscordID: 100, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 1000, WasCorrect: true},
-			{DiscordID: 100, GroupWagerID: 2, OptionID: 3, OptionText: "3-4", WinningOptionID: 5, Amount: 1000, WasCorrect: false},
+			{DiscordID: 100, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 1000, WasCorrect: true, PayoutAmount: ptr(4000)},
+			{DiscordID: 100, GroupWagerID: 2, OptionID: 3, OptionText: "3-4", WinningOptionID: 5, Amount: 1000, WasCorrect: false, PayoutAmount: ptr(0)},
 
 			// User 2: 1 correct prediction = +2000 profit/loss but more predictions
-			{DiscordID: 200, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 1000, WasCorrect: true},
-			{DiscordID: 200, GroupWagerID: 2, OptionID: 3, OptionText: "3-4", WinningOptionID: 5, Amount: 500, WasCorrect: false},
-			{DiscordID: 200, GroupWagerID: 3, OptionID: 5, OptionText: "5-6", WinningOptionID: 7, Amount: 500, WasCorrect: false},
+			{DiscordID: 200, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 1000, WasCorrect: true, PayoutAmount: ptr(4000)},
+			{DiscordID: 200, GroupWagerID: 2, OptionID: 3, OptionText: "3-4", WinningOptionID: 5, Amount: 500, WasCorrect: false, PayoutAmount: ptr(0)},
+			{DiscordID: 200, GroupWagerID: 3, OptionID: 5, OptionText: "5-6", WinningOptionID: 7, Amount: 500, WasCorrect: false, PayoutAmount: ptr(0)},
 		}
 
 		tftSystem := entities.SystemTFT
@@ -600,12 +605,12 @@ func TestUserMetricsService_GetTFTLeaderboard(t *testing.T) {
 		// User 200 should be ranked higher due to more total predictions (tiebreaker)
 		assert.Equal(t, 1, entries[0].Rank)
 		assert.Equal(t, int64(200), entries[0].DiscordID)
-		assert.Equal(t, int64(2000), entries[0].ProfitLoss) // 3000 - 500 - 500
+		assert.Equal(t, int64(2000), entries[0].ProfitLoss) // (4000-1000) - 500 - 500
 		assert.Equal(t, 3, entries[0].TotalPredictions)
 
 		assert.Equal(t, 2, entries[1].Rank)
 		assert.Equal(t, int64(100), entries[1].DiscordID)
-		assert.Equal(t, int64(2000), entries[1].ProfitLoss) // 3000 - 1000
+		assert.Equal(t, int64(2000), entries[1].ProfitLoss) // (4000-1000) - 1000
 		assert.Equal(t, 2, entries[1].TotalPredictions)
 
 		mockGroupWagerRepo.AssertExpectations(t)
@@ -670,7 +675,7 @@ func TestUserMetricsService_GetTFTLeaderboard(t *testing.T) {
 		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
 
 		predictions := []*entities.GroupWagerPrediction{
-			{DiscordID: 100, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 1000, WasCorrect: true},
+			{DiscordID: 100, GroupWagerID: 1, OptionID: 1, OptionText: "1-2", WinningOptionID: 1, Amount: 1000, WasCorrect: true, PayoutAmount: ptr(4000)},
 		}
 
 		tftSystem := entities.SystemTFT

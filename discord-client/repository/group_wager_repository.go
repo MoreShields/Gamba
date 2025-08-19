@@ -794,6 +794,7 @@ func (r *GroupWagerRepository) GetGroupWagerPredictions(ctx context.Context, ext
 			gw.winning_option_id,
 			gwp.amount,
 			gwp.option_id = gw.winning_option_id AS was_correct,
+			gwp.payout_amount,
 			gw.external_system,
 			gw.external_id
 		FROM group_wager_participants gwp
@@ -834,6 +835,7 @@ func (r *GroupWagerRepository) GetGroupWagerPredictions(ctx context.Context, ext
 			&prediction.WinningOptionID,
 			&prediction.Amount,
 			&prediction.WasCorrect,
+			&prediction.PayoutAmount,
 			&externalSystem,
 			&externalID,
 		)
