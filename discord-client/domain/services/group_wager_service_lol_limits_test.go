@@ -397,6 +397,13 @@ func TestGroupWagerService_PlaceBet_DifferentMaxLimits(t *testing.T) {
 			betAmount:   30000,
 			expectError: true,
 		},
+		{
+			name:        "LoL no limit (-1) - 100k bet",
+			system:      entities.SystemLeagueOfLegends,
+			maxLimit:    -1,
+			betAmount:   100000,
+			expectError: false,
+		},
 	}
 
 	for _, tc := range testCases {

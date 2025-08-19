@@ -26,7 +26,7 @@ type Config struct {
 	DailyLimitResetHour int   // Hour in UTC when daily limit resets (0-23)
 
 	// LoL Wager Limits
-	MaxLolWagerPerGame int64 // Maximum bet amount per LoL game
+	MaxLolWagerPerGame int64 // Maximum bet amount per LoL/TFT game (-1 for no limit)
 
 	// High Roller Role configuration
 	GambaChannelID string // Channel ID for high roller change notifications
@@ -101,11 +101,11 @@ func load() (*Config, error) {
 
 		// Bot settings with defaults
 		StartingBalance:     100000,
-		DailyGambleLimit:    10000, // 10k daily limit default
-		DailyLimitResetHour: 12,    // 12:00 PM UTC default
+		DailyGambleLimit:    100000, // 10k daily limit default
+		DailyLimitResetHour: 12,     // 12:00 PM UTC default
 
 		// LoL Wager Limit default
-		MaxLolWagerPerGame: 50000,
+		MaxLolWagerPerGame: 500000,
 
 		// High Roller Role
 		GambaChannelID: os.Getenv("GAMBA_CHANNEL_ID"),

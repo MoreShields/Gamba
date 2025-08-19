@@ -199,10 +199,10 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 	}
 
 	// Check max wager limit for LoL and TFT games
-	if groupWager.ExternalRef != nil && 
-		(groupWager.ExternalRef.System == entities.SystemLeagueOfLegends || 
-		 groupWager.ExternalRef.System == entities.SystemTFT) {
-		if amount > s.config.MaxLolWagerPerGame {
+	if groupWager.ExternalRef != nil &&
+		(groupWager.ExternalRef.System == entities.SystemLeagueOfLegends ||
+			groupWager.ExternalRef.System == entities.SystemTFT) {
+		if s.config.MaxLolWagerPerGame > 0 && amount > s.config.MaxLolWagerPerGame {
 			return nil, fmt.Errorf("bet amount exceeds maximum of %s bits per game", utils.FormatShortNotation(s.config.MaxLolWagerPerGame))
 		}
 	}
@@ -355,7 +355,7 @@ func (s *groupWagerService) processParticipantBalanceChange(
 	}
 
 	// Add capped loss info for losers if applicable
-	if transactionType == entities.TransactionTypeGroupWagerLoss && 
+	if transactionType == entities.TransactionTypeGroupWagerLoss &&
 		groupWager.IsPoolWager() && maxWinnerBet > 0 && participant.Amount > maxWinnerBet {
 		metadata["capped_loss"] = maxWinnerBet
 		metadata["original_bet"] = participant.Amount
@@ -455,13 +455,13 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 
 		// Calculate effective prize pool with capped losses
 		effectivePrizePool := int64(0)
-		
+
 		// Add capped losses from losers
 		for _, loser := range losers {
 			effectiveLoss := calculateEffectiveLoss(loser.Amount, maxWinnerBet)
 			effectivePrizePool += effectiveLoss
 		}
-		
+
 		// Add winner contributions to prize pool
 		for _, winner := range winners {
 			effectivePrizePool += winner.Amount
