@@ -42,7 +42,7 @@ func CreateHouseWagerComponents(houseWager dto.HouseWagerPostDTO) []discordgo.Me
 
 		button := discordgo.Button{
 			Label:    fmt.Sprintf("%s (%.2fx)", option.Text, option.Multiplier),
-			Style:    getBetButtonStyle(i + 1),
+			Style:    discordgo.SecondaryButton,
 			CustomID: fmt.Sprintf("house_wager_bet_%d_%d", houseWager.WagerID, option.ID),
 			Emoji: &discordgo.ComponentEmoji{
 				Name: emoji,
@@ -61,18 +61,6 @@ func CreateHouseWagerComponents(houseWager dto.HouseWagerPostDTO) []discordgo.Me
 	}
 
 	return components
-}
-
-// getBetButtonStyle returns appropriate button style for betting options
-func getBetButtonStyle(optionNumber int) discordgo.ButtonStyle {
-	switch optionNumber {
-	case 1:
-		return discordgo.SuccessButton // Green for Win
-	case 2:
-		return discordgo.DangerButton // Red for Loss
-	default:
-		return discordgo.SecondaryButton // Gray for additional options
-	}
 }
 
 // handleHouseWagerBetButton handles when a user clicks a house wager betting button

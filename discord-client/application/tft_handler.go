@@ -40,10 +40,22 @@ func formatTFTQueueType(queueType string) string {
 		return "Normal Hyper Roll"
 	case "TFT_NORMAL_DOUBLE_UP":
 		return "Normal Double Up"
+	case "TFT_RANKED_DOUBLE_UP":
+		return "Ranked Double Up"
 	case "TFT_TUTORIAL":
 		return "Tutorial"
 	default:
 		return "TFT Match"
+	}
+}
+
+// isDoubleUpQueue checks if the queue type is a Double Up mode
+func isDoubleUpQueue(queueType string) bool {
+	switch queueType {
+	case "TFT_DOUBLE_UP", "TFT_NORMAL_DOUBLE_UP", "TFT_RANKED_DOUBLE_UP":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -80,15 +92,28 @@ func (h *TFTHandlerImpl) HandleGameStarted(ctx context.Context, gameStarted dto.
 		// Format the condition with the queue type
 		condition := fmt.Sprintf("%s - **%s**", gameStarted.SummonerName, formatTFTQueueType(gameStarted.QueueType))
 
+		// Check if this is a Double Up mode (4 teams instead of 8 players)
+		var options []string
+		var oddsMultipliers []float64
+		if isDoubleUpQueue(gameStarted.QueueType) {
+			// Double Up has 4 teams, so placements are 1-4
+			options = []string{"1", "2", "3", "4"}
+			oddsMultipliers = []float64{4.0, 4.0, 4.0, 4.0}
+		} else {
+			// Regular TFT has 8 players with placement ranges
+			options = []string{"1-2", "3-4", "5-6", "7-8"}
+			oddsMultipliers = []float64{4.0, 4.0, 4.0, 4.0}
+		}
+
 		config := WagerCreationConfig{
 			ExternalSystem:      entities.SystemTFT,
 			GameID:              gameStarted.GameID,
 			SummonerName:        gameStarted.SummonerName,
 			TagLine:             gameStarted.TagLine,
 			Condition:           condition,
-			Options:             []string{"1-2", "3-4", "5-6", "7-8"}, // TFT placement ranges
-			OddsMultipliers:     []float64{4.0, 4.0, 4.0, 4.0},        // 4:1 odds for all
-			VotingPeriodMinutes: 5,                                    // 5 minutes for betting
+			Options:             options,
+			OddsMultipliers:     oddsMultipliers,
+			VotingPeriodMinutes: 5, // 5 minutes for betting
 			ChannelIDGetter: func(gs *entities.GuildSettings) *int64 {
 				return gs.TftChannelID
 			},
@@ -190,32 +215,40 @@ func (h *TFTHandlerImpl) HandleGameEnded(ctx context.Context, gameEnded dto.TFTG
 
 		guildUow.Rollback() // Close the query transaction
 
-		// TFT winner selector: Match placement to the correct range
+		// TFT winner selector: Match placement to the correct option
 		tftWinnerSelector := func(options []entities.GroupWagerOption, result interface{}) int64 {
 			gameResult := result.(dto.TFTGameEndedDTO)
 			placement := gameResult.Placement
 			
-			// Determine which option wins based on placement
-			var winningOption string
-			switch placement {
-			case 1, 2:
-				winningOption = "1-2"
-			case 3, 4:
-				winningOption = "3-4"
-			case 5, 6:
-				winningOption = "5-6"
-			case 7, 8:
-				winningOption = "7-8"
-			default:
-				// Invalid placement
-				return 0
-			}
-			
+			// Find the winning option by checking if the placement matches
 			for _, opt := range options {
-				if opt.OptionText == winningOption {
+				// Check for exact match (Double Up: "1", "2", "3", "4")
+				if opt.OptionText == fmt.Sprintf("%d", placement) {
 					return opt.ID
 				}
+				
+				// Check for range match (Regular TFT: "1-2", "3-4", "5-6", "7-8")
+				switch opt.OptionText {
+				case "1-2":
+					if placement == 1 || placement == 2 {
+						return opt.ID
+					}
+				case "3-4":
+					if placement == 3 || placement == 4 {
+						return opt.ID
+					}
+				case "5-6":
+					if placement == 5 || placement == 6 {
+						return opt.ID
+					}
+				case "7-8":
+					if placement == 7 || placement == 8 {
+						return opt.ID
+					}
+				}
 			}
+			
+			// No matching option found
 			return 0
 		}
 

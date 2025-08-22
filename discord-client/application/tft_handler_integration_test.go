@@ -347,6 +347,121 @@ func TestTFTHandler_PlacementBoundaries(t *testing.T) {
 	}
 }
 
+func TestTFTHandler_DoubleUpPlacement(t *testing.T) {
+	testCases := []struct {
+		name              string
+		queueType         string
+		placement         int32
+		expectedOptions   []string
+		expectedWinOption string
+	}{
+		// Double Up games (4 teams)
+		{"Double Up 1st", "TFT_NORMAL_DOUBLE_UP", 1, []string{"1", "2", "3", "4"}, "1"},
+		{"Double Up 2nd", "TFT_NORMAL_DOUBLE_UP", 2, []string{"1", "2", "3", "4"}, "2"},
+		{"Double Up 3rd", "TFT_RANKED_DOUBLE_UP", 3, []string{"1", "2", "3", "4"}, "3"},
+		{"Double Up 4th", "TFT_RANKED_DOUBLE_UP", 4, []string{"1", "2", "3", "4"}, "4"},
+		// Regular TFT for comparison
+		{"Regular TFT 5th", "TFT_RANKED", 5, []string{"1-2", "3-4", "5-6", "7-8"}, "5-6"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if testing.Short() {
+				t.Skip("Skipping integration test in short mode")
+			}
+
+			// Setup test database
+			testDB := testutil.SetupTestDatabase(t)
+			defer testDB.Cleanup(t)
+
+			noopPublisher := infrastructure.NewNoopEventPublisher()
+			uowFactory := infrastructure.NewUnitOfWorkFactory(testDB.DB, noopPublisher)
+
+			ctx := context.Background()
+			guildID := int64(88888 + int64(tc.placement))
+			summonerName := "DoubleUpTester"
+			tagLine := "DUO"
+			gameID := fmt.Sprintf("double-up-test-%d", tc.placement)
+
+			// Setup guild and summoner watch
+			setupTFTTestData(t, ctx, uowFactory, guildID, summonerName, tagLine)
+
+			// Create mock Discord poster
+			mockPoster := &application.MockDiscordPoster{}
+
+			// Create TFT handler
+			handler := application.NewTFTHandler(uowFactory, mockPoster)
+
+			// Game start
+			gameStarted := dto.TFTGameStartedDTO{
+				SummonerName: summonerName,
+				TagLine:      tagLine,
+				GameID:       gameID,
+				QueueType:    tc.queueType,
+			}
+
+			err := handler.HandleGameStarted(ctx, gameStarted)
+			require.NoError(t, err)
+
+			// Verify wager has correct options
+			require.Equal(t, 1, len(mockPoster.Posts), "Should create exactly one wager")
+			wagerDTO := mockPoster.Posts[0]
+			
+			assert.Equal(t, len(tc.expectedOptions), len(wagerDTO.Options))
+			for i, opt := range wagerDTO.Options {
+				assert.Equal(t, tc.expectedOptions[i], opt.Text)
+			}
+
+			// Game end with placement
+			gameEnded := dto.TFTGameEndedDTO{
+				SummonerName:    summonerName,
+				TagLine:         tagLine,
+				GameID:          gameID,
+				Placement:       tc.placement,
+				DurationSeconds: 1200,
+				QueueType:       tc.queueType,
+			}
+
+			err = handler.HandleGameEnded(ctx, gameEnded)
+			require.NoError(t, err)
+
+			// Verify correct winner selection
+			uow := uowFactory.CreateForGuild(guildID)
+			require.NoError(t, uow.Begin(ctx))
+			defer uow.Rollback()
+
+			externalRef := entities.ExternalReference{
+				System: entities.SystemTFT,
+				ID:     gameID,
+			}
+
+			wager, err := uow.GroupWagerRepository().GetByExternalReference(ctx, externalRef)
+			require.NoError(t, err)
+			require.NotNil(t, wager)
+
+			assert.Equal(t, entities.GroupWagerStateResolved, wager.State)
+			assert.NotNil(t, wager.WinningOptionID)
+
+			// Verify the correct option won
+			detail, err := uow.GroupWagerRepository().GetDetailByID(ctx, wager.ID)
+			require.NoError(t, err)
+
+			var winOption *entities.GroupWagerOption
+			for _, opt := range detail.Options {
+				if opt.ID == *wager.WinningOptionID {
+					winOption = opt
+					break
+				}
+			}
+			require.NotNil(t, winOption)
+			assert.Equal(t, tc.expectedWinOption, winOption.OptionText, 
+				"Expected option %s to win for placement %d in %s", 
+				tc.expectedWinOption, tc.placement, tc.queueType)
+		})
+	}
+}
+
 func TestTFTHandler_NoCancellationLogic(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
