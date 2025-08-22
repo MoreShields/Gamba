@@ -77,10 +77,10 @@ class QueueType(Enum):
     TFT_RANKED = ("TFT_RANKED", 1100)              # Teamfight Tactics (Ranked)
     TFT_TUTORIAL = ("TFT_TUTORIAL", 1110)          # Teamfight Tactics (Tutorial)
     TFT_HYPER_ROLL = ("TFT_HYPER_ROLL", 1130)      # Teamfight Tactics (Hyper Roll)
-    TFT_DOUBLE_UP = ("TFT_DOUBLE_UP", 1150)        # Teamfight Tactics (Double Up workshop)
+    TFT_DOUBLE_UP = ("TFT_DOUBLE_UP", 1150)        # Teamfight Tactics (Double Up Beta/Workshop - deprecated, replaced by 1160)
     TFT_NORMAL_HYPER_ROLL = ("TFT_NORMAL_HYPER_ROLL", 1120)  # Teamfight Tactics (Normal Hyper Roll)
-    TFT_NORMAL_DOUBLE_UP = ("TFT_NORMAL_DOUBLE_UP", 1140)
-    TFT_UNKNOWN_1160 = ("TFT_UNKNOWN_1160", 1160)  # Unknown TFT queue from earlier issue    # Teamfight Tactics (Normal Double Up)
+    TFT_NORMAL_DOUBLE_UP = ("TFT_NORMAL_DOUBLE_UP", 1140)    # Teamfight Tactics (Normal Double Up)
+    TFT_RANKED_DOUBLE_UP = ("TFT_RANKED_DOUBLE_UP", 1160)  # Teamfight Tactics (Ranked Double Up)
     
     def __init__(self, value: str, queue_id: int):
         """Initialize queue type with metadata."""
