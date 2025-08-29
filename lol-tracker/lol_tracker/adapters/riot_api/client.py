@@ -125,8 +125,21 @@ class TFTMatchInfo:
 
     # Note: get_placement(puuid) removed - use get_placement_by_name instead
     
+    def is_double_up_queue(self) -> bool:
+        """Check if this is a Double Up game mode.
+        
+        Double Up queue IDs:
+        - 1140: TFT Normal Double Up
+        - 1150: TFT Double Up (Beta/Workshop - deprecated but still may appear)
+        - 1160: TFT Ranked Double Up
+        """
+        return self.queue_id in (1140, 1150, 1160)
+    
     def get_placement_by_name(self, game_name: str, tag_line: str) -> Optional[int]:
-        """Get the player's placement (1-8) for the given Riot ID.
+        """Get the player's placement for the given Riot ID.
+        
+        For regular TFT games: Returns placement 1-8
+        For Double Up games: Returns adjusted group placement 1-4
         
         Note: This requires participants to have riotIdGameName and riotIdTagline fields,
         which may not always be available. Falls back to None if not found.
@@ -134,7 +147,11 @@ class TFTMatchInfo:
         for participant in self.participants:
             if (participant.get("riotIdGameName", "").lower() == game_name.lower() and 
                 participant.get("riotIdTagline", "").lower() == tag_line.lower()):
-                return participant.get("placement")
+                placement = participant.get("placement")
+                if placement is not None and self.is_double_up_queue():
+                    # In Double Up, pairs share placement: 1-2 -> 1, 3-4 -> 2, 5-6 -> 3, 7-8 -> 4
+                    return (placement + 1) // 2
+                return placement
         return None
 
 
