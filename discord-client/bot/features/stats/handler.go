@@ -88,7 +88,7 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 		uow.BalanceHistoryRepository(),
 		uow.EventBus(),
 	)
-	
+
 	highRollerInfo, err := highRollerService.GetCurrentHighRoller(ctx, guildID)
 	if err == nil && highRollerInfo.CurrentHolder != nil {
 		// Get the role ID for mention
@@ -100,7 +100,7 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 
 	// Create embed using the shared function (start with first page)
 	embed, imageData := BuildScoreboardEmbed(ctx, metricsService, entries, totalBits, s, i.GuildID, PageBits, f.userResolver)
-	
+
 	// Add high roller info to the description if available
 	if highRollerText != "" && embed.Description != "" {
 		embed.Description += highRollerText
@@ -117,7 +117,7 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 	webhookData := &discordgo.WebhookEdit{
 		Embeds: &[]*discordgo.MessageEmbed{embed},
 	}
-	
+
 	// Add image if generated
 	if imageData != nil {
 		webhookData.Files = []*discordgo.File{
@@ -127,7 +127,7 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 			},
 		}
 	}
-	
+
 	msg, err := s.InteractionResponseEdit(i.Interaction, webhookData)
 	if err != nil {
 		log.Printf("Error editing interaction response: %v", err)
@@ -228,28 +228,6 @@ func (f *Feature) handleStatsBalance(s *discordgo.Session, i *discordgo.Interact
 				Inline: false,
 			},
 		},
-	}
-
-	// Add wager statistics if any
-	if stats.WagerStats.TotalWagers > 0 {
-		// Focus on resolved wagers for stats display
-		var wagerStatsStr string
-		if stats.WagerStats.TotalResolved > 0 {
-			wagerStatsStr = fmt.Sprintf("Win Rate: **%.1f%%** (%d/%d)\nTotal Won: %s bits",
-				stats.WagerStats.WinPercentage,
-				stats.WagerStats.TotalWon,
-				stats.WagerStats.TotalResolved,
-				common.FormatBalance(stats.WagerStats.TotalWonAmount))
-		} else {
-			wagerStatsStr = fmt.Sprintf("Total Wagers: %d\nNo resolved wagers yet",
-				stats.WagerStats.TotalWagers)
-		}
-
-		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
-			Name:   "🤝 Wager Statistics",
-			Value:  wagerStatsStr,
-			Inline: true,
-		})
 	}
 
 	// Send response
