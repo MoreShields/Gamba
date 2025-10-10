@@ -26,7 +26,8 @@ func NewLoLHandler(
 	}
 }
 
-// formatQueueType converts queue type strings to user-friendly display names
+// formatQueueType converts queue type strings to user-friendly display names.
+// Returns an empty string for unknown queue types.
 func formatQueueType(queueType string) string {
 	switch queueType {
 	case "RANKED_SOLO_5x5":
@@ -42,7 +43,7 @@ func formatQueueType(queueType string) string {
 	case "ARENA":
 		return "Arena"
 	default:
-		return "Match"
+		return "" // Unknown queue type
 	}
 }
 
@@ -53,6 +54,17 @@ func (h *LoLHandlerImpl) HandleGameStarted(ctx context.Context, gameStarted dto.
 		"gameId":   gameStarted.GameID,
 		"queue":    gameStarted.QueueType,
 	}).Info("handling Game start")
+
+	// Validate queue type - drop event if unknown
+	formattedQueue := formatQueueType(gameStarted.QueueType)
+	if formattedQueue == "" {
+		log.WithFields(log.Fields{
+			"summoner": fmt.Sprintf("%s#%s", gameStarted.SummonerName, gameStarted.TagLine),
+			"gameId":   gameStarted.GameID,
+			"queue":    gameStarted.QueueType,
+		}).Info("Dropping game start event for unknown queue type")
+		return nil
+	}
 
 	// Query guilds watching this summoner
 	// Use a temporary UoW to query without guild scope
@@ -82,7 +94,7 @@ func (h *LoLHandlerImpl) HandleGameStarted(ctx context.Context, gameStarted dto.
 		encodedGameName := strings.ReplaceAll(gameStarted.SummonerName, " ", "%20")
 		porofessorURL := fmt.Sprintf("https://porofessor.gg/live/na/%s-%s", encodedGameName, gameStarted.TagLine)
 		condition := fmt.Sprintf("%s - **%s**\n[Match Details](%s)",
-			gameStarted.SummonerName, formatQueueType(gameStarted.QueueType), porofessorURL)
+			gameStarted.SummonerName, formattedQueue, porofessorURL)
 
 		config := WagerCreationConfig{
 			ExternalSystem:      entities.SystemLeagueOfLegends,

@@ -25,7 +25,8 @@ func NewTFTHandler(
 	}
 }
 
-// formatTFTQueueType converts TFT queue type strings to user-friendly display names
+// formatTFTQueueType converts TFT queue type strings to user-friendly display names.
+// Returns an empty string for unknown queue types.
 func formatTFTQueueType(queueType string) string {
 	switch queueType {
 	case "TFT_RANKED":
@@ -45,7 +46,7 @@ func formatTFTQueueType(queueType string) string {
 	case "TFT_TUTORIAL":
 		return "Tutorial"
 	default:
-		return "TFT Match"
+		return "" // Unknown queue type
 	}
 }
 
@@ -66,6 +67,17 @@ func (h *TFTHandlerImpl) HandleGameStarted(ctx context.Context, gameStarted dto.
 		"gameId":   gameStarted.GameID,
 		"queue":    gameStarted.QueueType,
 	}).Info("handling TFT game start")
+
+	// Validate queue type - drop event if unknown
+	formattedQueue := formatTFTQueueType(gameStarted.QueueType)
+	if formattedQueue == "" {
+		log.WithFields(log.Fields{
+			"summoner": fmt.Sprintf("%s#%s", gameStarted.SummonerName, gameStarted.TagLine),
+			"gameId":   gameStarted.GameID,
+			"queue":    gameStarted.QueueType,
+		}).Info("Dropping TFT game start event for unknown queue type")
+		return nil
+	}
 
 	// Query guilds watching this summoner
 	// Use a temporary UoW to query without guild scope
@@ -90,7 +102,7 @@ func (h *TFTHandlerImpl) HandleGameStarted(ctx context.Context, gameStarted dto.
 	// Create a house wager for each watching guild
 	for _, guild := range guilds {
 		// Format the condition with the queue type
-		condition := fmt.Sprintf("%s - **%s**", gameStarted.SummonerName, formatTFTQueueType(gameStarted.QueueType))
+		condition := fmt.Sprintf("%s - **%s**", gameStarted.SummonerName, formattedQueue)
 
 		// Check if this is a Double Up mode (4 teams instead of 8 players)
 		var options []string

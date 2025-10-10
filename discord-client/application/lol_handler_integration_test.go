@@ -372,6 +372,67 @@ func TestLoLHandler_NoWatchingGuilds(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestLoLHandler_UnknownQueueType_DropsEvent(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	// Setup test database
+	testDB := testutil.SetupTestDatabase(t)
+	defer testDB.Cleanup(t)
+
+	// Create no-op event publisher for integration tests
+	noopPublisher := infrastructure.NewNoopEventPublisher()
+
+	// Create UoW factory
+	uowFactory := infrastructure.NewUnitOfWorkFactory(testDB.DB, noopPublisher)
+
+	// Setup test data
+	ctx := context.Background()
+	guildID := int64(99999)
+	summonerName := "UnknownQueuePlayer"
+	tagLine := "NA1"
+	gameID := "test-game-unknown-queue"
+
+	// Setup guild and summoner watch
+	setupTestData(t, ctx, uowFactory, guildID, summonerName, tagLine)
+
+	// Create mock Discord poster
+	mockPoster := &application.MockDiscordPoster{}
+
+	// Create LoL handler
+	handler := application.NewLoLHandler(uowFactory, mockPoster)
+
+	// Game start with unknown queue type
+	gameStarted := dto.GameStartedDTO{
+		SummonerName: summonerName,
+		TagLine:      tagLine,
+		GameID:       gameID,
+		QueueType:    "URF", // Unknown queue type
+	}
+
+	err := handler.HandleGameStarted(ctx, gameStarted)
+	require.NoError(t, err) // Should not return error, just drop silently
+
+	// Verify no Discord posts were made
+	assert.Len(t, mockPoster.Posts, 0)
+
+	// Verify no wager was created in database
+	uow := uowFactory.CreateForGuild(guildID)
+	require.NoError(t, uow.Begin(ctx))
+	defer uow.Rollback()
+
+	externalRef := entities.ExternalReference{
+		System: entities.SystemLeagueOfLegends,
+		ID:     gameID,
+	}
+
+	wager, err := uow.GroupWagerRepository().GetByExternalReference(ctx, externalRef)
+	require.NoError(t, err)
+	assert.Nil(t, wager) // Wager should not exist for unknown queue type
+}
+
 // setupTestData creates the necessary guild settings and summoner watch for testing
 func setupTestData(t *testing.T, ctx context.Context, uowFactory application.UnitOfWorkFactory, guildID int64, summonerName, tagLine string) {
 	uow := uowFactory.CreateForGuild(guildID)

@@ -53,7 +53,7 @@ func TestTFTHandler_EndToEndFlow(t *testing.T) {
 			SummonerName: summonerName,
 			TagLine:      tagLine,
 			GameID:       gameID,
-			QueueType:    "RANKED_TFT",
+			QueueType:    "TFT_RANKED",
 		}
 
 		// Handle game start
@@ -65,7 +65,7 @@ func TestTFTHandler_EndToEndFlow(t *testing.T) {
 		post := mockPoster.Posts[0]
 		assert.Equal(t, guildID, post.GuildID)
 		assert.Contains(t, post.Title, summonerName)
-		assert.Contains(t, post.Title, "TFT Match")
+		assert.Contains(t, post.Title, "Ranked TFT")
 		assert.Len(t, post.Options, 4) // 4 placement range options
 
 		// Verify TFT-specific options
@@ -109,7 +109,7 @@ func TestTFTHandler_EndToEndFlow(t *testing.T) {
 			GameID:          gameID,
 			Placement:       3, // 3-4 range
 			DurationSeconds: 1800, // 30 minutes
-			QueueType:       "RANKED_TFT",
+			QueueType:       "TFT_RANKED",
 		}
 
 		// Handle game end
@@ -186,7 +186,7 @@ func TestTFTHandler_EndToEndFlow_6thPlace(t *testing.T) {
 		SummonerName: summonerName,
 		TagLine:      tagLine,
 		GameID:       gameID,
-		QueueType:    "RANKED_TFT",
+		QueueType:    "TFT_RANKED",
 	}
 
 	err := handler.HandleGameStarted(ctx, gameStarted)
@@ -199,7 +199,7 @@ func TestTFTHandler_EndToEndFlow_6thPlace(t *testing.T) {
 		GameID:          gameID,
 		Placement:       6, // 5-6 range
 		DurationSeconds: 1200, // 20 minutes
-		QueueType:       "RANKED_TFT",
+		QueueType:       "TFT_RANKED",
 	}
 
 	err = handler.HandleGameEnded(ctx, gameEnded)
@@ -293,7 +293,7 @@ func TestTFTHandler_PlacementBoundaries(t *testing.T) {
 				SummonerName: summonerName,
 				TagLine:      tagLine,
 				GameID:       gameID,
-				QueueType:    "RANKED_TFT",
+				QueueType:    "TFT_RANKED",
 			}
 
 			err := handler.HandleGameStarted(ctx, gameStarted)
@@ -306,7 +306,7 @@ func TestTFTHandler_PlacementBoundaries(t *testing.T) {
 				GameID:          gameID,
 				Placement:       tc.placement,
 				DurationSeconds: 1500,
-				QueueType:       "RANKED_TFT",
+				QueueType:       "TFT_RANKED",
 			}
 
 			err = handler.HandleGameEnded(ctx, gameEnded)
@@ -498,7 +498,7 @@ func TestTFTHandler_NoCancellationLogic(t *testing.T) {
 		SummonerName: summonerName,
 		TagLine:      tagLine,
 		GameID:       gameID,
-		QueueType:    "RANKED_TFT",
+		QueueType:    "TFT_RANKED",
 	}
 
 	err := handler.HandleGameStarted(ctx, gameStarted)
@@ -526,7 +526,7 @@ func TestTFTHandler_NoCancellationLogic(t *testing.T) {
 		GameID:          gameID,
 		Placement:       7, // 7-8 range
 		DurationSeconds: 300, // 5 minutes - would trigger cancellation in LoL
-		QueueType:       "RANKED_TFT",
+		QueueType:       "TFT_RANKED",
 	}
 
 	err = handler.HandleGameEnded(ctx, gameEnded)
@@ -597,7 +597,7 @@ func TestTFTHandler_MultipleGuilds(t *testing.T) {
 		SummonerName: summonerName,
 		TagLine:      tagLine,
 		GameID:       gameID,
-		QueueType:    "RANKED_TFT",
+		QueueType:    "TFT_RANKED",
 	}
 
 	err := handler.HandleGameStarted(ctx, gameStarted)
@@ -639,7 +639,7 @@ func TestTFTHandler_MultipleGuilds(t *testing.T) {
 		GameID:          gameID,
 		Placement:       2, // 1-2 range
 		DurationSeconds: 1500,
-		QueueType:       "RANKED_TFT",
+		QueueType:       "TFT_RANKED",
 	}
 
 	err = handler.HandleGameEnded(ctx, gameEnded)
@@ -680,7 +680,7 @@ func TestTFTHandler_NoWatchingGuilds(t *testing.T) {
 		SummonerName: "UnwatchedTFTPlayer",
 		TagLine:      "NA1",
 		GameID:       "tft-unwatched-game",
-		QueueType:    "RANKED_TFT",
+		QueueType:    "TFT_RANKED",
 	}
 
 	err := handler.HandleGameStarted(ctx, gameStarted)
@@ -696,7 +696,7 @@ func TestTFTHandler_NoWatchingGuilds(t *testing.T) {
 		GameID:          "tft-unwatched-game",
 		Placement:       1,
 		DurationSeconds: 1800,
-		QueueType:       "RANKED_TFT",
+		QueueType:       "TFT_RANKED",
 	}
 
 	err = handler.HandleGameEnded(ctx, gameEnded)
@@ -739,7 +739,7 @@ func TestTFTHandler_MissingTFTChannel(t *testing.T) {
 		SummonerName: summonerName,
 		TagLine:      tagLine,
 		GameID:       gameID,
-		QueueType:    "RANKED_TFT",
+		QueueType:    "TFT_RANKED",
 	}
 
 	err := handler.HandleGameStarted(ctx, gameStarted)
@@ -747,6 +747,67 @@ func TestTFTHandler_MissingTFTChannel(t *testing.T) {
 
 	// No Discord posts should be made
 	assert.Len(t, mockPoster.Posts, 0)
+}
+
+func TestTFTHandler_UnknownQueueType_DropsEvent(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	// Setup test database
+	testDB := testutil.SetupTestDatabase(t)
+	defer testDB.Cleanup(t)
+
+	// Create no-op event publisher for integration tests
+	noopPublisher := infrastructure.NewNoopEventPublisher()
+
+	// Create UoW factory
+	uowFactory := infrastructure.NewUnitOfWorkFactory(testDB.DB, noopPublisher)
+
+	// Setup test data
+	ctx := context.Background()
+	guildID := int64(88888)
+	summonerName := "UnknownTFTQueuePlayer"
+	tagLine := "NA1"
+	gameID := "tft-unknown-queue"
+
+	// Setup guild and summoner watch
+	setupTFTTestData(t, ctx, uowFactory, guildID, summonerName, tagLine)
+
+	// Create mock Discord poster
+	mockPoster := &application.MockDiscordPoster{}
+
+	// Create TFT handler
+	handler := application.NewTFTHandler(uowFactory, mockPoster)
+
+	// Game start with unknown queue type
+	gameStarted := dto.TFTGameStartedDTO{
+		SummonerName: summonerName,
+		TagLine:      tagLine,
+		GameID:       gameID,
+		QueueType:    "TFT_UNKNOWN_MODE", // Unknown queue type
+	}
+
+	err := handler.HandleGameStarted(ctx, gameStarted)
+	require.NoError(t, err) // Should not return error, just drop silently
+
+	// Verify no Discord posts were made
+	assert.Len(t, mockPoster.Posts, 0)
+
+	// Verify no wager was created in database
+	uow := uowFactory.CreateForGuild(guildID)
+	require.NoError(t, uow.Begin(ctx))
+	defer uow.Rollback()
+
+	externalRef := entities.ExternalReference{
+		System: entities.SystemTFT,
+		ID:     gameID,
+	}
+
+	wager, err := uow.GroupWagerRepository().GetByExternalReference(ctx, externalRef)
+	require.NoError(t, err)
+	assert.Nil(t, wager) // Wager should not exist for unknown queue type
 }
 
 // setupTFTTestData creates the necessary guild settings and summoner watch for TFT testing
