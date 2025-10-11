@@ -9,9 +9,6 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    # TODO: Use base image once available
-    # container:
-    #   image: ghcr.io/moreshields/gamba-base:latest
     strategy:
       fail-fast: false
       matrix:
