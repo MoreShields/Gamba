@@ -19,7 +19,7 @@ func TestHighRollerService_GetCurrentHighRoller(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		setup        func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository)
+		setup        func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository, *testhelpers.MockGuildSettingsRepository)
 		guildID      int64
 		want         *interfaces.HighRollerInfo
 		wantErr      bool
@@ -27,13 +27,14 @@ func TestHighRollerService_GetCurrentHighRoller(t *testing.T) {
 	}{
 		{
 			name: "no purchases found",
-			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository) {
+			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository, *testhelpers.MockGuildSettingsRepository) {
 				mockRepo := new(testhelpers.MockHighRollerPurchaseRepository)
 				mockUserRepo := new(testhelpers.MockUserRepository)
-				
+				mockGuildSettingsRepo := new(testhelpers.MockGuildSettingsRepository)
+
 				mockRepo.On("GetLatestPurchase", mock.Anything, int64(123)).Return(nil, nil)
-				
-				return mockRepo, mockUserRepo
+
+				return mockRepo, mockUserRepo, mockGuildSettingsRepo
 			},
 			guildID: 123,
 			want: &interfaces.HighRollerInfo{
@@ -43,10 +44,11 @@ func TestHighRollerService_GetCurrentHighRoller(t *testing.T) {
 		},
 		{
 			name: "latest purchase found with user",
-			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository) {
+			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository, *testhelpers.MockGuildSettingsRepository) {
 				mockRepo := new(testhelpers.MockHighRollerPurchaseRepository)
 				mockUserRepo := new(testhelpers.MockUserRepository)
-				
+				mockGuildSettingsRepo := new(testhelpers.MockGuildSettingsRepository)
+
 				purchasedAt := time.Now()
 				purchase := &entities.HighRollerPurchase{
 					ID:            1,
@@ -60,29 +62,40 @@ func TestHighRollerService_GetCurrentHighRoller(t *testing.T) {
 					Username:  "testuser",
 					Balance:   100000,
 				}
-				
+
+				// Mock with tracking start time to test duration calculation
+				trackingStart := time.Now().Add(-24 * time.Hour)
+				guildSettings := &entities.GuildSettings{
+					GuildID:                      123,
+					HighRollerTrackingStartTime:  &trackingStart,
+				}
+
 				mockRepo.On("GetLatestPurchase", mock.Anything, int64(123)).Return(purchase, nil)
 				mockUserRepo.On("GetByDiscordID", mock.Anything, int64(456)).Return(user, nil)
-				
-				return mockRepo, mockUserRepo
+				mockGuildSettingsRepo.On("GetOrCreateGuildSettings", mock.Anything, int64(123)).Return(guildSettings, nil)
+				mockRepo.On("GetUserTotalDurationSince", mock.Anything, int64(123), int64(456), trackingStart).Return(5*time.Hour, nil)
+
+				return mockRepo, mockUserRepo, mockGuildSettingsRepo
 			},
 			guildID: 123,
 			want: &interfaces.HighRollerInfo{
-				CurrentHolder:   &entities.User{DiscordID: 456, Username: "testuser", Balance: 100000},
-				CurrentPrice:    50000,
-				LastPurchasedAt: func() *time.Time { t := time.Now(); return &t }(),
+				CurrentHolder:         &entities.User{DiscordID: 456, Username: "testuser", Balance: 100000},
+				CurrentPrice:          50000,
+				LastPurchasedAt:       func() *time.Time { t := time.Now(); return &t }(),
+				CurrentHolderDuration: 5 * time.Hour,
 			},
 			wantErr: false,
 		},
 		{
 			name: "repository error",
-			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository) {
+			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository, *testhelpers.MockGuildSettingsRepository) {
 				mockRepo := new(testhelpers.MockHighRollerPurchaseRepository)
 				mockUserRepo := new(testhelpers.MockUserRepository)
-				
+				mockGuildSettingsRepo := new(testhelpers.MockGuildSettingsRepository)
+
 				mockRepo.On("GetLatestPurchase", mock.Anything, int64(123)).Return(nil, errors.New("database error"))
-				
-				return mockRepo, mockUserRepo
+
+				return mockRepo, mockUserRepo, mockGuildSettingsRepo
 			},
 			guildID:     123,
 			wantErr:     true,
@@ -90,10 +103,11 @@ func TestHighRollerService_GetCurrentHighRoller(t *testing.T) {
 		},
 		{
 			name: "user not found error",
-			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository) {
+			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository, *testhelpers.MockGuildSettingsRepository) {
 				mockRepo := new(testhelpers.MockHighRollerPurchaseRepository)
 				mockUserRepo := new(testhelpers.MockUserRepository)
-				
+				mockGuildSettingsRepo := new(testhelpers.MockGuildSettingsRepository)
+
 				purchase := &entities.HighRollerPurchase{
 					ID:            1,
 					GuildID:       123,
@@ -101,11 +115,11 @@ func TestHighRollerService_GetCurrentHighRoller(t *testing.T) {
 					PurchasePrice: 50000,
 					PurchasedAt:   time.Now(),
 				}
-				
+
 				mockRepo.On("GetLatestPurchase", mock.Anything, int64(123)).Return(purchase, nil)
 				mockUserRepo.On("GetByDiscordID", mock.Anything, int64(456)).Return(nil, errors.New("user not found"))
-				
-				return mockRepo, mockUserRepo
+
+				return mockRepo, mockUserRepo, mockGuildSettingsRepo
 			},
 			guildID:     123,
 			wantErr:     true,
@@ -116,8 +130,8 @@ func TestHighRollerService_GetCurrentHighRoller(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			
-			mockRepo, mockUserRepo := tt.setup()
+
+			mockRepo, mockUserRepo, mockGuildSettingsRepo := tt.setup()
 			mockWagerRepo := new(testhelpers.MockWagerRepository)
 			mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
 			mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
@@ -129,6 +143,7 @@ func TestHighRollerService_GetCurrentHighRoller(t *testing.T) {
 				mockWagerRepo,
 				mockGroupWagerRepo,
 				mockBalanceHistoryRepo,
+				mockGuildSettingsRepo,
 				mockEventPublisher,
 			)
 
@@ -168,7 +183,7 @@ func TestHighRollerService_PurchaseHighRollerRole(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		setup       func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository, *testhelpers.MockWagerRepository, *testhelpers.MockGroupWagerRepository, *testhelpers.MockBalanceHistoryRepository, *testhelpers.MockEventPublisher)
+		setup       func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository, *testhelpers.MockWagerRepository, *testhelpers.MockGroupWagerRepository, *testhelpers.MockBalanceHistoryRepository, *testhelpers.MockGuildSettingsRepository, *testhelpers.MockEventPublisher)
 		discordID   int64
 		guildID     int64
 		offerAmount int64
@@ -177,8 +192,8 @@ func TestHighRollerService_PurchaseHighRollerRole(t *testing.T) {
 	}{
 		{
 			name: "invalid offer amount - zero",
-			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository, *testhelpers.MockWagerRepository, *testhelpers.MockGroupWagerRepository, *testhelpers.MockBalanceHistoryRepository, *testhelpers.MockEventPublisher) {
-				return new(testhelpers.MockHighRollerPurchaseRepository), new(testhelpers.MockUserRepository), new(testhelpers.MockWagerRepository), new(testhelpers.MockGroupWagerRepository), new(testhelpers.MockBalanceHistoryRepository), new(testhelpers.MockEventPublisher)
+			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository, *testhelpers.MockWagerRepository, *testhelpers.MockGroupWagerRepository, *testhelpers.MockBalanceHistoryRepository, *testhelpers.MockGuildSettingsRepository, *testhelpers.MockEventPublisher) {
+				return new(testhelpers.MockHighRollerPurchaseRepository), new(testhelpers.MockUserRepository), new(testhelpers.MockWagerRepository), new(testhelpers.MockGroupWagerRepository), new(testhelpers.MockBalanceHistoryRepository), new(testhelpers.MockGuildSettingsRepository), new(testhelpers.MockEventPublisher)
 			},
 			discordID:   123,
 			guildID:     456,
@@ -188,8 +203,8 @@ func TestHighRollerService_PurchaseHighRollerRole(t *testing.T) {
 		},
 		{
 			name: "invalid offer amount - negative",
-			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository, *testhelpers.MockWagerRepository, *testhelpers.MockGroupWagerRepository, *testhelpers.MockBalanceHistoryRepository, *testhelpers.MockEventPublisher) {
-				return new(testhelpers.MockHighRollerPurchaseRepository), new(testhelpers.MockUserRepository), new(testhelpers.MockWagerRepository), new(testhelpers.MockGroupWagerRepository), new(testhelpers.MockBalanceHistoryRepository), new(testhelpers.MockEventPublisher)
+			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository, *testhelpers.MockWagerRepository, *testhelpers.MockGroupWagerRepository, *testhelpers.MockBalanceHistoryRepository, *testhelpers.MockGuildSettingsRepository, *testhelpers.MockEventPublisher) {
+				return new(testhelpers.MockHighRollerPurchaseRepository), new(testhelpers.MockUserRepository), new(testhelpers.MockWagerRepository), new(testhelpers.MockGroupWagerRepository), new(testhelpers.MockBalanceHistoryRepository), new(testhelpers.MockGuildSettingsRepository), new(testhelpers.MockEventPublisher)
 			},
 			discordID:   123,
 			guildID:     456,
@@ -199,10 +214,11 @@ func TestHighRollerService_PurchaseHighRollerRole(t *testing.T) {
 		},
 		{
 			name: "user already holds role",
-			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository, *testhelpers.MockWagerRepository, *testhelpers.MockGroupWagerRepository, *testhelpers.MockBalanceHistoryRepository, *testhelpers.MockEventPublisher) {
+			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository, *testhelpers.MockWagerRepository, *testhelpers.MockGroupWagerRepository, *testhelpers.MockBalanceHistoryRepository, *testhelpers.MockGuildSettingsRepository, *testhelpers.MockEventPublisher) {
 				mockRepo := new(testhelpers.MockHighRollerPurchaseRepository)
 				mockUserRepo := new(testhelpers.MockUserRepository)
-				
+				mockGuildSettingsRepo := new(testhelpers.MockGuildSettingsRepository)
+
 				purchase := &entities.HighRollerPurchase{
 					DiscordID:     123,
 					PurchasePrice: 30000,
@@ -211,11 +227,15 @@ func TestHighRollerService_PurchaseHighRollerRole(t *testing.T) {
 					DiscordID: 123,
 					Username:  "currentHolder",
 				}
-				
+				guildSettings := &entities.GuildSettings{
+					GuildID: 456,
+				}
+
 				mockRepo.On("GetLatestPurchase", mock.Anything, int64(456)).Return(purchase, nil)
 				mockUserRepo.On("GetByDiscordID", mock.Anything, int64(123)).Return(user, nil)
-				
-				return mockRepo, mockUserRepo, new(testhelpers.MockWagerRepository), new(testhelpers.MockGroupWagerRepository), new(testhelpers.MockBalanceHistoryRepository), new(testhelpers.MockEventPublisher)
+				mockGuildSettingsRepo.On("GetOrCreateGuildSettings", mock.Anything, int64(456)).Return(guildSettings, nil)
+
+				return mockRepo, mockUserRepo, new(testhelpers.MockWagerRepository), new(testhelpers.MockGroupWagerRepository), new(testhelpers.MockBalanceHistoryRepository), mockGuildSettingsRepo, new(testhelpers.MockEventPublisher)
 			},
 			discordID:   123,
 			guildID:     456,
@@ -225,10 +245,11 @@ func TestHighRollerService_PurchaseHighRollerRole(t *testing.T) {
 		},
 		{
 			name: "offer too low",
-			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository, *testhelpers.MockWagerRepository, *testhelpers.MockGroupWagerRepository, *testhelpers.MockBalanceHistoryRepository, *testhelpers.MockEventPublisher) {
+			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository, *testhelpers.MockWagerRepository, *testhelpers.MockGroupWagerRepository, *testhelpers.MockBalanceHistoryRepository, *testhelpers.MockGuildSettingsRepository, *testhelpers.MockEventPublisher) {
 				mockRepo := new(testhelpers.MockHighRollerPurchaseRepository)
 				mockUserRepo := new(testhelpers.MockUserRepository)
-				
+				mockGuildSettingsRepo := new(testhelpers.MockGuildSettingsRepository)
+
 				purchase := &entities.HighRollerPurchase{
 					DiscordID:     789,  // Different user
 					PurchasePrice: 50000,
@@ -237,11 +258,15 @@ func TestHighRollerService_PurchaseHighRollerRole(t *testing.T) {
 					DiscordID: 789,
 					Username:  "otherUser",
 				}
-				
+				guildSettings := &entities.GuildSettings{
+					GuildID: 456,
+				}
+
 				mockRepo.On("GetLatestPurchase", mock.Anything, int64(456)).Return(purchase, nil)
 				mockUserRepo.On("GetByDiscordID", mock.Anything, int64(789)).Return(user, nil)
-				
-				return mockRepo, mockUserRepo, new(testhelpers.MockWagerRepository), new(testhelpers.MockGroupWagerRepository), new(testhelpers.MockBalanceHistoryRepository), new(testhelpers.MockEventPublisher)
+				mockGuildSettingsRepo.On("GetOrCreateGuildSettings", mock.Anything, int64(456)).Return(guildSettings, nil)
+
+				return mockRepo, mockUserRepo, new(testhelpers.MockWagerRepository), new(testhelpers.MockGroupWagerRepository), new(testhelpers.MockBalanceHistoryRepository), mockGuildSettingsRepo, new(testhelpers.MockEventPublisher)
 			},
 			discordID:   123,
 			guildID:     456,
@@ -251,12 +276,13 @@ func TestHighRollerService_PurchaseHighRollerRole(t *testing.T) {
 		},
 		{
 			name: "insufficient balance",
-			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository, *testhelpers.MockWagerRepository, *testhelpers.MockGroupWagerRepository, *testhelpers.MockBalanceHistoryRepository, *testhelpers.MockEventPublisher) {
+			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository, *testhelpers.MockWagerRepository, *testhelpers.MockGroupWagerRepository, *testhelpers.MockBalanceHistoryRepository, *testhelpers.MockGuildSettingsRepository, *testhelpers.MockEventPublisher) {
 				mockRepo := new(testhelpers.MockHighRollerPurchaseRepository)
 				mockUserRepo := new(testhelpers.MockUserRepository)
 				mockWagerRepo := new(testhelpers.MockWagerRepository)
 				mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
-				
+				mockGuildSettingsRepo := new(testhelpers.MockGuildSettingsRepository)
+
 				purchase := &entities.HighRollerPurchase{
 					DiscordID:     789,
 					PurchasePrice: 30000,
@@ -270,14 +296,18 @@ func TestHighRollerService_PurchaseHighRollerRole(t *testing.T) {
 					Username:  "buyer",
 					Balance:   40000,  // Not enough for 60000 offer
 				}
-				
+				guildSettings := &entities.GuildSettings{
+					GuildID: 456,
+				}
+
 				mockRepo.On("GetLatestPurchase", mock.Anything, int64(456)).Return(purchase, nil)
 				mockUserRepo.On("GetByDiscordID", mock.Anything, int64(789)).Return(currentHolder, nil)
+				mockGuildSettingsRepo.On("GetOrCreateGuildSettings", mock.Anything, int64(456)).Return(guildSettings, nil)
 				mockUserRepo.On("GetByDiscordID", mock.Anything, int64(123)).Return(buyer, nil)
 				mockWagerRepo.On("GetActiveByUser", mock.Anything, int64(123)).Return([]*entities.Wager{}, nil)
 				mockGroupWagerRepo.On("GetActiveParticipationsByUser", mock.Anything, int64(123)).Return([]*entities.GroupWagerParticipant{}, nil)
-				
-				return mockRepo, mockUserRepo, mockWagerRepo, mockGroupWagerRepo, new(testhelpers.MockBalanceHistoryRepository), new(testhelpers.MockEventPublisher)
+
+				return mockRepo, mockUserRepo, mockWagerRepo, mockGroupWagerRepo, new(testhelpers.MockBalanceHistoryRepository), mockGuildSettingsRepo, new(testhelpers.MockEventPublisher)
 			},
 			discordID:   123,
 			guildID:     456,
@@ -287,22 +317,27 @@ func TestHighRollerService_PurchaseHighRollerRole(t *testing.T) {
 		},
 		{
 			name: "successful purchase - no existing high roller",
-			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository, *testhelpers.MockWagerRepository, *testhelpers.MockGroupWagerRepository, *testhelpers.MockBalanceHistoryRepository, *testhelpers.MockEventPublisher) {
+			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository, *testhelpers.MockWagerRepository, *testhelpers.MockGroupWagerRepository, *testhelpers.MockBalanceHistoryRepository, *testhelpers.MockGuildSettingsRepository, *testhelpers.MockEventPublisher) {
 				mockRepo := new(testhelpers.MockHighRollerPurchaseRepository)
 				mockUserRepo := new(testhelpers.MockUserRepository)
 				mockWagerRepo := new(testhelpers.MockWagerRepository)
 				mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
 				mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+				mockGuildSettingsRepo := new(testhelpers.MockGuildSettingsRepository)
 				mockEventPublisher := new(testhelpers.MockEventPublisher)
-				
+
 				buyer := &entities.User{
 					DiscordID: 123,
 					Username:  "buyer",
 					Balance:   100000,
 				}
-				
+				guildSettings := &entities.GuildSettings{
+					GuildID: 456,
+				}
+
 				// No existing purchase
 				mockRepo.On("GetLatestPurchase", mock.Anything, int64(456)).Return(nil, nil)
+				mockGuildSettingsRepo.On("GetOrCreateGuildSettings", mock.Anything, int64(456)).Return(guildSettings, nil)
 				mockUserRepo.On("GetByDiscordID", mock.Anything, int64(123)).Return(buyer, nil)
 				mockWagerRepo.On("GetActiveByUser", mock.Anything, int64(123)).Return([]*entities.Wager{}, nil)
 				mockGroupWagerRepo.On("GetActiveParticipationsByUser", mock.Anything, int64(123)).Return([]*entities.GroupWagerParticipant{}, nil)
@@ -320,8 +355,8 @@ func TestHighRollerService_PurchaseHighRollerRole(t *testing.T) {
 						p.DiscordID == 123 &&
 						p.PurchasePrice == 50000
 				})).Return(nil)
-				
-				return mockRepo, mockUserRepo, mockWagerRepo, mockGroupWagerRepo, mockBalanceHistoryRepo, mockEventPublisher
+
+				return mockRepo, mockUserRepo, mockWagerRepo, mockGroupWagerRepo, mockBalanceHistoryRepo, mockGuildSettingsRepo, mockEventPublisher
 			},
 			discordID:   123,
 			guildID:     456,
@@ -330,14 +365,15 @@ func TestHighRollerService_PurchaseHighRollerRole(t *testing.T) {
 		},
 		{
 			name: "successful purchase - outbidding existing holder",
-			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository, *testhelpers.MockWagerRepository, *testhelpers.MockGroupWagerRepository, *testhelpers.MockBalanceHistoryRepository, *testhelpers.MockEventPublisher) {
+			setup: func() (*testhelpers.MockHighRollerPurchaseRepository, *testhelpers.MockUserRepository, *testhelpers.MockWagerRepository, *testhelpers.MockGroupWagerRepository, *testhelpers.MockBalanceHistoryRepository, *testhelpers.MockGuildSettingsRepository, *testhelpers.MockEventPublisher) {
 				mockRepo := new(testhelpers.MockHighRollerPurchaseRepository)
 				mockUserRepo := new(testhelpers.MockUserRepository)
 				mockWagerRepo := new(testhelpers.MockWagerRepository)
 				mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
 				mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+				mockGuildSettingsRepo := new(testhelpers.MockGuildSettingsRepository)
 				mockEventPublisher := new(testhelpers.MockEventPublisher)
-				
+
 				purchase := &entities.HighRollerPurchase{
 					DiscordID:     789,
 					PurchasePrice: 30000,
@@ -351,9 +387,13 @@ func TestHighRollerService_PurchaseHighRollerRole(t *testing.T) {
 					Username:  "buyer",
 					Balance:   100000,
 				}
-				
+				guildSettings := &entities.GuildSettings{
+					GuildID: 456,
+				}
+
 				mockRepo.On("GetLatestPurchase", mock.Anything, int64(456)).Return(purchase, nil)
 				mockUserRepo.On("GetByDiscordID", mock.Anything, int64(789)).Return(currentHolder, nil)
+				mockGuildSettingsRepo.On("GetOrCreateGuildSettings", mock.Anything, int64(456)).Return(guildSettings, nil)
 				mockUserRepo.On("GetByDiscordID", mock.Anything, int64(123)).Return(buyer, nil)
 				mockWagerRepo.On("GetActiveByUser", mock.Anything, int64(123)).Return([]*entities.Wager{}, nil)
 				mockGroupWagerRepo.On("GetActiveParticipationsByUser", mock.Anything, int64(123)).Return([]*entities.GroupWagerParticipant{}, nil)
@@ -371,8 +411,8 @@ func TestHighRollerService_PurchaseHighRollerRole(t *testing.T) {
 						p.DiscordID == 123 &&
 						p.PurchasePrice == 50000
 				})).Return(nil)
-				
-				return mockRepo, mockUserRepo, mockWagerRepo, mockGroupWagerRepo, mockBalanceHistoryRepo, mockEventPublisher
+
+				return mockRepo, mockUserRepo, mockWagerRepo, mockGroupWagerRepo, mockBalanceHistoryRepo, mockGuildSettingsRepo, mockEventPublisher
 			},
 			discordID:   123,
 			guildID:     456,
@@ -384,8 +424,8 @@ func TestHighRollerService_PurchaseHighRollerRole(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			
-			mockRepo, mockUserRepo, mockWagerRepo, mockGroupWagerRepo, mockBalanceHistoryRepo, mockEventPublisher := tt.setup()
+
+			mockRepo, mockUserRepo, mockWagerRepo, mockGroupWagerRepo, mockBalanceHistoryRepo, mockGuildSettingsRepo, mockEventPublisher := tt.setup()
 
 			service := NewHighRollerService(
 				mockRepo,
@@ -393,6 +433,7 @@ func TestHighRollerService_PurchaseHighRollerRole(t *testing.T) {
 				mockWagerRepo,
 				mockGroupWagerRepo,
 				mockBalanceHistoryRepo,
+				mockGuildSettingsRepo,
 				mockEventPublisher,
 			)
 
@@ -586,6 +627,7 @@ func TestHighRollerService_calculateAvailableBalance(t *testing.T) {
 			mockRepo := new(testhelpers.MockHighRollerPurchaseRepository)
 			mockUserRepo := new(testhelpers.MockUserRepository)
 			mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+			mockGuildSettingsRepo := new(testhelpers.MockGuildSettingsRepository)
 			mockEventPublisher := new(testhelpers.MockEventPublisher)
 
 			service := &highRollerService{
@@ -594,6 +636,7 @@ func TestHighRollerService_calculateAvailableBalance(t *testing.T) {
 				wagerRepo:          mockWagerRepo,
 				groupWagerRepo:     mockGroupWagerRepo,
 				balanceHistoryRepo: mockBalanceHistoryRepo,
+				guildSettingsRepo:  mockGuildSettingsRepo,
 				eventPublisher:     mockEventPublisher,
 			}
 

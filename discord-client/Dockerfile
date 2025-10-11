@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Base builder stage with common setup
-FROM golang:1.24-alpine AS base
+FROM golang:1.25-alpine AS base
 
 # Install common dependencies - this layer is cached effectively
 RUN apk add --no-cache git protobuf protobuf-dev ca-certificates tzdata

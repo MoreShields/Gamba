@@ -131,9 +131,10 @@ type HighRollerService interface {
 
 // HighRollerInfo contains information about the current high roller
 type HighRollerInfo struct {
-	CurrentHolder   *entities.User
-	CurrentPrice    int64
-	LastPurchasedAt *time.Time
+	CurrentHolder        *entities.User
+	CurrentPrice         int64
+	LastPurchasedAt      *time.Time
+	CurrentHolderDuration time.Duration // How long the current holder has held the role
 }
 
 // SummonerWatchService defines the interface for summoner watch operations

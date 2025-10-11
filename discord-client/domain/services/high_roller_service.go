@@ -11,15 +11,15 @@ import (
 	"gambler/discord-client/domain/utils"
 )
 
-
 // highRollerService implements business logic for high roller role purchases
 type highRollerService struct {
-	highRollerRepo      interfaces.HighRollerPurchaseRepository
-	userRepo            interfaces.UserRepository
-	wagerRepo           interfaces.WagerRepository
-	groupWagerRepo      interfaces.GroupWagerRepository
-	balanceHistoryRepo  interfaces.BalanceHistoryRepository
-	eventPublisher      interfaces.EventPublisher
+	highRollerRepo     interfaces.HighRollerPurchaseRepository
+	userRepo           interfaces.UserRepository
+	wagerRepo          interfaces.WagerRepository
+	groupWagerRepo     interfaces.GroupWagerRepository
+	balanceHistoryRepo interfaces.BalanceHistoryRepository
+	guildSettingsRepo  interfaces.GuildSettingsRepository
+	eventPublisher     interfaces.EventPublisher
 }
 
 // NewHighRollerService creates a new high roller service
@@ -29,15 +29,17 @@ func NewHighRollerService(
 	wagerRepo interfaces.WagerRepository,
 	groupWagerRepo interfaces.GroupWagerRepository,
 	balanceHistoryRepo interfaces.BalanceHistoryRepository,
+	guildSettingsRepo interfaces.GuildSettingsRepository,
 	eventPublisher interfaces.EventPublisher,
 ) interfaces.HighRollerService {
 	return &highRollerService{
-		highRollerRepo:      highRollerRepo,
-		userRepo:            userRepo,
-		wagerRepo:           wagerRepo,
-		groupWagerRepo:      groupWagerRepo,
-		balanceHistoryRepo:  balanceHistoryRepo,
-		eventPublisher:      eventPublisher,
+		highRollerRepo:     highRollerRepo,
+		userRepo:           userRepo,
+		wagerRepo:          wagerRepo,
+		groupWagerRepo:     groupWagerRepo,
+		balanceHistoryRepo: balanceHistoryRepo,
+		guildSettingsRepo:  guildSettingsRepo,
+		eventPublisher:     eventPublisher,
 	}
 }
 
@@ -62,6 +64,20 @@ func (s *highRollerService) GetCurrentHighRoller(ctx context.Context, guildID in
 		info.CurrentHolder = user
 		info.CurrentPrice = latestPurchase.PurchasePrice
 		info.LastPurchasedAt = &latestPurchase.PurchasedAt
+
+		// Get guild settings to check for tracking start time
+		guildSettings, _ := s.guildSettingsRepo.GetOrCreateGuildSettings(ctx, guildID)
+
+		// Calculate duration if tracking start time is set
+		if guildSettings != nil && guildSettings.HasHighRollerTrackingStartTime() {
+			trackingStartTime := *guildSettings.HighRollerTrackingStartTime
+
+			// Calculate the total duration for the current holder
+			duration, err := s.highRollerRepo.GetUserTotalDurationSince(ctx, guildID, latestPurchase.DiscordID, trackingStartTime)
+			if err == nil {
+				info.CurrentHolderDuration = duration
+			}
+		}
 	}
 
 	return info, nil

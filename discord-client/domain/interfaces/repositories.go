@@ -181,6 +181,9 @@ type HighRollerPurchaseRepository interface {
 
 	// GetPurchaseHistory retrieves the purchase history for a guild
 	GetPurchaseHistory(ctx context.Context, guildID int64, limit int) ([]*entities.HighRollerPurchase, error)
+
+	// GetUserTotalDurationSince calculates the total cumulative duration a user has held the role since a start time
+	GetUserTotalDurationSince(ctx context.Context, guildID, discordID int64, startTime time.Time) (time.Duration, error)
 }
 
 // SummonerWatchRepository defines the interface for summoner watch data access

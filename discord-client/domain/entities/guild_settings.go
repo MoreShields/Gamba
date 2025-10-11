@@ -1,13 +1,16 @@
 package entities
 
+import "time"
+
 // GuildSettings represents per-guild configuration settings
 type GuildSettings struct {
-	GuildID          int64  `db:"guild_id"`
-	PrimaryChannelID *int64 `db:"primary_channel_id"` // Nullable - channel for gamba updates
-	LolChannelID     *int64 `db:"lol_channel_id"`     // Nullable - channel for LOL updates
-	TftChannelID     *int64 `db:"tft_channel_id"`     // Nullable - channel for TFT updates
-	WordleChannelID  *int64 `db:"wordle_channel_id"`  // Nullable - channel for Wordle results
-	HighRollerRoleID *int64 `db:"high_roller_role_id"` // Nullable - role ID for high roller (NULL = disabled)
+	GuildID                      int64      `db:"guild_id"`
+	PrimaryChannelID             *int64     `db:"primary_channel_id"`               // Nullable - channel for gamba updates
+	LolChannelID                 *int64     `db:"lol_channel_id"`                   // Nullable - channel for LOL updates
+	TftChannelID                 *int64     `db:"tft_channel_id"`                   // Nullable - channel for TFT updates
+	WordleChannelID              *int64     `db:"wordle_channel_id"`                // Nullable - channel for Wordle results
+	HighRollerRoleID             *int64     `db:"high_roller_role_id"`              // Nullable - role ID for high roller (NULL = disabled)
+	HighRollerTrackingStartTime  *time.Time `db:"high_roller_tracking_start_time"`  // Nullable - when to start tracking durations
 }
 
 // HasPrimaryChannel checks if a primary channel is configured
@@ -58,4 +61,14 @@ func (gs *GuildSettings) SetWordleChannel(channelID *int64) {
 // SetHighRollerRole sets the high roller role ID
 func (gs *GuildSettings) SetHighRollerRole(roleID *int64) {
 	gs.HighRollerRoleID = roleID
+}
+
+// HasHighRollerTrackingStartTime checks if a tracking start time is configured
+func (gs *GuildSettings) HasHighRollerTrackingStartTime() bool {
+	return gs.HighRollerTrackingStartTime != nil
+}
+
+// SetHighRollerTrackingStartTime sets the high roller tracking start time
+func (gs *GuildSettings) SetHighRollerTrackingStartTime(startTime *time.Time) {
+	gs.HighRollerTrackingStartTime = startTime
 }

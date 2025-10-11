@@ -214,6 +214,7 @@ func (f *Feature) processPurchase(ctx context.Context, discordID, guildID, offer
 		uow.WagerRepository(),
 		uow.GroupWagerRepository(),
 		uow.BalanceHistoryRepository(),
+		uow.GuildSettingsRepository(),
 		uow.EventBus(),
 	)
 
@@ -267,6 +268,7 @@ func (f *Feature) getCurrentHighRoller(ctx context.Context, guildID int64) (*int
 		uow.WagerRepository(),
 		uow.GroupWagerRepository(),
 		uow.BalanceHistoryRepository(),
+		uow.GuildSettingsRepository(),
 		uow.EventBus(),
 	)
 

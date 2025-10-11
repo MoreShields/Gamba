@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"gambler/discord-client/database"
 	"gambler/discord-client/domain/entities"
@@ -125,4 +126,48 @@ func (r *highRollerPurchaseRepository) GetPurchaseHistory(ctx context.Context, g
 	}
 
 	return purchases, nil
+}
+
+// GetUserTotalDurationSince calculates the total cumulative duration a user has held the role since a start time
+func (r *highRollerPurchaseRepository) GetUserTotalDurationSince(ctx context.Context, guildID, discordID int64, startTime time.Time) (time.Duration, error) {
+	// Use current time as a parameter to ensure timezone consistency
+	currentTime := time.Now()
+
+	query := `
+		WITH purchase_windows AS (
+			SELECT
+				discord_id,
+				purchased_at,
+				LEAD(purchased_at) OVER (PARTITION BY guild_id ORDER BY purchased_at) as next_purchase_at,
+				ROW_NUMBER() OVER (PARTITION BY guild_id ORDER BY purchased_at DESC) as rn
+			FROM high_roller_purchases
+			WHERE guild_id = $1
+			AND purchased_at >= $2
+		)
+		SELECT
+			COALESCE(
+				SUM(
+					EXTRACT(EPOCH FROM
+						CASE
+							WHEN rn = 1 AND discord_id = $3 THEN $4 - purchased_at
+							ELSE COALESCE(next_purchase_at, $4) - purchased_at
+						END
+					)
+				),
+				0
+			) as total_seconds
+		FROM purchase_windows
+		WHERE discord_id = $3
+	`
+
+	var totalSeconds float64
+	err := r.q.QueryRow(ctx, query, guildID, startTime, discordID, currentTime).Scan(&totalSeconds)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("failed to calculate user duration: %w", err)
+	}
+
+	return time.Duration(totalSeconds) * time.Second, nil
 }

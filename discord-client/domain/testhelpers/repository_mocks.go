@@ -505,3 +505,8 @@ func (m *MockHighRollerPurchaseRepository) GetPurchaseHistory(ctx context.Contex
 	}
 	return args.Get(0).([]*entities.HighRollerPurchase), args.Error(1)
 }
+
+func (m *MockHighRollerPurchaseRepository) GetUserTotalDurationSince(ctx context.Context, guildID, discordID int64, startTime time.Time) (time.Duration, error) {
+	args := m.Called(ctx, guildID, discordID, startTime)
+	return args.Get(0).(time.Duration), args.Error(1)
+}

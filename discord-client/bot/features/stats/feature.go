@@ -150,15 +150,20 @@ func (f *Feature) updateScoreboardPage(s *discordgo.Session, channelID, messageI
 			uow.WagerRepository(),
 			uow.GroupWagerRepository(),
 			uow.BalanceHistoryRepository(),
+			uow.GuildSettingsRepository(),
 			uow.EventBus(),
 		)
-		
+
 		highRollerInfo, err := highRollerService.GetCurrentHighRoller(ctx, guildID)
 		if err == nil && highRollerInfo.CurrentHolder != nil {
 			// Get the role ID for mention
 			guildSettingsService := services.NewGuildSettingsService(uow.GuildSettingsRepository())
 			if roleID, err := guildSettingsService.GetHighRollerRoleID(ctx, guildID); err == nil && roleID != nil {
-				highRollerText = fmt.Sprintf("\n<@&%d> - <@%d> - %s", *roleID, highRollerInfo.CurrentHolder.DiscordID, common.FormatBalance(highRollerInfo.CurrentPrice))
+				highRollerText = fmt.Sprintf("\n<@&%d> - <@%d> - %s - %s",
+					*roleID,
+					highRollerInfo.CurrentHolder.DiscordID,
+					common.FormatBalance(highRollerInfo.CurrentPrice),
+					common.FormatDuration(highRollerInfo.CurrentHolderDuration))
 			}
 		}
 	}
