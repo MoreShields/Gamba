@@ -123,6 +123,14 @@ func (s *highRollerService) PurchaseHighRollerRole(ctx context.Context, discordI
 		return fmt.Errorf("insufficient balance: available %d bits, need %d bits", availableBalance, offerAmount)
 	}
 
+	// Initialize tracking start time if not set (first purchase in this guild)
+	guildSettings, err := s.guildSettingsRepo.GetOrCreateGuildSettings(ctx, guildID)
+	if err == nil && guildSettings != nil && !guildSettings.HasHighRollerTrackingStartTime() {
+		now := time.Now()
+		guildSettings.SetHighRollerTrackingStartTime(&now)
+		_ = s.guildSettingsRepo.UpdateGuildSettings(ctx, guildSettings)
+	}
+
 	// Update user balance
 	user.Balance -= offerAmount
 	if err := s.userRepo.UpdateBalance(ctx, user.DiscordID, user.Balance); err != nil {

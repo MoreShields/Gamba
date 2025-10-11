@@ -3,6 +3,7 @@ package highroller
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"gambler/discord-client/bot/common"
@@ -51,6 +52,34 @@ func (f *Feature) handleBuy(s *discordgo.Session, i *discordgo.InteractionCreate
 	}
 
 	ctx := context.Background()
+
+	// Ensure user exists in database before attempting purchase
+	uow := f.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(ctx); err != nil {
+		log.Errorf("Failed to begin transaction: %v", err)
+		common.RespondWithError(s, i, "Failed to process command")
+		return err
+	}
+	defer uow.Rollback()
+
+	userService := services.NewUserService(
+		uow.UserRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
+	_, err = userService.GetOrCreateUser(ctx, userID, i.Member.User.Username)
+	if err != nil {
+		log.Errorf("Failed to get or create user: %v", err)
+		common.RespondWithError(s, i, "Failed to process command")
+		return err
+	}
+
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Failed to commit user creation: %v", err)
+		common.RespondWithError(s, i, "Failed to process command")
+		return err
+	}
 
 	// Process the purchase and update Discord role
 	roleID, err := f.processPurchase(ctx, userID, guildID, offerAmount)
@@ -110,6 +139,11 @@ func (f *Feature) handleInfo(s *discordgo.Session, i *discordgo.InteractionCreat
 		history = []PurchaseHistoryItem{}
 	}
 
+	// Sort history by total duration (descending) to show leaderboard
+	sort.Slice(history, func(i, j int) bool {
+		return history[i].TotalDuration > history[j].TotalDuration
+	})
+
 	// Get the role name from Discord
 	roleName := "High Roller" // Default fallback
 	uow := f.uowFactory.CreateForGuild(guildID)
@@ -136,13 +170,12 @@ func (f *Feature) handleInfo(s *discordgo.Session, i *discordgo.InteractionCreat
 		// Use description for the current holder to make it more prominent
 		embed.Description = fmt.Sprintf("# <@%d> - %s\n", info.CurrentHolder.DiscordID, common.FormatBalance(info.CurrentPrice))
 
-		if info.LastPurchasedAt != nil {
-			embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
-				Name:   "Held Since",
-				Value:  fmt.Sprintf("<t:%d:R>", info.LastPurchasedAt.Unix()),
-				Inline: true,
-			})
-		}
+		// Show total duration instead of "Held Since"
+		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
+			Name:   "Total Duration",
+			Value:  common.FormatDuration(info.CurrentHolderDuration),
+			Inline: true,
+		})
 	} else {
 		embed.Description = "No one currently holds the high roller role."
 		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
@@ -167,10 +200,10 @@ func (f *Feature) handleInfo(s *discordgo.Session, i *discordgo.InteractionCreat
 			if info.CurrentHolder != nil && purchase.DiscordID == info.CurrentHolder.DiscordID {
 				continue
 			}
-			historyText += fmt.Sprintf("<@%d> - **%s bits** - <t:%d:R>\n",
+			historyText += fmt.Sprintf("<@%d> - **%s bits** - %s\n",
 				purchase.DiscordID,
 				common.FormatBalance(purchase.PurchasePrice),
-				purchase.PurchasedAt.Unix(),
+				common.FormatDuration(purchase.TotalDuration),
 			)
 		}
 		// Only add history field if there's content
@@ -286,7 +319,7 @@ func (f *Feature) getCurrentHighRoller(ctx context.Context, guildID int64) (*int
 	return info, nil
 }
 
-// getPurchaseHistory returns the purchase history for a guild
+// getPurchaseHistory returns the purchase history for a guild with duration calculations
 func (f *Feature) getPurchaseHistory(ctx context.Context, guildID int64, limit int) ([]PurchaseHistoryItem, error) {
 	uow := f.uowFactory.CreateForGuild(guildID)
 	if err := uow.Begin(ctx); err != nil {
@@ -300,7 +333,13 @@ func (f *Feature) getPurchaseHistory(ctx context.Context, guildID int64, limit i
 		return nil, err
 	}
 
-	// Convert to display items
+	// Get guild settings for tracking start time
+	guildSettings, err := uow.GuildSettingsRepository().GetOrCreateGuildSettings(ctx, guildID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get guild settings: %w", err)
+	}
+
+	// Convert to display items with duration calculations
 	var items []PurchaseHistoryItem
 	for _, purchase := range purchases {
 		user, err := uow.UserRepository().GetByDiscordID(ctx, purchase.DiscordID)
@@ -309,12 +348,27 @@ func (f *Feature) getPurchaseHistory(ctx context.Context, guildID int64, limit i
 			continue
 		}
 
-		items = append(items, PurchaseHistoryItem{
+		item := PurchaseHistoryItem{
 			Username:      user.Username,
 			DiscordID:     user.DiscordID,
 			PurchasePrice: purchase.PurchasePrice,
 			PurchasedAt:   purchase.PurchasedAt,
-		})
+		}
+
+		// Calculate total duration if tracking is enabled
+		if guildSettings != nil && guildSettings.HasHighRollerTrackingStartTime() {
+			duration, err := uow.HighRollerPurchaseRepository().GetUserTotalDurationSince(
+				ctx,
+				guildID,
+				purchase.DiscordID,
+				*guildSettings.HighRollerTrackingStartTime,
+			)
+			if err == nil {
+				item.TotalDuration = duration
+			}
+		}
+
+		items = append(items, item)
 	}
 
 	// Read-only operation, commit to release lock
@@ -385,4 +439,5 @@ type PurchaseHistoryItem struct {
 	DiscordID     int64
 	PurchasePrice int64
 	PurchasedAt   time.Time
+	TotalDuration time.Duration
 }

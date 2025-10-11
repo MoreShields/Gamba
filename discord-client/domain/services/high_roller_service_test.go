@@ -341,6 +341,8 @@ func TestHighRollerService_PurchaseHighRollerRole(t *testing.T) {
 				mockUserRepo.On("GetByDiscordID", mock.Anything, int64(123)).Return(buyer, nil)
 				mockWagerRepo.On("GetActiveByUser", mock.Anything, int64(123)).Return([]*entities.Wager{}, nil)
 				mockGroupWagerRepo.On("GetActiveParticipationsByUser", mock.Anything, int64(123)).Return([]*entities.GroupWagerParticipant{}, nil)
+				// Expect UpdateGuildSettings to be called to set tracking start time
+				mockGuildSettingsRepo.On("UpdateGuildSettings", mock.Anything, mock.AnythingOfType("*entities.GuildSettings")).Return(nil)
 				mockUserRepo.On("UpdateBalance", mock.Anything, int64(123), int64(50000)).Return(nil)
 				mockBalanceHistoryRepo.On("Record", mock.Anything, mock.MatchedBy(func(h *entities.BalanceHistory) bool {
 					return h.DiscordID == 123 &&
@@ -393,10 +395,12 @@ func TestHighRollerService_PurchaseHighRollerRole(t *testing.T) {
 
 				mockRepo.On("GetLatestPurchase", mock.Anything, int64(456)).Return(purchase, nil)
 				mockUserRepo.On("GetByDiscordID", mock.Anything, int64(789)).Return(currentHolder, nil)
-				mockGuildSettingsRepo.On("GetOrCreateGuildSettings", mock.Anything, int64(456)).Return(guildSettings, nil)
+				mockGuildSettingsRepo.On("GetOrCreateGuildSettings", mock.Anything, int64(456)).Return(guildSettings, nil).Twice()
 				mockUserRepo.On("GetByDiscordID", mock.Anything, int64(123)).Return(buyer, nil)
 				mockWagerRepo.On("GetActiveByUser", mock.Anything, int64(123)).Return([]*entities.Wager{}, nil)
 				mockGroupWagerRepo.On("GetActiveParticipationsByUser", mock.Anything, int64(123)).Return([]*entities.GroupWagerParticipant{}, nil)
+				// Expect UpdateGuildSettings to be called to set tracking start time
+				mockGuildSettingsRepo.On("UpdateGuildSettings", mock.Anything, mock.AnythingOfType("*entities.GuildSettings")).Return(nil)
 				mockUserRepo.On("UpdateBalance", mock.Anything, int64(123), int64(50000)).Return(nil)
 				mockBalanceHistoryRepo.On("Record", mock.Anything, mock.MatchedBy(func(h *entities.BalanceHistory) bool {
 					return h.DiscordID == 123 &&
