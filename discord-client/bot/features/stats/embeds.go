@@ -223,8 +223,28 @@ func buildGamblePage(ctx context.Context, embed *discordgo.MessageEmbed, metrics
 		URL: "attachment://scoreboard.png",
 	}
 
-	// Add total wagered to description
-	embed.Description = fmt.Sprintf("**Total Bits Wagered: %s**", common.FormatBalance(totalBitsWagered))
+	// Calculate total player PnL
+	var totalPlayerPnL int64
+	for _, entry := range entries {
+		totalPlayerPnL += entry.NetProfit
+	}
+
+	// Choose emoji based on PnL
+
+	var pnlSign string
+	if totalPlayerPnL > 0 {
+		pnlSign = "+"
+	} else if totalPlayerPnL < 0 {
+		pnlSign = ""
+	} else {
+		pnlSign = ""
+	}
+
+	// Format the description with total gambled and server PnL
+	embed.Description = fmt.Sprintf("Total Bits Gambled: **%s**\nServer PnL: **%s%s**",
+		common.FormatBalance(totalBitsWagered),
+		pnlSign,
+		common.FormatBalance(totalPlayerPnL))
 
 	return imageData
 }

@@ -185,7 +185,7 @@ func (g *ScoreboardImageGenerator) GenerateGamblingScoreboard(users []*entities.
 		{Header: "User", Width: 100, XPosition: g.style.Padding + 20, ColorRGB: [3]float64{1.0, 1.0, 1.0}},
 		{Header: "P/L", Width: 70, XPosition: g.style.Padding + 120, ColorRGB: [3]float64{1.0, 1.0, 1.0}}, // White default, will be colored per row
 		{Header: "Bets", Width: 60, XPosition: g.style.Padding + 190, ColorRGB: [3]float64{0.85, 1.0, 0.85}},
-		{Header: "Wagered", Width: 70, XPosition: g.style.Padding + 250, ColorRGB: [3]float64{0.85, 0.85, 1.0}},
+		{Header: "Total Gambled", Width: 70, XPosition: g.style.Padding + 250, ColorRGB: [3]float64{0.85, 0.85, 1.0}},
 	}
 
 	// Convert users to table rows
@@ -213,8 +213,8 @@ func (g *ScoreboardImageGenerator) GenerateGamblingScoreboard(users []*entities.
 			Data: []string{
 				fmt.Sprintf("%d", user.Rank),
 				username,
-				profitLossStr, // P/L
-				fmt.Sprintf("%d", user.TotalBets), // Number of bets
+				profitLossStr,                                // P/L
+				fmt.Sprintf("%d", user.TotalBets),            // Number of bets
 				utils.FormatShortNotation(user.TotalWagered), // Total amount wagered
 			},
 			Highlighted: []bool{false, false, false, false, false},
@@ -223,7 +223,6 @@ func (g *ScoreboardImageGenerator) GenerateGamblingScoreboard(users []*entities.
 
 	return g.generateTable(columns, rows)
 }
-
 
 // generateTable creates the actual image
 func (g *ScoreboardImageGenerator) generateTable(columns []TableColumn, rows []TableRow) ([]byte, error) {
@@ -236,16 +235,6 @@ func (g *ScoreboardImageGenerator) generateTable(columns []TableColumn, rows []T
 	// Calculate dynamic height based on number of rows
 	// Header (25px) + header padding (30px) + rows + bottom padding (15px)
 	height := 25 + 30 + (len(rows) * g.style.RowHeight) + 15
-
-	// Add extra space for LoL footer text if this is the LoL scoreboard
-	hasLoLFooter := false
-	for _, col := range columns {
-		if col.Header == "P/L" {
-			hasLoLFooter = true
-			height += 25 // Extra space for footer text
-			break
-		}
-	}
 
 	if height < g.style.Height {
 		height = g.style.Height // Minimum height
@@ -434,19 +423,6 @@ func (g *ScoreboardImageGenerator) generateTable(columns []TableColumn, rows []T
 		}
 
 		y += float64(g.style.RowHeight)
-	}
-
-	// Add footer text for LoL scoreboard
-	if hasLoLFooter {
-		y += 15                                   // Add some spacing
-		dc.SetRGB(0.7, 0.7, 0.7)                  // Gray text
-		footerFace, _ := loadFont(gomono.TTF, 10) // Slightly smaller font
-		dc.SetFontFace(footerFace)
-		footerText := "Minimum 5 wagers to qualify"
-		// Center the text
-		w, _ := dc.MeasureString(footerText)
-		x := (float64(g.style.Width) - w) / 2
-		drawSharpText(dc, footerText, x, y)
 	}
 
 	// Convert to PNG bytes
