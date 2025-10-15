@@ -190,3 +190,28 @@ func (e *LOLLeaderboardEntry) CalculateAccuracy() {
 func (e *LOLLeaderboardEntry) QualifiesForLeaderboard(minWagers int) bool {
 	return e.TotalPredictions >= minWagers
 }
+
+// GamblingLeaderboardEntry represents a user's position in the gambling leaderboard
+type GamblingLeaderboardEntry struct {
+	Rank           int     `json:"rank"`
+	DiscordID      int64   `json:"discord_id"`
+	TotalBets      int     `json:"total_bets"`
+	TotalWins      int     `json:"total_wins"`
+	WinPercentage  float64 `json:"win_percentage"`
+	TotalWagered   int64   `json:"total_wagered"`
+	NetProfit      int64   `json:"net_profit"`
+}
+
+// CalculateWinPercentage computes the win percentage
+func (e *GamblingLeaderboardEntry) CalculateWinPercentage() {
+	if e.TotalBets > 0 {
+		e.WinPercentage = (float64(e.TotalWins) / float64(e.TotalBets)) * 100
+	} else {
+		e.WinPercentage = 0
+	}
+}
+
+// QualifiesForLeaderboard checks if user meets minimum bet requirements
+func (e *GamblingLeaderboardEntry) QualifiesForLeaderboard(minBets int) bool {
+	return e.TotalBets >= minBets
+}

@@ -176,4 +176,8 @@ type UserMetricsService interface {
 	// GetTFTLeaderboard returns TFT prediction leaderboard entries
 	// Filters users with minimum wager count and calculates profit/loss
 	GetTFTLeaderboard(ctx context.Context, minWagers int) ([]*entities.LOLLeaderboardEntry, int64, error)
+
+	// GetGamblingLeaderboard returns gambling leaderboard entries
+	// Filters users with minimum bet count and calculates net profit/loss
+	GetGamblingLeaderboard(ctx context.Context, minBets int) ([]*entities.GamblingLeaderboardEntry, int64, error)
 }

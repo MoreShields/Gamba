@@ -105,7 +105,6 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory appli
 	dg.AddHandler(bot.handleInteractions)
 	dg.AddHandler(bot.handleGuildCreate)
 	dg.AddHandler(bot.handleMessageCreate)
-	dg.AddHandler(bot.handleReactionAdd)
 
 	// Open websocket connection
 	if err := dg.Open(); err != nil {
@@ -228,6 +227,9 @@ func (b *Bot) routeComponentInteraction(s *discordgo.Session, i *discordgo.Inter
 
 	case strings.HasPrefix(customID, "house_wager_"):
 		b.houseWagers.HandleInteraction(s, i)
+
+	case strings.HasPrefix(customID, "stats_"):
+		b.stats.HandleInteraction(s, i)
 	}
 }
 
@@ -341,18 +343,6 @@ func (b *Bot) handleMessageCreate(s *discordgo.Session, m *discordgo.MessageCrea
 			"message_id": m.ID,
 		}).Error("Failed to publish Discord message event")
 	}
-}
-
-// handleReactionAdd handles reaction add events and routes them to appropriate features
-func (b *Bot) handleReactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
-	// Ignore reactions from bots
-	if r.Member.User.Bot {
-		return
-	}
-
-	// For now, only route to stats feature
-	// In the future, other features can handle reactions too
-	b.stats.HandleReaction(s, r)
 }
 
 // ReplayMessage fetches a message and replays it as if just received

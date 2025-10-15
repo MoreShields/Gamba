@@ -118,9 +118,11 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 		return
 	}
 
-	// Send follow-up message with the actual content
+	// Send follow-up message with the actual content and navigation buttons
+	navButtons := BuildScoreboardNavButtons(PageBits)
 	webhookData := &discordgo.WebhookEdit{
-		Embeds: &[]*discordgo.MessageEmbed{embed},
+		Embeds:     &[]*discordgo.MessageEmbed{embed},
+		Components: &navButtons,
 	}
 
 	// Add image if generated
@@ -133,16 +135,10 @@ func (f *Feature) handleStatsScoreboard(s *discordgo.Session, i *discordgo.Inter
 		}
 	}
 
-	msg, err := s.InteractionResponseEdit(i.Interaction, webhookData)
+	_, err = s.InteractionResponseEdit(i.Interaction, webhookData)
 	if err != nil {
 		log.Printf("Error editing interaction response: %v", err)
 		return
-	}
-
-	// Add navigation reactions to the message
-	if msg != nil {
-		_ = s.MessageReactionAdd(i.ChannelID, msg.ID, "⬅️")
-		_ = s.MessageReactionAdd(i.ChannelID, msg.ID, "➡️")
 	}
 }
 

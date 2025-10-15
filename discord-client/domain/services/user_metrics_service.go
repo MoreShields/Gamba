@@ -288,3 +288,60 @@ func (s *userMetricsService) GetLOLLeaderboard(ctx context.Context, minWagers in
 func (s *userMetricsService) GetTFTLeaderboard(ctx context.Context, minWagers int) ([]*entities.LOLLeaderboardEntry, int64, error) {
 	return s.getGameLeaderboard(ctx, minWagers, entities.SystemTFT)
 }
+
+// GetGamblingLeaderboard returns gambling leaderboard entries sorted by net profit
+func (s *userMetricsService) GetGamblingLeaderboard(ctx context.Context, minBets int) ([]*entities.GamblingLeaderboardEntry, int64, error) {
+	// Get all users
+	users, err := s.userRepo.GetAll(ctx)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get all users: %w", err)
+	}
+
+	// Build leaderboard entries
+	entries := make([]*entities.GamblingLeaderboardEntry, 0)
+	var totalBitsWagered int64
+
+	for _, user := range users {
+		// Get bet stats for this user
+		betStats, err := s.betRepo.GetStats(ctx, user.DiscordID)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to get bet stats for user %d: %w", user.DiscordID, err)
+		}
+
+		// Only include users with bets
+		if betStats.TotalBets == 0 {
+			continue
+		}
+
+		entry := &entities.GamblingLeaderboardEntry{
+			DiscordID:    user.DiscordID,
+			TotalBets:    betStats.TotalBets,
+			TotalWins:    betStats.TotalWins,
+			TotalWagered: betStats.TotalWagered,
+			NetProfit:    betStats.TotalWon - betStats.TotalLost,
+		}
+
+		entry.CalculateWinPercentage()
+
+		// Only include users who meet minimum bet requirement
+		if entry.QualifiesForLeaderboard(minBets) {
+			entries = append(entries, entry)
+			totalBitsWagered += betStats.TotalWagered
+		}
+	}
+
+	// Sort by net profit (descending), then by total bets (descending)
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].NetProfit == entries[j].NetProfit {
+			return entries[i].TotalBets > entries[j].TotalBets
+		}
+		return entries[i].NetProfit > entries[j].NetProfit
+	})
+
+	// Assign ranks
+	for i := range entries {
+		entries[i].Rank = i + 1
+	}
+
+	return entries, totalBitsWagered, nil
+}

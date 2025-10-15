@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"gambler/discord-client/application"
@@ -18,13 +17,14 @@ import (
 
 // Page names for scoreboard navigation
 const (
-	PageBits = "Bits"
-	PageLoL  = "LoL"
-	PageTFT  = "TFT"
+	PageBits   = "Bits"
+	PageLoL    = "LoL"
+	PageTFT    = "TFT"
+	PageGamble = "Gamble"
 )
 
 // ScoreboardPages defines the available pages
-var ScoreboardPages = []string{PageBits, PageLoL, PageTFT}
+var ScoreboardPages = []string{PageBits, PageLoL, PageTFT, PageGamble}
 
 // Constants for leaderboard display
 const MinGameWagersForLeaderboard = 5
@@ -54,11 +54,6 @@ func formatProfitLoss(amount int64) string {
 
 // BuildScoreboardEmbed creates the scoreboard embed with pagination support
 func BuildScoreboardEmbed(ctx context.Context, metricsService interfaces.UserMetricsService, entry []*entities.ScoreboardEntry, totalBits int64, session *discordgo.Session, guildID string, currentPage string, userResolver application.UserResolver) (*discordgo.MessageEmbed, []byte) {
-	// Default to first page if invalid
-	if currentPage != PageBits && currentPage != PageLoL && currentPage != PageTFT {
-		currentPage = PageBits
-	}
-
 	embed := &discordgo.MessageEmbed{
 		Title: "🏆 Scoreboard 🏆",
 		Color: common.ColorPrimary,
@@ -72,28 +67,14 @@ func BuildScoreboardEmbed(ctx context.Context, metricsService interfaces.UserMet
 		imageData = buildGamePage(ctx, embed, metricsService, session, guildID, userResolver, "LoL")
 	case PageTFT:
 		imageData = buildGamePage(ctx, embed, metricsService, session, guildID, userResolver, "TFT")
+	case PageGamble:
+		imageData = buildGamblePage(ctx, embed, metricsService, session, guildID, userResolver)
+	default:
+		// Default to bits page if unknown page
+		imageData = buildBitsPage(ctx, embed, entry, totalBits, guildID, userResolver)
 	}
-
-	// Set footer after page build (so LoL/TFT pages can add extra text)
-	embed.Footer = buildFooter(currentPage)
 
 	return embed, imageData
-}
-
-// buildFooter creates the footer with page navigation indicators
-func buildFooter(currentPage string) *discordgo.MessageEmbedFooter {
-	var footerParts []string
-	for _, page := range ScoreboardPages {
-		if page == currentPage {
-			footerParts = append(footerParts, fmt.Sprintf("[ %s ]", page))
-		} else {
-			footerParts = append(footerParts, page)
-		}
-	}
-
-	return &discordgo.MessageEmbedFooter{
-		Text: strings.Join(footerParts, " | "),
-	}
 }
 
 // buildBitsPage populates the embed with bits scoreboard data and returns image data
@@ -199,42 +180,53 @@ func buildGamePage(ctx context.Context, embed *discordgo.MessageEmbed, metricsSe
 	return imageData
 }
 
-// GetPageFromFooter extracts the current page from the footer text
-func GetPageFromFooter(footerText string) string {
-	// Look for pattern [ PageName ]
-	start := strings.Index(footerText, "[")
-	end := strings.Index(footerText, "]")
+// buildGamblePage populates the embed with gambling leaderboard data
+func buildGamblePage(ctx context.Context, embed *discordgo.MessageEmbed, metricsService interfaces.UserMetricsService, session *discordgo.Session, guildID string, userResolver application.UserResolver) []byte {
+	// Clear description
+	embed.Description = ""
 
-	if start != -1 && end != -1 && end > start {
-		return strings.TrimSpace(footerText[start+1 : end])
+	// Get gambling leaderboard data
+	entries, totalBitsWagered, err := metricsService.GetGamblingLeaderboard(ctx, MinGameWagersForLeaderboard)
+	if err != nil {
+		log.WithError(err).Error("Failed to get gambling leaderboard data")
+		embed.Description = "⚠️ Error loading gambling data"
+		return nil
 	}
 
-	// Default to first page if can't parse
-	return PageBits
-}
+	if len(entries) == 0 {
+		embed.Description = fmt.Sprintf("No gambling data available yet\n\n*Minimum %d bets to qualify*", MinGameWagersForLeaderboard)
+		return nil
+	}
 
-// findPageIndex returns the index of the current page in ScoreboardPages
-func findPageIndex(currentPage string) int {
-	for i, page := range ScoreboardPages {
-		if page == currentPage {
-			return i
+	// Create username map for entries
+	guildIDInt, _ := strconv.ParseInt(guildID, 10, 64)
+	usernames := make(map[int64]string)
+	for _, entry := range entries {
+		username, err := userResolver.GetUsernameByID(ctx, guildIDInt, entry.DiscordID)
+		if err != nil {
+			username = fmt.Sprintf("User%d", entry.DiscordID)
 		}
+		usernames[entry.DiscordID] = username
 	}
-	return 0 // Default to first page
-}
 
-// GetNextPage returns the next page in the navigation
-func GetNextPage(currentPage string) string {
-	currentIndex := findPageIndex(currentPage)
-	nextIndex := (currentIndex + 1) % len(ScoreboardPages)
-	return ScoreboardPages[nextIndex]
-}
+	// Generate the image
+	generator := NewScoreboardImageGenerator()
+	imageData, err := generator.GenerateGamblingScoreboard(entries, usernames)
+	if err != nil {
+		log.WithError(err).Error("Failed to generate gambling scoreboard image")
+		embed.Description = "⚠️ Error generating scoreboard image"
+		return nil
+	}
 
-// GetPreviousPage returns the previous page in the navigation
-func GetPreviousPage(currentPage string) string {
-	currentIndex := findPageIndex(currentPage)
-	prevIndex := (currentIndex - 1 + len(ScoreboardPages)) % len(ScoreboardPages)
-	return ScoreboardPages[prevIndex]
+	// Set the image
+	embed.Image = &discordgo.MessageEmbedImage{
+		URL: "attachment://scoreboard.png",
+	}
+
+	// Add total wagered to description
+	embed.Description = fmt.Sprintf("**Total Bits Wagered: %s**", common.FormatBalance(totalBitsWagered))
+
+	return imageData
 }
 
 // BuildUserStatsEmbed creates the user statistics embed

@@ -51,59 +51,26 @@ func (f *Feature) HandleCommand(s *discordgo.Session, i *discordgo.InteractionCr
 	}
 }
 
-// HandleReaction handles reaction add events for stats embeds
-func (f *Feature) HandleReaction(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
-	// Ignore reactions from bots (including our own)
-	if r.Member.User.Bot {
-		return
+// HandleInteraction handles button interactions for scoreboard navigation
+func (f *Feature) HandleInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	customID := i.MessageComponentData().CustomID
+
+	// Handle page navigation buttons
+	if len(customID) > 11 && customID[:11] == "stats_page_" {
+		targetPage := customID[11:]
+
+		// Acknowledge the interaction
+		err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseDeferredMessageUpdate,
+		})
+		if err != nil {
+			log.Errorf("Error acknowledging interaction: %v", err)
+			return
+		}
+
+		// Update the scoreboard to show the requested page
+		f.updateScoreboardPage(s, i.ChannelID, i.Message.ID, i.GuildID, targetPage)
 	}
-
-	// Fetch the message to check if it's a scoreboard
-	msg, err := s.ChannelMessage(r.ChannelID, r.MessageID)
-	if err != nil {
-		return
-	}
-
-	// Check if this is our bot's message with a scoreboard embed
-	if msg.Author.ID != s.State.User.ID || len(msg.Embeds) == 0 {
-		return
-	}
-
-	embed := msg.Embeds[0]
-	// Check if this is a scoreboard embed by title
-	if embed.Title != "🏆 Scoreboard 🏆" {
-		return
-	}
-
-	// Only handle arrow reactions
-	if r.Emoji.Name != "⬅️" && r.Emoji.Name != "➡️" {
-		return
-	}
-
-	// Remove the user's reaction to keep count at 1
-	_ = s.MessageReactionRemove(r.ChannelID, r.MessageID, r.Emoji.Name, r.UserID)
-
-	// Get current page from footer
-	currentPage := PageBits
-	if embed.Footer != nil && embed.Footer.Text != "" {
-		currentPage = GetPageFromFooter(embed.Footer.Text)
-	}
-
-	// Calculate new page based on reaction
-	var newPage string
-	if r.Emoji.Name == "➡️" {
-		newPage = GetNextPage(currentPage)
-	} else {
-		newPage = GetPreviousPage(currentPage)
-	}
-
-	// If page hasn't changed, nothing to do
-	if newPage == currentPage {
-		return
-	}
-
-	// Regenerate the scoreboard data for the new page
-	f.updateScoreboardPage(s, r.ChannelID, r.MessageID, r.GuildID, newPage)
 }
 
 // updateScoreboardPage fetches fresh data and updates the embed to show the requested page
@@ -182,13 +149,15 @@ func (f *Feature) updateScoreboardPage(s *discordgo.Session, channelID, messageI
 		return
 	}
 
-	// Update the message
+	// Update the message with navigation buttons
+	navButtons := BuildScoreboardNavButtons(page)
 	editData := &discordgo.MessageEdit{
-		Channel: channelID,
-		ID:      messageID,
-		Embeds:  &[]*discordgo.MessageEmbed{embed},
+		Channel:    channelID,
+		ID:         messageID,
+		Embeds:     &[]*discordgo.MessageEmbed{embed},
+		Components: &navButtons,
 	}
-	
+
 	// Add image if generated
 	if imageData != nil {
 		// Clear existing attachments and add new one
@@ -200,7 +169,7 @@ func (f *Feature) updateScoreboardPage(s *discordgo.Session, channelID, messageI
 			},
 		}
 	}
-	
+
 	_, err = s.ChannelMessageEditComplex(editData)
 	if err != nil {
 		log.Errorf("Error updating scoreboard embed: %v", err)

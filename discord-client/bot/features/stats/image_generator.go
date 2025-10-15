@@ -177,6 +177,53 @@ func (g *ScoreboardImageGenerator) GenerateGameScoreboard(users []*entities.LOLL
 	return g.generateTable(columns, rows)
 }
 
+// GenerateGamblingScoreboard generates a gambling leaderboard image
+func (g *ScoreboardImageGenerator) GenerateGamblingScoreboard(users []*entities.GamblingLeaderboardEntry, usernames map[int64]string) ([]byte, error) {
+	// Define columns for gambling scoreboard - P/L, Bets, Total Wagered
+	columns := []TableColumn{
+		{Header: "#", Width: 20, XPosition: g.style.Padding, ColorRGB: [3]float64{0.85, 0.85, 0.9}},
+		{Header: "User", Width: 100, XPosition: g.style.Padding + 20, ColorRGB: [3]float64{1.0, 1.0, 1.0}},
+		{Header: "P/L", Width: 70, XPosition: g.style.Padding + 120, ColorRGB: [3]float64{1.0, 1.0, 1.0}}, // White default, will be colored per row
+		{Header: "Bets", Width: 60, XPosition: g.style.Padding + 190, ColorRGB: [3]float64{0.85, 1.0, 0.85}},
+		{Header: "Wagered", Width: 70, XPosition: g.style.Padding + 250, ColorRGB: [3]float64{0.85, 0.85, 1.0}},
+	}
+
+	// Convert users to table rows
+	rows := make([]TableRow, len(users))
+	for i, user := range users {
+		username := usernames[user.DiscordID]
+		if username == "" {
+			username = fmt.Sprintf("User%d", user.DiscordID)
+		}
+		if len(username) > 12 {
+			username = username[:11] + "…"
+		}
+
+		// Format P/L with + or - sign
+		var profitLossStr string
+		if user.NetProfit >= 0 {
+			profitLossStr = "+" + utils.FormatShortNotation(user.NetProfit)
+		} else {
+			profitLossStr = utils.FormatShortNotation(user.NetProfit) // Already has minus sign
+		}
+
+		rows[i] = TableRow{
+			Rank:   user.Rank,
+			IsTop3: i < 3,
+			Data: []string{
+				fmt.Sprintf("%d", user.Rank),
+				username,
+				profitLossStr, // P/L
+				fmt.Sprintf("%d", user.TotalBets), // Number of bets
+				utils.FormatShortNotation(user.TotalWagered), // Total amount wagered
+			},
+			Highlighted: []bool{false, false, false, false, false},
+		}
+	}
+
+	return g.generateTable(columns, rows)
+}
+
 
 // generateTable creates the actual image
 func (g *ScoreboardImageGenerator) generateTable(columns []TableColumn, rows []TableRow) ([]byte, error) {

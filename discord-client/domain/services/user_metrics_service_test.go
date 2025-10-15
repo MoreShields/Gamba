@@ -690,3 +690,195 @@ func TestUserMetricsService_GetTFTLeaderboard(t *testing.T) {
 		mockGroupWagerRepo.AssertExpectations(t)
 	})
 }
+
+func TestUserMetricsService_GetGamblingLeaderboard(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("calculates gambling leaderboard with correct net profit", func(t *testing.T) {
+		mockUserRepo := new(testhelpers.MockUserRepository)
+		mockWagerRepo := new(testhelpers.MockWagerRepository)
+		mockBetRepo := new(testhelpers.MockBetRepository)
+		mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
+		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
+
+		// Mock users
+		users := []*entities.User{
+			{DiscordID: 100, Username: "user1", Balance: 5000},
+			{DiscordID: 200, Username: "user2", Balance: 3000},
+			{DiscordID: 300, Username: "user3", Balance: 2000},
+		}
+		mockUserRepo.On("GetAll", ctx).Return(users, nil)
+
+		// Mock bet stats for each user
+		mockBetRepo.On("GetStats", ctx, int64(100)).Return(&entities.BetStats{
+			TotalBets:    20,
+			TotalWins:    15,
+			TotalLosses:  5,
+			TotalWagered: 10000,
+			TotalWon:     12000,
+			TotalLost:    2000,
+			BiggestWin:   3000,
+			BiggestLoss:  500,
+		}, nil)
+
+		mockBetRepo.On("GetStats", ctx, int64(200)).Return(&entities.BetStats{
+			TotalBets:    10,
+			TotalWins:    4,
+			TotalLosses:  6,
+			TotalWagered: 5000,
+			TotalWon:     5500,
+			TotalLost:    3000,
+			BiggestWin:   1000,
+			BiggestLoss:  800,
+		}, nil)
+
+		mockBetRepo.On("GetStats", ctx, int64(300)).Return(&entities.BetStats{
+			TotalBets:    8,
+			TotalWins:    3,
+			TotalLosses:  5,
+			TotalWagered: 4000,
+			TotalWon:     4200,
+			TotalLost:    2500,
+			BiggestWin:   800,
+			BiggestLoss:  600,
+		}, nil)
+
+		// Execute
+		entries, totalBitsWagered, err := service.GetGamblingLeaderboard(ctx, 5)
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, entries, 3)
+		assert.Equal(t, int64(19000), totalBitsWagered)
+
+		// Check ranking by net profit
+		// User 1: 12000 - 2000 = 10000 profit
+		// User 2: 5500 - 3000 = 2500 profit
+		// User 3: 4200 - 2500 = 1700 profit
+		assert.Equal(t, 1, entries[0].Rank)
+		assert.Equal(t, int64(100), entries[0].DiscordID)
+		assert.Equal(t, 20, entries[0].TotalBets)
+		assert.Equal(t, 15, entries[0].TotalWins)
+		assert.Equal(t, float64(75), entries[0].WinPercentage)
+		assert.Equal(t, int64(10000), entries[0].NetProfit)
+
+		assert.Equal(t, 2, entries[1].Rank)
+		assert.Equal(t, int64(200), entries[1].DiscordID)
+		assert.Equal(t, 10, entries[1].TotalBets)
+		assert.Equal(t, 4, entries[1].TotalWins)
+		assert.Equal(t, float64(40), entries[1].WinPercentage)
+		assert.Equal(t, int64(2500), entries[1].NetProfit)
+
+		assert.Equal(t, 3, entries[2].Rank)
+		assert.Equal(t, int64(300), entries[2].DiscordID)
+		assert.Equal(t, 8, entries[2].TotalBets)
+		assert.Equal(t, 3, entries[2].TotalWins)
+		assert.InDelta(t, 37.5, entries[2].WinPercentage, 0.01)
+		assert.Equal(t, int64(1700), entries[2].NetProfit)
+
+		mockUserRepo.AssertExpectations(t)
+		mockBetRepo.AssertExpectations(t)
+	})
+
+	t.Run("filters by minimum bets requirement", func(t *testing.T) {
+		mockUserRepo := new(testhelpers.MockUserRepository)
+		mockWagerRepo := new(testhelpers.MockWagerRepository)
+		mockBetRepo := new(testhelpers.MockBetRepository)
+		mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
+		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
+
+		users := []*entities.User{
+			{DiscordID: 100, Username: "user1", Balance: 5000},
+			{DiscordID: 200, Username: "user2", Balance: 3000},
+			{DiscordID: 300, Username: "user3", Balance: 2000},
+		}
+		mockUserRepo.On("GetAll", ctx).Return(users, nil)
+
+		// User 1: 20 bets (qualifies for minBets=5)
+		mockBetRepo.On("GetStats", ctx, int64(100)).Return(&entities.BetStats{
+			TotalBets:    20,
+			TotalWins:    15,
+			TotalWagered: 10000,
+			TotalWon:     12000,
+			TotalLost:    2000,
+		}, nil)
+
+		// User 2: 2 bets (doesn't qualify for minBets=5)
+		mockBetRepo.On("GetStats", ctx, int64(200)).Return(&entities.BetStats{
+			TotalBets:    2,
+			TotalWins:    1,
+			TotalWagered: 1000,
+			TotalWon:     1500,
+			TotalLost:    500,
+		}, nil)
+
+		// User 3: 0 bets (doesn't qualify - no bets at all)
+		mockBetRepo.On("GetStats", ctx, int64(300)).Return(&entities.BetStats{
+			TotalBets:    0,
+			TotalWins:    0,
+			TotalWagered: 0,
+			TotalWon:     0,
+			TotalLost:    0,
+		}, nil)
+
+		// Execute with minBets=5
+		entries, totalBitsWagered, err := service.GetGamblingLeaderboard(ctx, 5)
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, entries, 1) // Only user 1 qualifies
+		assert.Equal(t, int64(10000), totalBitsWagered)
+		assert.Equal(t, int64(100), entries[0].DiscordID)
+
+		mockUserRepo.AssertExpectations(t)
+		mockBetRepo.AssertExpectations(t)
+	})
+
+	t.Run("handles empty user list", func(t *testing.T) {
+		mockUserRepo := new(testhelpers.MockUserRepository)
+		mockWagerRepo := new(testhelpers.MockWagerRepository)
+		mockBetRepo := new(testhelpers.MockBetRepository)
+		mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
+		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
+
+		var users []*entities.User
+		mockUserRepo.On("GetAll", ctx).Return(users, nil)
+
+		// Execute
+		entries, totalBitsWagered, err := service.GetGamblingLeaderboard(ctx, 5)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Len(t, entries, 0)
+		assert.Equal(t, int64(0), totalBitsWagered)
+
+		mockUserRepo.AssertExpectations(t)
+	})
+
+	t.Run("handles repository error from GetAll", func(t *testing.T) {
+		mockUserRepo := new(testhelpers.MockUserRepository)
+		mockWagerRepo := new(testhelpers.MockWagerRepository)
+		mockBetRepo := new(testhelpers.MockBetRepository)
+		mockGroupWagerRepo := new(testhelpers.MockGroupWagerRepository)
+		mockBalanceHistoryRepo := new(testhelpers.MockBalanceHistoryRepository)
+		service := NewUserMetricsService(mockUserRepo, mockWagerRepo, mockBetRepo, mockGroupWagerRepo, mockBalanceHistoryRepo)
+
+		expectedErr := fmt.Errorf("database connection failed")
+		mockUserRepo.On("GetAll", ctx).Return(nil, expectedErr)
+
+		// Execute
+		entries, totalBitsWagered, err := service.GetGamblingLeaderboard(ctx, 5)
+
+		// Assert
+		require.Error(t, err)
+		assert.Nil(t, entries)
+		assert.Equal(t, int64(0), totalBitsWagered)
+		assert.Contains(t, err.Error(), "failed to get all users")
+		assert.Contains(t, err.Error(), "database connection failed")
+
+		mockUserRepo.AssertExpectations(t)
+	})
+}
