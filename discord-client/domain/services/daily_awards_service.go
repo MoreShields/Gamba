@@ -216,11 +216,11 @@ func (s *DailyAwardsService) CalculateWordleReward(ctx context.Context, repo int
 
 // CountConsecutiveDays returns the number of consecutive days including today
 func (s *DailyAwardsService) CountConsecutiveDays(ctx context.Context, repo interfaces.WordleCompletionRepository, discordID, guildID int64) (int, error) {
-	// Get recent completions - only need to check enough days to reach the cap
-	// Since we cap at 5x multiplier, we only need to check up to 5 days
-	// Adding a small buffer for edge cases
+	// Get all completions to count the true streak length
+	// While the reward multiplier caps at 5x, we want to show the actual consecutive days
+	// for user achievement tracking. The counting stops at the first gap anyway.
 	// Note: Database constraint ensures only one completion per user per guild per day
-	completions, err := repo.GetRecentCompletions(ctx, discordID, guildID, 7)
+	completions, err := repo.GetRecentCompletions(ctx, discordID, guildID, 0) // 0 = no limit
 	if err != nil {
 		return 0, err
 	}

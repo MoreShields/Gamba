@@ -111,14 +111,28 @@ func (r *wordleCompletionRepository) GetByUserToday(ctx context.Context, discord
 
 // GetRecentCompletions returns recent completions for streak calculation
 func (r *wordleCompletionRepository) GetRecentCompletions(ctx context.Context, discordID, guildID int64, limit int) ([]*entities.WordleCompletion, error) {
-	query := `
-		SELECT id, discord_id, guild_id, guess_count, completed_at, created_at
-		FROM wordle_completions
-		WHERE discord_id = $1 AND guild_id = $2
-		ORDER BY completed_at DESC
-		LIMIT $3`
+	// Build query - if limit is 0 or negative, fetch all completions
+	var query string
+	var args []interface{}
 
-	rows, err := r.q.Query(ctx, query, discordID, r.guildID, limit)
+	if limit <= 0 {
+		query = `
+			SELECT id, discord_id, guild_id, guess_count, completed_at, created_at
+			FROM wordle_completions
+			WHERE discord_id = $1 AND guild_id = $2
+			ORDER BY completed_at DESC`
+		args = []interface{}{discordID, r.guildID}
+	} else {
+		query = `
+			SELECT id, discord_id, guild_id, guess_count, completed_at, created_at
+			FROM wordle_completions
+			WHERE discord_id = $1 AND guild_id = $2
+			ORDER BY completed_at DESC
+			LIMIT $3`
+		args = []interface{}{discordID, r.guildID, limit}
+	}
+
+	rows, err := r.q.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query recent wordle completions: %w", err)
 	}
