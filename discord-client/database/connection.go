@@ -14,7 +14,17 @@ type DB struct {
 
 // NewConnection creates a new database connection pool
 func NewConnection(ctx context.Context, databaseURL string) (*DB, error) {
-	pool, err := pgxpool.New(ctx, databaseURL)
+	// Parse config to set timezone
+	config, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse database URL: %w", err)
+	}
+
+	// Set timezone to UTC for all connections
+	config.ConnConfig.RuntimeParams["timezone"] = "UTC"
+
+	// Create pool with UTC timezone
+	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create connection pool: %w", err)
 	}

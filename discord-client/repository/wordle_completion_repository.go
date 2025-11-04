@@ -87,7 +87,7 @@ func (r *wordleCompletionRepository) GetByUserToday(ctx context.Context, discord
 	query := `
 		SELECT id, discord_id, guild_id, guess_count, completed_at, created_at
 		FROM wordle_completions
-		WHERE discord_id = $1 AND guild_id = $2 AND DATE(completed_at) = CURRENT_DATE`
+		WHERE discord_id = $1 AND guild_id = $2 AND DATE(completed_at AT TIME ZONE 'UTC') = (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date`
 
 	var dbCompletion wordleCompletionDB
 	err := r.q.QueryRow(ctx, query, discordID, r.guildID).Scan(
@@ -158,7 +158,7 @@ func (r *wordleCompletionRepository) GetTodaysCompletions(ctx context.Context) (
 	query := `
 		SELECT id, discord_id, guild_id, guess_count, completed_at, created_at
 		FROM wordle_completions
-		WHERE guild_id = $1 AND DATE(completed_at) = CURRENT_DATE
+		WHERE guild_id = $1 AND DATE(completed_at AT TIME ZONE 'UTC') = (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date
 		ORDER BY guess_count ASC, completed_at ASC`
 
 	rows, err := r.q.Query(ctx, query, r.guildID)
