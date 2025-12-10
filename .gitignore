@@ -20,12 +20,10 @@ go.work
 *~
 
 # Application specific
-/bin/
-discord-client/bin/
+**/bin/
 
 # Air tmp directory
-/tmp/
-discord-client/tmp/
+**/tmp/
 
 # Protobuf generated files
 api/gen/
@@ -40,14 +38,9 @@ discord-client/proto/
 
 # python
 /venv
-.pyc
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Context
-CLAUDE.md
-.claude/
 
 # Local testing scripts
 scoreboard_test/
