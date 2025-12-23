@@ -12,6 +12,8 @@ Create a dataset and queries to generate fun, shareable statistics for a "Year i
 | `bets` | House gambling (slots, probability-based games) |
 | `wagers` | Head-to-head wagers between users |
 | `group_wagers` + `group_wager_participants` | Pool and house group wagers |
+| `group_wagers` (external_system='league_of_legends') | LoL match betting |
+| `group_wagers` (external_system='teamfight_tactics') | TFT match betting |
 | `balance_history` | Complete financial transaction audit trail |
 | `wordle_completions` | Daily Wordle participation and streaks |
 | `high_roller_purchases` | Status/role purchases |
@@ -113,7 +115,37 @@ Create a dataset and queries to generate fun, shareable statistics for a "Year i
 | **The Nemesis** | Pair of users with most head-to-head wagers against each other |
 | **Rivalry Winner** | Who leads in head-to-head matchups |
 
-### 9. Aggregate Platform Stats
+### 9. League of Legends Summoner Stats
+
+LoL games are tracked as `group_wagers` with `external_system = 'league_of_legends'`.
+Summoner name is extracted from the `condition` field using regex: `\[([^\]]+)\]`.
+
+| Stat | Query Logic |
+|------|-------------|
+| **Most Winning Summoner (Win Rate)** | Highest win rate from resolved LoL wagers (min games threshold) |
+| **Least Winning Summoner (Win Rate)** | Lowest win rate from resolved LoL wagers |
+| **Most Profitable Summoner** | Summoner with highest total net winnings for bettors |
+| **Most Costly Summoner** | Summoner with highest total net losses for bettors |
+| **Most Bet-On Summoner** | Summoner with most total amount wagered across all games |
+| **Most Games Tracked** | Summoner with most resolved wagers |
+| **Biggest Single Game Pot** | Largest total_pot for a single LoL wager |
+
+### 10. TFT Summoner Stats
+
+TFT games are tracked as `group_wagers` with `external_system = 'teamfight_tactics'`.
+Placement options: "1-2", "3-4", "5-6", "7-8" (regular) or "1", "2", "3", "4" (Double Up).
+
+| Stat | Query Logic |
+|------|-------------|
+| **Best Average Placement** | Lowest avg placement (map winning_option to placement midpoint) |
+| **Worst Average Placement** | Highest avg placement |
+| **Most Top-4 Finishes** | COUNT where winning_option IN ('1-2', '3-4', '1', '2') |
+| **Most Bottom-4 Finishes** | COUNT where winning_option IN ('5-6', '7-8', '3', '4') |
+| **Most TFT Games Tracked** | Summoner with most resolved TFT wagers |
+| **Most Profitable TFT Summoner** | Highest net winnings for bettors |
+| **Most Bet-On TFT Summoner** | Highest total wagered amount |
+
+### 11. Aggregate Platform Stats
 
 | Stat | Query Logic |
 |------|-------------|
@@ -304,6 +336,134 @@ ORDER BY comeback_amount DESC
 LIMIT 1;
 ```
 
+### LoL Summoner Win Rate (Best/Worst)
+```sql
+WITH lol_games AS (
+    SELECT
+        gw.id,
+        gw.condition,
+        gw.winning_option_id,
+        gw.total_pot,
+        -- Extract summoner name from condition: "[SummonerName](url) - ..."
+        SUBSTRING(gw.condition FROM '\[([^\]]+)\]') as summoner_name,
+        wo.option_text as winning_option
+    FROM group_wagers gw
+    JOIN group_wager_options wo ON wo.id = gw.winning_option_id
+    WHERE gw.guild_id = $1
+      AND gw.external_system = 'league_of_legends'
+      AND gw.state = 'resolved'
+      AND gw.created_at >= $2
+      AND gw.created_at < $3
+),
+summoner_stats AS (
+    SELECT
+        summoner_name,
+        COUNT(*) as total_games,
+        SUM(CASE WHEN winning_option = 'Win' THEN 1 ELSE 0 END) as wins,
+        SUM(CASE WHEN winning_option = 'Loss' THEN 1 ELSE 0 END) as losses,
+        SUM(total_pot) as total_wagered_on
+    FROM lol_games
+    GROUP BY summoner_name
+    HAVING COUNT(*) >= $4  -- min games threshold
+)
+SELECT
+    summoner_name,
+    total_games,
+    wins,
+    losses,
+    ROUND(wins::decimal / total_games * 100, 2) as win_rate_pct,
+    total_wagered_on
+FROM summoner_stats
+ORDER BY win_rate_pct DESC  -- Change to ASC for worst
+LIMIT 1;
+```
+
+### Most Profitable/Costly LoL Summoner (for Bettors)
+```sql
+WITH lol_games AS (
+    SELECT
+        gw.id as wager_id,
+        SUBSTRING(gw.condition FROM '\[([^\]]+)\]') as summoner_name,
+        gw.winning_option_id
+    FROM group_wagers gw
+    WHERE gw.guild_id = $1
+      AND gw.external_system = 'league_of_legends'
+      AND gw.state = 'resolved'
+      AND gw.created_at >= $2
+      AND gw.created_at < $3
+),
+bettor_outcomes AS (
+    SELECT
+        lg.summoner_name,
+        p.discord_id,
+        p.amount as bet_amount,
+        COALESCE(p.payout_amount, 0) as payout,
+        COALESCE(p.payout_amount, 0) - p.amount as net_result
+    FROM lol_games lg
+    JOIN group_wager_participants p ON p.group_wager_id = lg.wager_id
+)
+SELECT
+    summoner_name,
+    COUNT(DISTINCT discord_id) as unique_bettors,
+    SUM(bet_amount) as total_wagered,
+    SUM(payout) as total_payouts,
+    SUM(net_result) as net_bettor_profit  -- positive = bettors made money overall
+FROM bettor_outcomes
+GROUP BY summoner_name
+ORDER BY net_bettor_profit DESC  -- Change to ASC for most costly
+LIMIT 1;
+```
+
+### TFT Average Placement (Best/Worst)
+```sql
+WITH tft_games AS (
+    SELECT
+        gw.id,
+        SUBSTRING(gw.condition FROM '\[([^\]]+)\]') as summoner_name,
+        wo.option_text as winning_option,
+        -- Map placement ranges to numeric values
+        CASE wo.option_text
+            WHEN '1' THEN 1.0
+            WHEN '2' THEN 2.0
+            WHEN '3' THEN 3.0
+            WHEN '4' THEN 4.0
+            WHEN '1-2' THEN 1.5
+            WHEN '3-4' THEN 3.5
+            WHEN '5-6' THEN 5.5
+            WHEN '7-8' THEN 7.5
+        END as placement_value
+    FROM group_wagers gw
+    JOIN group_wager_options wo ON wo.id = gw.winning_option_id
+    WHERE gw.guild_id = $1
+      AND gw.external_system = 'teamfight_tactics'
+      AND gw.state = 'resolved'
+      AND gw.created_at >= $2
+      AND gw.created_at < $3
+),
+summoner_stats AS (
+    SELECT
+        summoner_name,
+        COUNT(*) as total_games,
+        AVG(placement_value) as avg_placement,
+        SUM(CASE WHEN placement_value <= 4 THEN 1 ELSE 0 END) as top_4_count,
+        SUM(CASE WHEN placement_value > 4 THEN 1 ELSE 0 END) as bottom_4_count
+    FROM tft_games
+    WHERE placement_value IS NOT NULL
+    GROUP BY summoner_name
+    HAVING COUNT(*) >= $4  -- min games threshold
+)
+SELECT
+    summoner_name,
+    total_games,
+    ROUND(avg_placement::decimal, 2) as avg_placement,
+    top_4_count,
+    bottom_4_count,
+    ROUND(top_4_count::decimal / total_games * 100, 2) as top_4_rate_pct
+FROM summoner_stats
+ORDER BY avg_placement ASC  -- Change to DESC for worst
+LIMIT 1;
+```
+
 ---
 
 ## Minimum Participation Thresholds
@@ -314,6 +474,8 @@ To ensure meaningful stats, apply thresholds:
 - **Luck factor stats**: Minimum 50 bets
 - **Wager stats**: Minimum 3 wagers
 - **Wordle stats**: Minimum 10 completions
+- **LoL summoner stats**: Minimum 5 games
+- **TFT summoner stats**: Minimum 5 games
 
 ---
 
