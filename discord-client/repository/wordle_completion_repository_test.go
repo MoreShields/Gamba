@@ -19,6 +19,13 @@ func TestWordleCompletionRepository_Create(t *testing.T) {
 	repo := NewWordleCompletionRepositoryScoped(testDB.DB.Pool, 123456789)
 	ctx := context.Background()
 
+	// Create users first (required for FK constraint)
+	userRepo := NewUserRepository(testDB.DB)
+	for _, id := range []int64{987654321, 987654322, 987654323, 111111111} {
+		_, err := userRepo.Create(ctx, id, "user", 100000)
+		require.NoError(t, err)
+	}
+
 	tests := []struct {
 		name        string
 		setup       func()
@@ -102,6 +109,13 @@ func TestWordleCompletionRepository_GetByUserToday(t *testing.T) {
 	repo := NewWordleCompletionRepositoryScoped(testDB.DB.Pool, 123456789)
 	ctx := context.Background()
 
+	// Create users first (required for FK constraint)
+	userRepo := NewUserRepository(testDB.DB)
+	for _, id := range []int64{222222222, 333333333, 444444444} {
+		_, err := userRepo.Create(ctx, id, "user", 100000)
+		require.NoError(t, err)
+	}
+
 	t.Run("no completion found", func(t *testing.T) {
 		completion, err := repo.GetByUserToday(ctx, 999999999, 0)
 		require.NoError(t, err)
@@ -175,6 +189,13 @@ func TestWordleCompletionRepository_GetRecentCompletions(t *testing.T) {
 
 	repo := NewWordleCompletionRepositoryScoped(testDB.DB.Pool, 123456789)
 	ctx := context.Background()
+
+	// Create users first (required for FK constraint)
+	userRepo := NewUserRepository(testDB.DB)
+	for _, id := range []int64{666666666, 777777777, 888888888} {
+		_, err := userRepo.Create(ctx, id, "user", 100000)
+		require.NoError(t, err)
+	}
 
 	t.Run("no completions", func(t *testing.T) {
 		completions, err := repo.GetRecentCompletions(ctx, 555555555, 0, 10)
@@ -276,6 +297,11 @@ func TestWordleCompletionRepository_ScopedRepository(t *testing.T) {
 	testDB := testutil.SetupTestDatabase(t)
 	ctx := context.Background()
 
+	// Create user first (required for FK constraint)
+	userRepo := NewUserRepository(testDB.DB)
+	_, err := userRepo.Create(ctx, 123123123, "user", 100000)
+	require.NoError(t, err)
+
 	t.Run("scoped repository uses correct guild ID", func(t *testing.T) {
 		guildID := int64(999999999)
 		repo := NewWordleCompletionRepositoryScoped(testDB.DB.Pool, guildID)
@@ -307,6 +333,19 @@ func TestWordleCompletionRepository_EdgeCases(t *testing.T) {
 
 	repo := NewWordleCompletionRepositoryScoped(testDB.DB.Pool, 123456789)
 	ctx := context.Background()
+
+	// Create users first (required for FK constraint)
+	userRepo := NewUserRepository(testDB.DB)
+	for maxGuesses := 1; maxGuesses <= 6; maxGuesses++ {
+		userID := int64(100000000 + maxGuesses)
+		_, err := userRepo.Create(ctx, userID, "user", 100000)
+		require.NoError(t, err)
+	}
+	// Also create users for midnight boundary test
+	_, err := userRepo.Create(ctx, 234234234, "user", 100000)
+	require.NoError(t, err)
+	_, err = userRepo.Create(ctx, 234234235, "user", 100000)
+	require.NoError(t, err)
 
 	t.Run("handle different max guesses values", func(t *testing.T) {
 		// Test with different valid max guesses (1-6)

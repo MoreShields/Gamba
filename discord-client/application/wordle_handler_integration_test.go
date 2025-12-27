@@ -137,6 +137,8 @@ func TestWordleHandler_EndToEndFlow(t *testing.T) {
 		defer uow.Rollback()
 
 		// Expected rewards based on guess count (from DailyAwardsService)
+		// New users get InitialBalance (100k) + wordle reward
+		const initialBalance = int64(100000)
 		expectedRewards := map[int64]int64{
 			133008606202167296: 7000, // 3/6
 			135678825894903808: 7000, // 3/6 (Shid)
@@ -148,24 +150,40 @@ func TestWordleHandler_EndToEndFlow(t *testing.T) {
 		for userID, expectedReward := range expectedRewards {
 			user, err := uow.UserRepository().GetByDiscordID(ctx, userID)
 			require.NoError(t, err)
-			assert.Equal(t, expectedReward, user.Balance, "User %d should have balance %d", userID, expectedReward)
+			expectedBalance := initialBalance + expectedReward
+			assert.Equal(t, expectedBalance, user.Balance, "User %d should have balance %d", userID, expectedBalance)
 
 			// Verify WordleCompletion was created
 			completion, err := uow.WordleCompletionRepo().GetByUserToday(ctx, userID, guildID)
 			require.NoError(t, err)
 			require.NotNil(t, completion)
 
-			// Verify balance history with wordle_reward transaction type
-			// This is the key test that would have caught the constraint violation
-			history, err := uow.BalanceHistoryRepository().GetByUser(ctx, userID, 1)
+			// Verify balance history - new users get 2 entries: initial + wordle_reward
+			history, err := uow.BalanceHistoryRepository().GetByUser(ctx, userID, 10)
 			require.NoError(t, err)
-			require.Len(t, history, 1)
+			require.Len(t, history, 2)
 
-			assert.Equal(t, entities.TransactionTypeWordleReward, history[0].TransactionType)
-			assert.Equal(t, expectedReward, history[0].ChangeAmount)
-			assert.Equal(t, int64(0), history[0].BalanceBefore)
-			assert.Equal(t, expectedReward, history[0].BalanceAfter)
-			assert.Equal(t, guildID, history[0].GuildID)
+			// Find each entry by type (order is non-deterministic when timestamps are equal)
+			var initialEntry, wordleEntry *entities.BalanceHistory
+			for i := range history {
+				switch history[i].TransactionType {
+				case entities.TransactionTypeInitial:
+					initialEntry = history[i]
+				case entities.TransactionTypeWordleReward:
+					wordleEntry = history[i]
+				}
+			}
+			require.NotNil(t, initialEntry, "should have initial balance entry")
+			require.NotNil(t, wordleEntry, "should have wordle_reward entry")
+
+			// Verify wordle reward entry
+			assert.Equal(t, expectedReward, wordleEntry.ChangeAmount)
+			assert.Equal(t, initialBalance, wordleEntry.BalanceBefore)
+			assert.Equal(t, expectedBalance, wordleEntry.BalanceAfter)
+			assert.Equal(t, guildID, wordleEntry.GuildID)
+
+			// Verify initial balance entry
+			assert.Equal(t, initialBalance, initialEntry.ChangeAmount)
 		}
 	})
 }
@@ -217,17 +235,18 @@ func TestWordleHandler_NicknameResolution(t *testing.T) {
 		require.NoError(t, uow.Begin(ctx))
 		defer uow.Rollback()
 
-		// Both users with PopularNick should get 3/6 reward (7000)
+		// Both users with PopularNick should get InitialBalance (100k) + 3/6 reward (7000) = 107000
+		const initialBalance = int64(100000)
 		for _, userID := range []int64{111111111, 222222222} {
 			user, err := uow.UserRepository().GetByDiscordID(ctx, userID)
 			require.NoError(t, err)
-			assert.Equal(t, int64(7000), user.Balance)
+			assert.Equal(t, initialBalance+7000, user.Balance)
 		}
 
-		// UniqueNick user should get 4/6 reward (7000)
+		// UniqueNick user should get InitialBalance (100k) + 4/6 reward (7000) = 107000
 		user, err := uow.UserRepository().GetByDiscordID(ctx, 333333333)
 		require.NoError(t, err)
-		assert.Equal(t, int64(7000), user.Balance)
+		assert.Equal(t, initialBalance+7000, user.Balance)
 
 		// UnknownNick should be ignored (no error)
 	})
@@ -291,12 +310,14 @@ func TestWordleHandler_DuplicatePrevention(t *testing.T) {
 
 	user, err := uow.UserRepository().GetByDiscordID(ctx, 777777777)
 	require.NoError(t, err)
-	assert.Equal(t, int64(7000), user.Balance) // Still 3/6 reward (7000), not 2/6
+	// InitialBalance (100k) + 3/6 reward (7000) = 107000, not 2/6 reward
+	const initialBalance = int64(100000)
+	assert.Equal(t, initialBalance+7000, user.Balance)
 
-	// Verify only one completion exists
+	// Verify 2 entries: initial + wordle_reward (duplicate was prevented)
 	history, err := uow.BalanceHistoryRepository().GetByUser(ctx, 777777777, 10)
 	require.NoError(t, err)
-	assert.Len(t, history, 1)
+	assert.Len(t, history, 2) // initial + wordle_reward
 }
 
 func TestWordleHandler_ChannelFiltering(t *testing.T) {
@@ -343,7 +364,9 @@ func TestWordleHandler_ChannelFiltering(t *testing.T) {
 
 		user, err := uow.UserRepository().GetByDiscordID(ctx, 999999999)
 		require.NoError(t, err)
-		assert.Equal(t, int64(7000), user.Balance)
+		// InitialBalance (100k) + 3/6 reward (7000) = 107000
+		const initialBalance = int64(100000)
+		assert.Equal(t, initialBalance+7000, user.Balance)
 	})
 
 	t.Run("Message From Different Channel", func(t *testing.T) {
@@ -363,7 +386,7 @@ func TestWordleHandler_ChannelFiltering(t *testing.T) {
 
 		history, err := uow.BalanceHistoryRepository().GetByUser(ctx, 999999999, 10)
 		require.NoError(t, err)
-		assert.Len(t, history, 1) // Still only one from the first test
+		assert.Len(t, history, 2) // Still only initial + wordle_reward from the first test
 	})
 
 	t.Run("Guild Without Wordle Channel", func(t *testing.T) {

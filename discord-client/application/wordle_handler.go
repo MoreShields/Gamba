@@ -170,13 +170,20 @@ func (h *wordleHandler) processWordleResult(ctx context.Context, result WordleRe
 		return fmt.Errorf("failed to create WordleScore: %w", err)
 	}
 
+	// Get or create user first (required for FK constraint on wordle_completions)
+	userService := services.NewUserService(uow.UserRepository(), uow.BalanceHistoryRepository(), uow.EventBus())
+	user, err := userService.GetOrCreateUser(ctx, userID, fmt.Sprintf("User%d", userID))
+	if err != nil {
+		return fmt.Errorf("failed to get or create user: %w", err)
+	}
+
 	// Create WordleCompletion
 	completion, err := entities.NewWordleCompletion(userID, guildID, score, time.Now().UTC())
 	if err != nil {
 		return fmt.Errorf("failed to create WordleCompletion: %w", err)
 	}
 
-	// Save completion
+	// Save completion (user now exists, FK constraint satisfied)
 	if err := uow.WordleCompletionRepo().Create(ctx, completion); err != nil {
 		return fmt.Errorf("failed to save WordleCompletion: %w", err)
 	}
@@ -196,31 +203,15 @@ func (h *wordleHandler) processWordleResult(ctx context.Context, result WordleRe
 		return fmt.Errorf("failed to calculate reward: %w", err)
 	}
 
-	// Get or create user
-	var balanceBefore int64
-	user, err := uow.UserRepository().GetByDiscordID(ctx, userID)
-	if err != nil {
-		return fmt.Errorf("failed to get user: %w", err)
+	// Update user balance with reward
+	balanceBefore := user.Balance
+	newBalance := user.Balance + reward
+	if err := uow.UserRepository().UpdateBalance(ctx, userID, newBalance); err != nil {
+		return fmt.Errorf("failed to update user balance: %w", err)
 	}
+	user.Balance = newBalance
 
-	if user == nil {
-		// User doesn't exist, create with initial balance as the reward
-		balanceBefore = 0
-		user, err = uow.UserRepository().Create(ctx, userID, fmt.Sprintf("User%d", userID), reward)
-		if err != nil {
-			return fmt.Errorf("failed to create user: %w", err)
-		}
-	} else {
-		// Update user balance
-		balanceBefore = user.Balance
-		newBalance := user.Balance + reward
-		if err := uow.UserRepository().UpdateBalance(ctx, userID, newBalance); err != nil {
-			return fmt.Errorf("failed to update user balance: %w", err)
-		}
-		user.Balance = newBalance
-	}
-
-	// Record balance history
+	// Record balance history for wordle reward
 	balanceHistory := &entities.BalanceHistory{
 		DiscordID:       userID,
 		GuildID:         guildID,

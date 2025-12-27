@@ -26,7 +26,16 @@ func TestHighRollerPurchaseRepository_GetLatestPurchase(t *testing.T) {
 
 	t.Run("latest purchase found", func(t *testing.T) {
 		guildID := int64(123456)
-		
+
+		// Create users first (required for FK constraint)
+		userRepo := NewUserRepository(testDB.DB)
+		_, err := userRepo.Create(ctx, 111, "user111", 100000)
+		require.NoError(t, err)
+		_, err = userRepo.Create(ctx, 222, "user222", 100000)
+		require.NoError(t, err)
+		_, err = userRepo.Create(ctx, 333, "user333", 100000)
+		require.NoError(t, err)
+
 		// Create multiple purchases with different timestamps
 		purchase1 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, 111, 10000, time.Now().Add(-2*time.Hour))
 		purchase2 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, 222, 20000, time.Now().Add(-1*time.Hour))
@@ -34,8 +43,8 @@ func TestHighRollerPurchaseRepository_GetLatestPurchase(t *testing.T) {
 
 		// Create scoped repository for the transaction
 		scopedRepo := NewHighRollerPurchaseRepositoryScoped(testDB.DB.Pool, guildID)
-		
-		err := scopedRepo.CreatePurchase(ctx, purchase1)
+
+		err = scopedRepo.CreatePurchase(ctx, purchase1)
 		require.NoError(t, err)
 		err = scopedRepo.CreatePurchase(ctx, purchase2)
 		require.NoError(t, err)
@@ -57,15 +66,22 @@ func TestHighRollerPurchaseRepository_GetLatestPurchase(t *testing.T) {
 	t.Run("multiple guilds - returns correct guild's latest", func(t *testing.T) {
 		guild1ID := int64(111111)
 		guild2ID := int64(222222)
-		
+
+		// Create users first (required for FK constraint)
+		userRepo := NewUserRepository(testDB.DB)
+		_, err := userRepo.Create(ctx, 444, "user444", 100000)
+		require.NoError(t, err)
+		_, err = userRepo.Create(ctx, 555, "user555", 100000)
+		require.NoError(t, err)
+
 		// Create purchases for different guilds
 		purchase1 := testutil.CreateTestHighRollerPurchaseWithTime(guild1ID, 444, 40000, time.Now().Add(-1*time.Hour))
 		purchase2 := testutil.CreateTestHighRollerPurchaseWithTime(guild2ID, 555, 50000, time.Now())
 
 		scopedRepo1 := NewHighRollerPurchaseRepositoryScoped(testDB.DB.Pool, guild1ID)
 		scopedRepo2 := NewHighRollerPurchaseRepositoryScoped(testDB.DB.Pool, guild2ID)
-		
-		err := scopedRepo1.CreatePurchase(ctx, purchase1)
+
+		err = scopedRepo1.CreatePurchase(ctx, purchase1)
 		require.NoError(t, err)
 		err = scopedRepo2.CreatePurchase(ctx, purchase2)
 		require.NoError(t, err)
@@ -94,10 +110,15 @@ func TestHighRollerPurchaseRepository_CreatePurchase(t *testing.T) {
 	guildID := int64(123456)
 
 	t.Run("successful creation", func(t *testing.T) {
+		// Create user first (required for FK constraint)
+		userRepo := NewUserRepository(testDB.DB)
+		_, err := userRepo.Create(ctx, 789, "user789", 100000)
+		require.NoError(t, err)
+
 		purchase := testutil.CreateTestHighRollerPurchase(guildID, 789, 25000)
-		
+
 		scopedRepo := NewHighRollerPurchaseRepositoryScoped(testDB.DB.Pool, guildID)
-		err := scopedRepo.CreatePurchase(ctx, purchase)
+		err = scopedRepo.CreatePurchase(ctx, purchase)
 		require.NoError(t, err)
 
 		// Verify the purchase was created with an ID
@@ -127,12 +148,19 @@ func TestHighRollerPurchaseRepository_CreatePurchase(t *testing.T) {
 	})
 
 	t.Run("multiple purchases same guild", func(t *testing.T) {
-		purchase1 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, 111, 10000, time.Now().Add(-1*time.Hour))
-		purchase2 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, 222, 20000, time.Now())
-		
+		// Create users first (required for FK constraint)
+		userRepo := NewUserRepository(testDB.DB)
+		_, err := userRepo.Create(ctx, 1111, "user1111", 100000)
+		require.NoError(t, err)
+		_, err = userRepo.Create(ctx, 2222, "user2222", 100000)
+		require.NoError(t, err)
+
+		purchase1 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, 1111, 10000, time.Now().Add(-1*time.Hour))
+		purchase2 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, 2222, 20000, time.Now())
+
 		scopedRepo := NewHighRollerPurchaseRepositoryScoped(testDB.DB.Pool, guildID)
-		
-		err := scopedRepo.CreatePurchase(ctx, purchase1)
+
+		err = scopedRepo.CreatePurchase(ctx, purchase1)
 		require.NoError(t, err)
 		err = scopedRepo.CreatePurchase(ctx, purchase2)
 		require.NoError(t, err)
@@ -166,7 +194,14 @@ func TestHighRollerPurchaseRepository_GetPurchaseHistory(t *testing.T) {
 
 	t.Run("purchase history with limit", func(t *testing.T) {
 		guildID := int64(654321)
-		
+
+		// Create users first (required for FK constraint)
+		userRepo := NewUserRepository(testDB.DB)
+		for _, id := range []int64{1110, 2220, 3330, 4440, 5550} {
+			_, err := userRepo.Create(ctx, id, "user", 100000)
+			require.NoError(t, err)
+		}
+
 		// Create 5 purchases with different timestamps
 		baseTime := time.Now()
 		type purchaseData struct {
@@ -176,15 +211,15 @@ func TestHighRollerPurchaseRepository_GetPurchaseHistory(t *testing.T) {
 			Time      time.Time
 		}
 		purchases := []purchaseData{
-			{GuildID: guildID, DiscordID: 111, Price: 10000, Time: baseTime.Add(-4 * time.Hour)},
-			{GuildID: guildID, DiscordID: 222, Price: 20000, Time: baseTime.Add(-3 * time.Hour)},
-			{GuildID: guildID, DiscordID: 333, Price: 30000, Time: baseTime.Add(-2 * time.Hour)},
-			{GuildID: guildID, DiscordID: 444, Price: 40000, Time: baseTime.Add(-1 * time.Hour)},
-			{GuildID: guildID, DiscordID: 555, Price: 50000, Time: baseTime},
+			{GuildID: guildID, DiscordID: 1110, Price: 10000, Time: baseTime.Add(-4 * time.Hour)},
+			{GuildID: guildID, DiscordID: 2220, Price: 20000, Time: baseTime.Add(-3 * time.Hour)},
+			{GuildID: guildID, DiscordID: 3330, Price: 30000, Time: baseTime.Add(-2 * time.Hour)},
+			{GuildID: guildID, DiscordID: 4440, Price: 40000, Time: baseTime.Add(-1 * time.Hour)},
+			{GuildID: guildID, DiscordID: 5550, Price: 50000, Time: baseTime},
 		}
 
 		scopedRepo := NewHighRollerPurchaseRepositoryScoped(testDB.DB.Pool, guildID)
-		
+
 		for _, p := range purchases {
 			purchase := testutil.CreateTestHighRollerPurchaseWithTime(p.GuildID, p.DiscordID, p.Price, p.Time)
 			err := scopedRepo.CreatePurchase(ctx, purchase)
@@ -197,9 +232,9 @@ func TestHighRollerPurchaseRepository_GetPurchaseHistory(t *testing.T) {
 		require.Len(t, history, 3)
 
 		// Should be ordered by purchased_at DESC (most recent first)
-		assert.Equal(t, int64(555), history[0].DiscordID) // Most recent
-		assert.Equal(t, int64(444), history[1].DiscordID)
-		assert.Equal(t, int64(333), history[2].DiscordID)
+		assert.Equal(t, int64(5550), history[0].DiscordID) // Most recent
+		assert.Equal(t, int64(4440), history[1].DiscordID)
+		assert.Equal(t, int64(3330), history[2].DiscordID)
 
 		// Verify all have correct guild ID
 		for _, h := range history {
@@ -209,14 +244,21 @@ func TestHighRollerPurchaseRepository_GetPurchaseHistory(t *testing.T) {
 
 	t.Run("purchase history full list", func(t *testing.T) {
 		guildID := int64(789012)
-		
+
+		// Create users first (required for FK constraint)
+		userRepo := NewUserRepository(testDB.DB)
+		_, err := userRepo.Create(ctx, 6660, "user6660", 100000)
+		require.NoError(t, err)
+		_, err = userRepo.Create(ctx, 7770, "user7770", 100000)
+		require.NoError(t, err)
+
 		// Create 2 purchases
-		purchase1 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, 666, 60000, time.Now().Add(-1*time.Hour))
-		purchase2 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, 777, 70000, time.Now())
+		purchase1 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, 6660, 60000, time.Now().Add(-1*time.Hour))
+		purchase2 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, 7770, 70000, time.Now())
 
 		scopedRepo := NewHighRollerPurchaseRepositoryScoped(testDB.DB.Pool, guildID)
-		
-		err := scopedRepo.CreatePurchase(ctx, purchase1)
+
+		err = scopedRepo.CreatePurchase(ctx, purchase1)
 		require.NoError(t, err)
 		err = scopedRepo.CreatePurchase(ctx, purchase2)
 		require.NoError(t, err)
@@ -227,22 +269,29 @@ func TestHighRollerPurchaseRepository_GetPurchaseHistory(t *testing.T) {
 		require.Len(t, history, 2)
 
 		// Should be ordered by purchased_at DESC
-		assert.Equal(t, int64(777), history[0].DiscordID) // Most recent
-		assert.Equal(t, int64(666), history[1].DiscordID)
+		assert.Equal(t, int64(7770), history[0].DiscordID) // Most recent
+		assert.Equal(t, int64(6660), history[1].DiscordID)
 	})
 
 	t.Run("multiple guilds - returns correct guild's history", func(t *testing.T) {
 		guild1ID := int64(111111)
 		guild2ID := int64(222222)
-		
+
+		// Create users first (required for FK constraint)
+		userRepo := NewUserRepository(testDB.DB)
+		_, err := userRepo.Create(ctx, 8880, "user8880", 100000)
+		require.NoError(t, err)
+		_, err = userRepo.Create(ctx, 9990, "user9990", 100000)
+		require.NoError(t, err)
+
 		// Create purchases for different guilds
-		purchase1 := testutil.CreateTestHighRollerPurchase(guild1ID, 888, 80000)
-		purchase2 := testutil.CreateTestHighRollerPurchase(guild2ID, 999, 90000)
+		purchase1 := testutil.CreateTestHighRollerPurchase(guild1ID, 8880, 80000)
+		purchase2 := testutil.CreateTestHighRollerPurchase(guild2ID, 9990, 90000)
 
 		scopedRepo1 := NewHighRollerPurchaseRepositoryScoped(testDB.DB.Pool, guild1ID)
 		scopedRepo2 := NewHighRollerPurchaseRepositoryScoped(testDB.DB.Pool, guild2ID)
-		
-		err := scopedRepo1.CreatePurchase(ctx, purchase1)
+
+		err = scopedRepo1.CreatePurchase(ctx, purchase1)
 		require.NoError(t, err)
 		err = scopedRepo2.CreatePurchase(ctx, purchase2)
 		require.NoError(t, err)
@@ -252,14 +301,14 @@ func TestHighRollerPurchaseRepository_GetPurchaseHistory(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, history1, 1)
 		assert.Equal(t, guild1ID, history1[0].GuildID)
-		assert.Equal(t, int64(888), history1[0].DiscordID)
+		assert.Equal(t, int64(8880), history1[0].DiscordID)
 
 		// Get history for guild2
 		history2, err := repo.GetPurchaseHistory(ctx, guild2ID, 10)
 		require.NoError(t, err)
 		require.Len(t, history2, 1)
 		assert.Equal(t, guild2ID, history2[0].GuildID)
-		assert.Equal(t, int64(999), history2[0].DiscordID)
+		assert.Equal(t, int64(9990), history2[0].DiscordID)
 	})
 }
 
@@ -281,14 +330,19 @@ func TestHighRollerPurchaseRepository_GetUserTotalDurationSince(t *testing.T) {
 
 	t.Run("single purchase - current holder", func(t *testing.T) {
 		guildID := int64(100002)
-		userID := int64(111)
+		userID := int64(11100)
 		purchaseTime := time.Now().Add(-2 * time.Hour)
 		startTime := time.Now().Add(-24 * time.Hour)
+
+		// Create user first (required for FK constraint)
+		userRepo := NewUserRepository(testDB.DB)
+		_, err := userRepo.Create(ctx, userID, "user11100", 100000)
+		require.NoError(t, err)
 
 		// Create single purchase (user still holds it)
 		purchase := testutil.CreateTestHighRollerPurchaseWithTime(guildID, userID, 10000, purchaseTime)
 		scopedRepo := NewHighRollerPurchaseRepositoryScoped(testDB.DB.Pool, guildID)
-		err := scopedRepo.CreatePurchase(ctx, purchase)
+		err = scopedRepo.CreatePurchase(ctx, purchase)
 		require.NoError(t, err)
 
 		// Calculate duration
@@ -302,16 +356,23 @@ func TestHighRollerPurchaseRepository_GetUserTotalDurationSince(t *testing.T) {
 
 	t.Run("multiple purchases by same user - cumulative", func(t *testing.T) {
 		guildID := int64(100003)
-		userA := int64(222)
-		userB := int64(333)
+		userA := int64(22200)
+		userB := int64(33300)
 		baseTime := time.Now()
 		startTime := baseTime.Add(-5 * time.Hour)
+
+		// Create users first (required for FK constraint)
+		userRepo := NewUserRepository(testDB.DB)
+		_, err := userRepo.Create(ctx, userA, "userA", 100000)
+		require.NoError(t, err)
+		_, err = userRepo.Create(ctx, userB, "userB", 100000)
+		require.NoError(t, err)
 
 		scopedRepo := NewHighRollerPurchaseRepositoryScoped(testDB.DB.Pool, guildID)
 
 		// User A: Purchase at T-4h, held for 1h until User B took it
 		purchase1 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, userA, 10000, baseTime.Add(-4*time.Hour))
-		err := scopedRepo.CreatePurchase(ctx, purchase1)
+		err = scopedRepo.CreatePurchase(ctx, purchase1)
 		require.NoError(t, err)
 
 		// User B: Purchase at T-3h, held for 2h until User A took it back
@@ -340,76 +401,95 @@ func TestHighRollerPurchaseRepository_GetUserTotalDurationSince(t *testing.T) {
 		baseTime := time.Now()
 		startTime := baseTime.Add(-10 * time.Hour)
 
+		// Create users first (required for FK constraint)
+		userRepo := NewUserRepository(testDB.DB)
+		for _, id := range []int64{44400, 55500, 66600} {
+			_, err := userRepo.Create(ctx, id, "user", 100000)
+			require.NoError(t, err)
+		}
+
 		scopedRepo := NewHighRollerPurchaseRepositoryScoped(testDB.DB.Pool, guildID)
 
 		// User 1: Held for 3 hours
-		purchase1 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, 444, 10000, baseTime.Add(-9*time.Hour))
+		purchase1 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, 44400, 10000, baseTime.Add(-9*time.Hour))
 		err := scopedRepo.CreatePurchase(ctx, purchase1)
 		require.NoError(t, err)
 
 		// User 2: Held for 4 hours
-		purchase2 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, 555, 20000, baseTime.Add(-6*time.Hour))
+		purchase2 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, 55500, 20000, baseTime.Add(-6*time.Hour))
 		err = scopedRepo.CreatePurchase(ctx, purchase2)
 		require.NoError(t, err)
 
 		// User 3: Current holder, held for 2 hours
-		purchase3 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, 666, 30000, baseTime.Add(-2*time.Hour))
+		purchase3 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, 66600, 30000, baseTime.Add(-2*time.Hour))
 		err = scopedRepo.CreatePurchase(ctx, purchase3)
 		require.NoError(t, err)
 
 		// Verify each user's individual duration
-		duration1, err := repo.GetUserTotalDurationSince(ctx, guildID, 444, startTime)
+		duration1, err := repo.GetUserTotalDurationSince(ctx, guildID, 44400, startTime)
 		require.NoError(t, err)
 		assert.InDelta(t, (3 * time.Hour).Seconds(), duration1.Seconds(), 2.0)
 
-		duration2, err := repo.GetUserTotalDurationSince(ctx, guildID, 555, startTime)
+		duration2, err := repo.GetUserTotalDurationSince(ctx, guildID, 55500, startTime)
 		require.NoError(t, err)
 		assert.InDelta(t, (4 * time.Hour).Seconds(), duration2.Seconds(), 2.0)
 
-		duration3, err := repo.GetUserTotalDurationSince(ctx, guildID, 666, startTime)
+		duration3, err := repo.GetUserTotalDurationSince(ctx, guildID, 66600, startTime)
 		require.NoError(t, err)
 		assert.InDelta(t, (2 * time.Hour).Seconds(), duration3.Seconds(), 2.0)
 	})
 
 	t.Run("tracking start time filtering", func(t *testing.T) {
 		guildID := int64(100005)
-		userID := int64(777)
+		userID := int64(77700)
 		baseTime := time.Now()
 		startTime := baseTime.Add(-5 * time.Hour)
+
+		// Create users first (required for FK constraint)
+		userRepo := NewUserRepository(testDB.DB)
+		_, err := userRepo.Create(ctx, userID, "user77700", 100000)
+		require.NoError(t, err)
+		_, err = userRepo.Create(ctx, 88800, "user88800", 100000)
+		require.NoError(t, err)
 
 		scopedRepo := NewHighRollerPurchaseRepositoryScoped(testDB.DB.Pool, guildID)
 
 		// Purchase BEFORE start time (should not count)
 		purchase1 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, userID, 10000, baseTime.Add(-10*time.Hour))
-		err := scopedRepo.CreatePurchase(ctx, purchase1)
+		err = scopedRepo.CreatePurchase(ctx, purchase1)
 		require.NoError(t, err)
 
 		// Purchase AFTER start time (should count)
-		purchase2 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, 888, 20000, baseTime.Add(-4*time.Hour))
+		purchase2 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, 88800, 20000, baseTime.Add(-4*time.Hour))
 		err = scopedRepo.CreatePurchase(ctx, purchase2)
 		require.NoError(t, err)
 
-		// User 777's purchase is before start time, should return 0
+		// User 77700's purchase is before start time, should return 0
 		duration777, err := repo.GetUserTotalDurationSince(ctx, guildID, userID, startTime)
 		require.NoError(t, err)
 		assert.Equal(t, time.Duration(0), duration777)
 
-		// User 888's purchase is after start time, should count
-		duration888, err := repo.GetUserTotalDurationSince(ctx, guildID, 888, startTime)
+		// User 88800's purchase is after start time, should count
+		duration888, err := repo.GetUserTotalDurationSince(ctx, guildID, 88800, startTime)
 		require.NoError(t, err)
 		assert.InDelta(t, (4 * time.Hour).Seconds(), duration888.Seconds(), 2.0)
 	})
 
 	t.Run("purchase at exact start time - should be included", func(t *testing.T) {
 		guildID := int64(100006)
-		userID := int64(999)
+		userID := int64(99900)
 		startTime := time.Now().Add(-3 * time.Hour)
+
+		// Create user first (required for FK constraint)
+		userRepo := NewUserRepository(testDB.DB)
+		_, err := userRepo.Create(ctx, userID, "user99900", 100000)
+		require.NoError(t, err)
 
 		scopedRepo := NewHighRollerPurchaseRepositoryScoped(testDB.DB.Pool, guildID)
 
 		// Purchase at EXACT start time (should be included)
 		purchase := testutil.CreateTestHighRollerPurchaseWithTime(guildID, userID, 10000, startTime)
-		err := scopedRepo.CreatePurchase(ctx, purchase)
+		err = scopedRepo.CreatePurchase(ctx, purchase)
 		require.NoError(t, err)
 
 		duration, err := repo.GetUserTotalDurationSince(ctx, guildID, userID, startTime)
@@ -424,6 +504,13 @@ func TestHighRollerPurchaseRepository_GetUserTotalDurationSince(t *testing.T) {
 		baseTime := time.Now()
 		startTime := baseTime.Add(-10 * time.Hour)
 
+		// Create users first (required for FK constraint)
+		userRepo := NewUserRepository(testDB.DB)
+		for _, id := range []int64{11101, 22201, 33301} {
+			_, err := userRepo.Create(ctx, id, "user", 100000)
+			require.NoError(t, err)
+		}
+
 		scopedRepo := NewHighRollerPurchaseRepositoryScoped(testDB.DB.Pool, guildID)
 
 		// Simulate realistic role transfers:
@@ -437,11 +524,11 @@ func TestHighRollerPurchaseRepository_GetUserTotalDurationSince(t *testing.T) {
 			userID int64
 			time   time.Time
 		}{
-			{111, baseTime.Add(-9 * time.Hour)}, // User A starts
-			{222, baseTime.Add(-7 * time.Hour)}, // User B takes over
-			{333, baseTime.Add(-5 * time.Hour)}, // User C takes over
-			{111, baseTime.Add(-4 * time.Hour)}, // User A takes back
-			{222, baseTime.Add(-2 * time.Hour)}, // User B takes back
+			{11101, baseTime.Add(-9 * time.Hour)}, // User A starts
+			{22201, baseTime.Add(-7 * time.Hour)}, // User B takes over
+			{33301, baseTime.Add(-5 * time.Hour)}, // User C takes over
+			{11101, baseTime.Add(-4 * time.Hour)}, // User A takes back
+			{22201, baseTime.Add(-2 * time.Hour)}, // User B takes back
 		}
 
 		for i, p := range purchases {
@@ -451,17 +538,17 @@ func TestHighRollerPurchaseRepository_GetUserTotalDurationSince(t *testing.T) {
 		}
 
 		// User A: 2h (first) + 2h (second) = 4h total
-		durationA, err := repo.GetUserTotalDurationSince(ctx, guildID, 111, startTime)
+		durationA, err := repo.GetUserTotalDurationSince(ctx, guildID, 11101, startTime)
 		require.NoError(t, err)
 		assert.InDelta(t, (4 * time.Hour).Seconds(), durationA.Seconds(), 2.0)
 
 		// User B: 2h (first) + 2h (current) = 4h total
-		durationB, err := repo.GetUserTotalDurationSince(ctx, guildID, 222, startTime)
+		durationB, err := repo.GetUserTotalDurationSince(ctx, guildID, 22201, startTime)
 		require.NoError(t, err)
 		assert.InDelta(t, (4 * time.Hour).Seconds(), durationB.Seconds(), 2.0)
 
 		// User C: 1h (only period)
-		durationC, err := repo.GetUserTotalDurationSince(ctx, guildID, 333, startTime)
+		durationC, err := repo.GetUserTotalDurationSince(ctx, guildID, 33301, startTime)
 		require.NoError(t, err)
 		assert.InDelta(t, (1 * time.Hour).Seconds(), durationC.Seconds(), 2.0)
 	})
@@ -470,15 +557,20 @@ func TestHighRollerPurchaseRepository_GetUserTotalDurationSince(t *testing.T) {
 		guildID := int64(100008)
 		startTime := time.Now().Add(-24 * time.Hour)
 
+		// Create user first (required for FK constraint)
+		userRepo := NewUserRepository(testDB.DB)
+		_, err := userRepo.Create(ctx, 11102, "user11102", 100000)
+		require.NoError(t, err)
+
 		scopedRepo := NewHighRollerPurchaseRepositoryScoped(testDB.DB.Pool, guildID)
 
 		// Create purchases for other users
-		purchase1 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, 111, 10000, time.Now().Add(-5*time.Hour))
-		err := scopedRepo.CreatePurchase(ctx, purchase1)
+		purchase1 := testutil.CreateTestHighRollerPurchaseWithTime(guildID, 11102, 10000, time.Now().Add(-5*time.Hour))
+		err = scopedRepo.CreatePurchase(ctx, purchase1)
 		require.NoError(t, err)
 
 		// Query for user who never purchased
-		duration, err := repo.GetUserTotalDurationSince(ctx, guildID, 999, startTime)
+		duration, err := repo.GetUserTotalDurationSince(ctx, guildID, 99999, startTime)
 		require.NoError(t, err)
 		assert.Equal(t, time.Duration(0), duration)
 	})

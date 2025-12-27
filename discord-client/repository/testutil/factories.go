@@ -172,6 +172,13 @@ func CreateTestHighRollerPurchase(guildID, discordID int64, purchasePrice int64)
 	}
 }
 
+// CreateTestWordleCompletion creates a test wordle completion with default values
+func CreateTestWordleCompletion(discordID, guildID int64, guessCount int) *entities.WordleCompletion {
+	score, _ := entities.NewWordleScore(guessCount)
+	completion, _ := entities.NewWordleCompletion(discordID, guildID, score, time.Now())
+	return completion
+}
+
 // CreateTestHighRollerPurchaseWithTime creates a test high roller purchase with a specific time
 func CreateTestHighRollerPurchaseWithTime(guildID, discordID int64, purchasePrice int64, purchasedAt time.Time) *entities.HighRollerPurchase {
 	purchase := CreateTestHighRollerPurchase(guildID, discordID, purchasePrice)
