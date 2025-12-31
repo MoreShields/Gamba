@@ -78,7 +78,7 @@ func buildActionButtons(lastAmount, balance int64) []discordgo.MessageComponent 
 	// Create buttons
 	buttons := []discordgo.MessageComponent{
 		discordgo.Button{
-			Label:    "🎲 New Bet",
+			Label:    "🎯 Change Odds",
 			Style:    discordgo.PrimaryButton,
 			CustomID: "bet_new",
 		},

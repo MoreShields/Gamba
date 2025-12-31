@@ -12,6 +12,34 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// validateEmbedOwnership checks if the clicker can use this embed.
+// Returns true if they can proceed, false if they cannot (error already sent).
+func validateEmbedOwnership(s *discordgo.Session, i *discordgo.InteractionCreate, clickerID int64, messageID string, channelID string, balance int64) bool {
+	ownerID := getSessionOwnerByMessageID(messageID)
+
+	if ownerID == clickerID {
+		// Clicker owns this message - proceed
+		return true
+	}
+
+	if ownerID != 0 {
+		// Someone else owns this message
+		common.RespondWithError(s, i, "Get your own!")
+		return false
+	}
+
+	// Message not in map - check if clicker has an active session elsewhere
+	existingSession := getBetSession(clickerID)
+	if existingSession != nil {
+		common.RespondWithError(s, i, "You have a more recent gamble message!")
+		return false
+	}
+
+	// Adopt this orphan message - create session for clicker
+	createBetSession(clickerID, messageID, channelID, balance)
+	return true
+}
+
 // prepareGambleData gets user data and prepares embed/components for gambling
 func (f *Feature) prepareGambleData(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) (*discordgo.MessageEmbed, []discordgo.MessageComponent, int64, error) {
 	// Parse user ID
@@ -141,15 +169,14 @@ func (f *Feature) handleOddsSelection(s *discordgo.Session, i *discordgo.Interac
 	}
 	odds := float64(oddsInt) / 100.0
 
-	// Get user session
+	// Get user ID and message info
 	discordID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
 	if err != nil {
 		log.Errorf("Error parsing Discord ID: %v", err)
 		return
 	}
-
-	// Update session with selected odds
-	updateBetSession(discordID, odds, 0)
+	messageID := i.Message.ID
+	channelID := i.ChannelID
 
 	// Create guild-scoped unit of work
 	uow, err := f.createUnitOfWork(ctx, i)
@@ -181,6 +208,14 @@ func (f *Feature) handleOddsSelection(s *discordgo.Session, i *discordgo.Interac
 		common.RespondWithError(s, i, "Unable to process request. Please try again.")
 		return
 	}
+
+	// Validate ownership before proceeding (may create session for adoption)
+	if !validateEmbedOwnership(s, i, discordID, messageID, channelID, user.AvailableBalance) {
+		return // Error already sent
+	}
+
+	// Update session with selected odds
+	updateBetSession(discordID, odds, 0)
 
 	// Update session balance
 	updateSessionBalance(discordID, user.AvailableBalance, false)
@@ -255,26 +290,29 @@ func (f *Feature) handleBetModal(s *discordgo.Session, i *discordgo.InteractionC
 	}
 }
 
-// handleNewBet starts a fresh bet
+// handleNewBet shows odds selection on the existing embed (preserves session P&L)
 func (f *Feature) handleNewBet(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	ctx := context.Background()
 
-	// Get current user balance
+	// Get current user ID and message info
 	discordID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
 	if err != nil {
 		log.Errorf("Error parsing Discord ID: %v", err)
 		return
 	}
+	messageID := i.Message.ID
+	channelID := i.ChannelID
 
-	// Create guild-scoped unit of work
+	// Create guild-scoped unit of work to get balance
 	uow, err := f.createUnitOfWork(ctx, i)
 	if err != nil {
 		log.Errorf("Error creating unit of work: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
 		return
 	}
 	defer uow.Rollback()
 
-	// Instantiate services with repositories from UnitOfWork
+	// Get user balance
 	userService := services.NewUserService(
 		uow.UserRepository(),
 		uow.BalanceHistoryRepository(),
@@ -284,39 +322,39 @@ func (f *Feature) handleNewBet(s *discordgo.Session, i *discordgo.InteractionCre
 	user, err := userService.GetOrCreateUser(ctx, discordID, i.Member.User.Username)
 	if err != nil {
 		log.Errorf("Error getting user %d: %v", discordID, err)
+		common.RespondWithError(s, i, "Unable to fetch balance. Please try again.")
 		return
 	}
 
-	// Commit the transaction
 	if err := uow.Commit(); err != nil {
 		log.Errorf("Error committing transaction: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
 		return
 	}
 
-	// Update session - reset PnL tracking for new bet session
-	session := getBetSession(discordID)
-	if session != nil {
-		session.CurrentBalance = user.AvailableBalance
-		session.StartingBalance = user.AvailableBalance
-		session.SessionPnL = 0
-		session.BetCount = 0
-		updateSessionBalance(session.UserID, user.AvailableBalance, false)
+	// Validate ownership before responding (may create session for adoption)
+	if !validateEmbedOwnership(s, i, discordID, messageID, channelID, user.AvailableBalance) {
+		return // Error already sent
 	}
 
-	// Show odds selection again as public message
+	// Now defer the update (we're committed to updating this message)
+	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredMessageUpdate,
+	})
+	if err != nil {
+		log.Errorf("Error deferring change odds response: %v", err)
+		return
+	}
+
+	// Update session balance (preserve P&L tracking) - use thread-safe helper
+	updateSessionBalance(discordID, user.AvailableBalance, false)
+
+	// Update existing message with odds selection
 	embed := buildInitialBetEmbed(user.AvailableBalance)
 	components := CreateInitialComponents()
 
-	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Embeds:     []*discordgo.MessageEmbed{embed},
-			Components: components,
-		},
-	})
-
-	if err != nil {
-		log.Errorf("Error showing new bet interface: %v", err)
+	if err := common.UpdateMessage(s, i, embed, components); err != nil {
+		log.Errorf("Error updating message with odds selection: %v", err)
 	}
 }
 
@@ -339,8 +377,50 @@ func (f *Feature) handleHalveBet(s *discordgo.Session, i *discordgo.InteractionC
 func (f *Feature) handleRepeatBet(s *discordgo.Session, i *discordgo.InteractionCreate, multiplier float64) {
 	ctx := context.Background()
 
+	// Get user ID and message info
+	discordID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
+	if err != nil {
+		log.Errorf("Error parsing Discord ID: %v", err)
+		return
+	}
+	messageID := i.Message.ID
+	channelID := i.ChannelID
+
+	// Create guild-scoped unit of work to get balance (needed for adoption case)
+	uow, err := f.createUnitOfWork(ctx, i)
+	if err != nil {
+		log.Errorf("Error creating unit of work: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+	defer uow.Rollback()
+
+	userService := services.NewUserService(
+		uow.UserRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
+	user, err := userService.GetOrCreateUser(ctx, discordID, i.Member.User.Username)
+	if err != nil {
+		log.Errorf("Error getting user %d: %v", discordID, err)
+		common.RespondWithError(s, i, "Unable to fetch balance. Please try again.")
+		return
+	}
+
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Error committing transaction: %v", err)
+		common.RespondWithError(s, i, "Unable to process request. Please try again.")
+		return
+	}
+
+	// Validate ownership before responding (may create session for adoption)
+	if !validateEmbedOwnership(s, i, discordID, messageID, channelID, user.AvailableBalance) {
+		return // Error already sent
+	}
+
 	// Acknowledge the button interaction with a deferred update (no new message)
-	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredMessageUpdate,
 	})
 	if err != nil {

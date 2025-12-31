@@ -21,7 +21,8 @@ type BetSession struct {
 }
 
 var (
-	betSessions   = make(map[int64]*BetSession)
+	betSessions   = make(map[int64]*BetSession) // userID → session
+	messageToUser = make(map[string]int64)      // messageID → userID (reverse lookup)
 	betSessionsMu sync.RWMutex
 )
 
@@ -33,6 +34,7 @@ func cleanupSessions() {
 	now := time.Now()
 	for userID, session := range betSessions {
 		if now.Sub(session.Timestamp) > time.Hour {
+			delete(messageToUser, session.MessageID)
 			delete(betSessions, userID)
 		}
 	}
@@ -45,10 +47,23 @@ func getBetSession(userID int64) *BetSession {
 	return betSessions[userID]
 }
 
+// getSessionOwnerByMessageID returns the owner's userID for a message, or 0 if not found
+func getSessionOwnerByMessageID(messageID string) int64 {
+	betSessionsMu.RLock()
+	defer betSessionsMu.RUnlock()
+	return messageToUser[messageID]
+}
+
 // createBetSession creates a new betting session
 func createBetSession(userID int64, messageID, channelID string, balance int64) {
 	betSessionsMu.Lock()
 	defer betSessionsMu.Unlock()
+
+	// Clean up old message mapping if user had previous session
+	if oldSession, exists := betSessions[userID]; exists {
+		delete(messageToUser, oldSession.MessageID)
+	}
+
 	betSessions[userID] = &BetSession{
 		UserID:          userID,
 		MessageID:       messageID,
@@ -59,6 +74,7 @@ func createBetSession(userID int64, messageID, channelID string, balance int64) 
 		BetCount:        0,
 		Timestamp:       time.Now(),
 	}
+	messageToUser[messageID] = userID
 }
 
 // updateBetSession updates an existing betting session
@@ -90,5 +106,8 @@ func updateSessionBalance(userID int64, newBalance int64, betPlaced bool) {
 func deleteBetSession(userID int64) {
 	betSessionsMu.Lock()
 	defer betSessionsMu.Unlock()
+	if session, exists := betSessions[userID]; exists {
+		delete(messageToUser, session.MessageID)
+	}
 	delete(betSessions, userID)
 }
