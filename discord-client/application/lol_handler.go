@@ -28,22 +28,15 @@ func NewLoLHandler(
 
 // formatQueueType converts queue type strings to user-friendly display names.
 // Returns an empty string for unknown queue types.
+// Only ranked queue types are supported to restrict wagers to competitive games.
 func formatQueueType(queueType string) string {
 	switch queueType {
 	case "RANKED_SOLO_5x5":
 		return "Ranked Solo/Duo"
 	case "RANKED_FLEX_SR":
 		return "Ranked Flex"
-	case "NORMAL_DRAFT", "NORMAL_BLIND":
-		return "Normal SR"
-	case "ARAM":
-		return "ARAM"
-	case "CLASH":
-		return "Clash"
-	case "ARENA":
-		return "Arena"
 	default:
-		return "" // Unknown queue type
+		return "" // Unknown or non-ranked queue type
 	}
 }
 

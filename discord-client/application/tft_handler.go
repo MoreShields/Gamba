@@ -27,26 +27,15 @@ func NewTFTHandler(
 
 // formatTFTQueueType converts TFT queue type strings to user-friendly display names.
 // Returns an empty string for unknown queue types.
+// Only ranked queue types are supported to restrict wagers to competitive games.
 func formatTFTQueueType(queueType string) string {
 	switch queueType {
 	case "TFT_RANKED":
 		return "Ranked TFT"
-	case "TFT_NORMAL":
-		return "Normal TFT"
-	case "TFT_HYPER_ROLL":
-		return "Hyper Roll"
-	case "TFT_DOUBLE_UP":
-		return "Double Up"
-	case "TFT_NORMAL_HYPER_ROLL":
-		return "Normal Hyper Roll"
-	case "TFT_NORMAL_DOUBLE_UP":
-		return "Normal Double Up"
 	case "TFT_RANKED_DOUBLE_UP":
 		return "Ranked Double Up"
-	case "TFT_TUTORIAL":
-		return "Tutorial"
 	default:
-		return "" // Unknown queue type
+		return "" // Unknown or non-ranked queue type
 	}
 }
 

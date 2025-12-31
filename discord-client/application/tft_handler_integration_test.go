@@ -355,9 +355,9 @@ func TestTFTHandler_DoubleUpPlacement(t *testing.T) {
 		expectedOptions   []string
 		expectedWinOption string
 	}{
-		// Double Up games (4 teams)
-		{"Double Up 1st", "TFT_NORMAL_DOUBLE_UP", 1, []string{"1", "2", "3", "4"}, "1"},
-		{"Double Up 2nd", "TFT_NORMAL_DOUBLE_UP", 2, []string{"1", "2", "3", "4"}, "2"},
+		// Double Up games (4 teams) - only ranked queue types create wagers
+		{"Double Up 1st", "TFT_RANKED_DOUBLE_UP", 1, []string{"1", "2", "3", "4"}, "1"},
+		{"Double Up 2nd", "TFT_RANKED_DOUBLE_UP", 2, []string{"1", "2", "3", "4"}, "2"},
 		{"Double Up 3rd", "TFT_RANKED_DOUBLE_UP", 3, []string{"1", "2", "3", "4"}, "3"},
 		{"Double Up 4th", "TFT_RANKED_DOUBLE_UP", 4, []string{"1", "2", "3", "4"}, "4"},
 		// Regular TFT for comparison
