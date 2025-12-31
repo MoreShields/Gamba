@@ -753,6 +753,14 @@ func TestLotteryService_ConductDraw_WithWinner(t *testing.T) {
 			d.WinningNumber != nil
 	})).Return(nil)
 
+	// Setup guild settings for next draw creation
+	settings := createTestGuildSettings(guildID)
+	settingsRepo.On("GetOrCreateGuildSettings", mock.Anything, guildID).Return(settings, nil)
+
+	// Setup next draw creation
+	nextDraw := createTestDraw(2, guildID)
+	drawRepo.On("GetOrCreateCurrentDraw", mock.Anything, guildID, mock.AnythingOfType("time.Time"), int64(8), int64(1000)).Return(nextDraw, nil)
+
 	service := NewLotteryService(
 		drawRepo, ticketRepo, winnerRepo, userRepo, wagerRepo, groupWagerRepo,
 		balanceHistoryRepo, settingsRepo, eventPublisher,
@@ -829,6 +837,14 @@ func TestLotteryService_ConductDraw_MultipleWinners(t *testing.T) {
 	drawRepo.On("Update", mock.Anything, mock.MatchedBy(func(d *entities.LotteryDraw) bool {
 		return d.ID == draw.ID && d.CompletedAt != nil
 	})).Return(nil)
+
+	// Setup guild settings for next draw creation
+	settings := createTestGuildSettings(guildID)
+	settingsRepo.On("GetOrCreateGuildSettings", mock.Anything, guildID).Return(settings, nil)
+
+	// Setup next draw creation
+	nextDraw := createTestDraw(2, guildID)
+	drawRepo.On("GetOrCreateCurrentDraw", mock.Anything, guildID, mock.AnythingOfType("time.Time"), int64(8), int64(1000)).Return(nextDraw, nil)
 
 	service := NewLotteryService(
 		drawRepo, ticketRepo, winnerRepo, userRepo, wagerRepo, groupWagerRepo,

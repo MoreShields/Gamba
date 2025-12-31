@@ -21,12 +21,7 @@ type Config struct {
 	DatabaseName string
 
 	// Bot configuration
-	StartingBalance     int64
-	DailyGambleLimit    int64 // Daily gambling limit per user
-	DailyLimitResetHour int   // Hour in UTC when daily limit resets (0-23)
-
-	// LoL Wager Limits
-	MaxLolWagerPerGame int64 // Maximum bet amount per LoL/TFT game (-1 for no limit)
+	StartingBalance int64
 
 	// High Roller Role configuration
 	GambaChannelID string // Channel ID for high roller change notifications
@@ -100,12 +95,7 @@ func load() (*Config, error) {
 		DatabaseName: os.Getenv("DATABASE_NAME"),
 
 		// Bot settings with defaults
-		StartingBalance:     100000,
-		DailyGambleLimit:    100000, // 10k daily limit default
-		DailyLimitResetHour: 12,     // 12:00 PM UTC default
-
-		// LoL Wager Limit default
-		MaxLolWagerPerGame: 500000,
+		StartingBalance: 100000,
 
 		// High Roller Role
 		GambaChannelID: os.Getenv("GAMBA_CHANNEL_ID"),
@@ -133,19 +123,9 @@ func load() (*Config, error) {
 			config.StartingBalance = parsedBalance
 		}
 	}
-	if limit := os.Getenv("DAILY_GAMBLE_LIMIT"); limit != "" {
-		if parsedLimit, err := strconv.ParseInt(limit, 10, 64); err == nil {
-			config.DailyGambleLimit = parsedLimit
-		}
-	}
 	if reward := os.Getenv("WORDLE_REWARD_AMOUNT"); reward != "" {
 		if parsedReward, err := strconv.ParseInt(reward, 10, 64); err == nil {
 			config.WordleRewardAmount = parsedReward
-		}
-	}
-	if maxLolWager := os.Getenv("MAX_LOL_WAGER_PER_GAME"); maxLolWager != "" {
-		if parsedMax, err := strconv.ParseInt(maxLolWager, 10, 64); err == nil {
-			config.MaxLolWagerPerGame = parsedMax
 		}
 	}
 
@@ -214,11 +194,8 @@ func ResetConfig() {
 // NewTestConfig creates a minimal config suitable for unit tests
 func NewTestConfig() *Config {
 	return &Config{
-		Environment:         "test",
-		ResolverDiscordIDs:  []int64{999999, 999991, 999998}, // Default test resolver IDs
-		StartingBalance:     100000,
-		DailyGambleLimit:    10000,
-		DailyLimitResetHour: 0,
-		MaxLolWagerPerGame:  10000,
+		Environment:        "test",
+		ResolverDiscordIDs: []int64{999999, 999991, 999998}, // Default test resolver IDs
+		StartingBalance:    100000,
 	}
 }

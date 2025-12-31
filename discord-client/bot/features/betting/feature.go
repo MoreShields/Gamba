@@ -11,22 +11,14 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-// GamblingConfig holds gambling-specific configuration
-type GamblingConfig struct {
-	DailyGambleLimit    int64
-	DailyLimitResetHour int
-}
-
 // Feature represents the betting feature
 type Feature struct {
-	config     *GamblingConfig
 	uowFactory application.UnitOfWorkFactory
 }
 
 // New creates a new betting feature instance
-func New(config *GamblingConfig, uowFactory application.UnitOfWorkFactory) *Feature {
+func New(uowFactory application.UnitOfWorkFactory) *Feature {
 	f := &Feature{
-		config:     config,
 		uowFactory: uowFactory,
 	}
 

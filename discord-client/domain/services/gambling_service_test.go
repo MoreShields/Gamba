@@ -34,9 +34,6 @@ func TestGamblingService_PlaceBet_Win(t *testing.T) {
 		AvailableBalance: 10000,
 	}
 
-	// Mock for daily limit check
-	mockBetRepo.On("GetByUserSince", ctx, int64(123456), mock.AnythingOfType("time.Time")).Return([]*entities.Bet{}, nil)
-
 	mockUserRepo.On("GetByDiscordID", ctx, int64(123456)).Return(existingUser, nil)
 	mockUserRepo.On("UpdateBalance", ctx, int64(123456), int64(10010)).Return(nil) // Balance 10000 + 10 win = 10010
 
@@ -100,9 +97,6 @@ func TestGamblingService_PlaceBet_Loss(t *testing.T) {
 		Balance:          10000,
 		AvailableBalance: 10000,
 	}
-
-	// Mock for daily limit check
-	mockBetRepo.On("GetByUserSince", ctx, int64(123456), mock.AnythingOfType("time.Time")).Return([]*entities.Bet{}, nil)
 
 	mockUserRepo.On("GetByDiscordID", ctx, int64(123456)).Return(existingUser, nil)
 	mockUserRepo.On("UpdateBalance", ctx, int64(123456), int64(9000)).Return(nil) // Balance 10000 - 1000 bet = 9000
@@ -174,7 +168,6 @@ func TestGamblingService_PlaceBet_InvalidProbability(t *testing.T) {
 	assert.Contains(t, err.Error(), "win probability must be between 0 and 1 (exclusive)")
 
 	mockUserRepo.AssertNotCalled(t, "GetByDiscordID")
-	mockBetRepo.AssertNotCalled(t, "GetByUserSince")
 }
 
 func TestGamblingService_PlaceBet_InvalidAmount(t *testing.T) {
@@ -201,7 +194,6 @@ func TestGamblingService_PlaceBet_InvalidAmount(t *testing.T) {
 	assert.Contains(t, err.Error(), "bet amount must be positive")
 
 	mockUserRepo.AssertNotCalled(t, "GetByDiscordID")
-	mockBetRepo.AssertNotCalled(t, "GetByUserSince")
 }
 
 func TestGamblingService_PlaceBet_InsufficientBalance(t *testing.T) {
@@ -224,9 +216,6 @@ func TestGamblingService_PlaceBet_InsufficientBalance(t *testing.T) {
 		Balance:          500, // Less than bet amount
 		AvailableBalance: 500,
 	}
-
-	// Mock for daily limit check
-	mockBetRepo.On("GetByUserSince", ctx, int64(123456), mock.AnythingOfType("time.Time")).Return([]*entities.Bet{}, nil)
 
 	mockUserRepo.On("GetByDiscordID", ctx, int64(123456)).Return(existingUser, nil)
 	// No UpdateBalance call expected - service layer will catch insufficient balance before calling repository
@@ -256,9 +245,6 @@ func TestGamblingService_PlaceBet_UserNotFound(t *testing.T) {
 	mockEventPublisher := new(testhelpers.MockEventPublisher)
 
 	service := NewGamblingService(mockUserRepo, mockBetRepo, mockBalanceHistoryRepo, mockEventPublisher)
-
-	// Mock for daily limit check
-	mockBetRepo.On("GetByUserSince", ctx, int64(123456), mock.AnythingOfType("time.Time")).Return([]*entities.Bet{}, nil)
 
 	mockUserRepo.On("GetByDiscordID", ctx, int64(123456)).Return(nil, nil) // User not found
 
@@ -293,9 +279,6 @@ func TestGamblingService_PlaceBet_TransactionRollback(t *testing.T) {
 		Balance:          10000,
 		AvailableBalance: 10000,
 	}
-
-	// Mock for daily limit check
-	mockBetRepo.On("GetByUserSince", ctx, int64(123456), mock.AnythingOfType("time.Time")).Return([]*entities.Bet{}, nil)
 
 	mockUserRepo.On("GetByDiscordID", ctx, int64(123456)).Return(existingUser, nil)
 	// Accept any balance update - we're testing rollback, not the specific win/loss outcome

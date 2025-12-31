@@ -7,7 +7,6 @@ import (
 
 	"gambler/discord-client/bot/common"
 	"gambler/discord-client/domain/services"
-	"gambler/discord-client/domain/utils"
 
 	"github.com/bwmarrin/discordgo"
 	log "github.com/sirupsen/logrus"
@@ -123,47 +122,6 @@ func (f *Feature) processRepeatBet(ctx context.Context, s *discordgo.Session, i 
 	// Validate new amount
 	if err := validateBetAmount(newAmount, session.CurrentBalance); err != nil {
 		return fmt.Errorf("bet validation failed: %w", err)
-	}
-
-	// Create guild-scoped unit of work
-	uow, err := f.createUnitOfWork(ctx, i)
-	if err != nil {
-		log.Errorf("Error creating unit of work: %v", err)
-		return fmt.Errorf("unable to create transaction: %w", err)
-	}
-	defer uow.Rollback()
-
-	// Instantiate gambling service with repositories from UnitOfWork
-	gamblingService := services.NewGamblingService(
-		uow.UserRepository(),
-		uow.BetRepository(),
-		uow.BalanceHistoryRepository(),
-		uow.EventBus(),
-	)
-
-	// Check daily limit
-	remaining, err := gamblingService.CheckDailyLimit(ctx, discordID, newAmount)
-	if err != nil {
-		cfg := f.config
-		nextReset := utils.GetNextResetTime(cfg.DailyLimitResetHour)
-
-		var errorMsg string
-		if remaining <= 0 {
-			errorMsg = fmt.Sprintf(" Daily gambling limit of %s bits reached. Try again %s",
-				common.FormatBalance(cfg.DailyGambleLimit),
-				common.FormatDiscordTimestamp(nextReset, "R"))
-		} else {
-			errorMsg = fmt.Sprintf(" Bet would exceed daily limit. You have %s bits remaining (resets %s)",
-				common.FormatBalance(remaining),
-				common.FormatDiscordTimestamp(nextReset, "R"))
-		}
-		return fmt.Errorf("daily limit exceeded: %s", errorMsg)
-	}
-
-	// Commit the transaction
-	if err := uow.Commit(); err != nil {
-		log.Errorf("Error committing transaction: %v", err)
-		return fmt.Errorf("unable to commit transaction: %w", err)
 	}
 
 	// Process bet and update existing message

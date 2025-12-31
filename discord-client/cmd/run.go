@@ -9,7 +9,6 @@ import (
 
 	"gambler/discord-client/application"
 	"gambler/discord-client/bot"
-	"gambler/discord-client/bot/features/betting"
 	"gambler/discord-client/config"
 	"gambler/discord-client/database"
 	"gambler/discord-client/infrastructure"
@@ -164,11 +163,7 @@ func initializeDiscordBot(cfg *config.Config, uowFactory application.UnitOfWorkF
 		GuildID:        cfg.GuildID,
 		GambaChannelID: cfg.GambaChannelID,
 	}
-	gamblingConfig := &betting.GamblingConfig{
-		DailyGambleLimit:    cfg.DailyGambleLimit,
-		DailyLimitResetHour: cfg.DailyLimitResetHour,
-	}
-	discordBot, err := bot.New(botConfig, gamblingConfig, uowFactory, summonerClient, eventPublisher)
+	discordBot, err := bot.New(botConfig, uowFactory, summonerClient, eventPublisher)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize Discord bot: %w", err)
 	}

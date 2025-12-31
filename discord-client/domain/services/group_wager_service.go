@@ -198,15 +198,6 @@ func (s *groupWagerService) PlaceBet(ctx context.Context, groupWagerID int64, us
 		return nil, fmt.Errorf("invalid option ID")
 	}
 
-	// Check max wager limit for LoL and TFT games
-	if groupWager.ExternalRef != nil &&
-		(groupWager.ExternalRef.System == entities.SystemLeagueOfLegends ||
-			groupWager.ExternalRef.System == entities.SystemTFT) {
-		if s.config.MaxLolWagerPerGame > 0 && amount > s.config.MaxLolWagerPerGame {
-			return nil, fmt.Errorf("bet amount exceeds maximum of %s bits per game", utils.FormatShortNotation(s.config.MaxLolWagerPerGame))
-		}
-	}
-
 	// Check if user has sufficient balance
 	user, err := s.userRepo.GetByDiscordID(ctx, userID)
 	if err != nil {

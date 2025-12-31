@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"time"
 
-	"gambler/discord-client/config"
 	"gambler/discord-client/domain/entities"
 	"gambler/discord-client/domain/interfaces"
 	"gambler/discord-client/domain/utils"
@@ -36,25 +34,6 @@ func (s *gamblingService) PlaceBet(ctx context.Context, discordID int64, winProb
 	}
 	if betAmount <= 0 {
 		return nil, fmt.Errorf("bet amount must be positive")
-	}
-
-	// Check daily risk limit
-	cfg := config.Get()
-	limitStart := utils.GetCurrentPeriodStart(cfg.DailyLimitResetHour)
-
-	// Get total risk amount for the day
-	dailyRisk, err := s.GetDailyRiskAmount(ctx, discordID, limitStart)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check daily risk amount: %w", err)
-	}
-
-	// Check if adding this bet would exceed the daily limit
-	if dailyRisk+betAmount > cfg.DailyGambleLimit {
-		remainingLimit := cfg.DailyGambleLimit - dailyRisk
-		if remainingLimit <= 0 {
-			return nil, fmt.Errorf("daily gambling limit of %s bits reached", utils.FormatShortNotation(cfg.DailyGambleLimit))
-		}
-		return nil, fmt.Errorf("bet amount would exceed daily limit. You have %s bits remaining today", utils.FormatShortNotation(remainingLimit))
 	}
 
 	// Get current user state (for calculating new balance)
@@ -145,44 +124,3 @@ func (s *gamblingService) PlaceBet(ctx context.Context, discordID int64, winProb
 	}, nil
 }
 
-func (s *gamblingService) GetDailyRiskAmount(ctx context.Context, discordID int64, since time.Time) (int64, error) {
-	// Get all bets since the specified time
-	bets, err := s.betRepo.GetByUserSince(ctx, discordID, since)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get bets since %v: %w", since, err)
-	}
-
-	// Calculate total amount risked (not won, just the bet amounts)
-	var totalRisked int64
-	for _, bet := range bets {
-		totalRisked += bet.Amount
-	}
-
-	return totalRisked, nil
-}
-
-func (s *gamblingService) CheckDailyLimit(ctx context.Context, discordID int64, betAmount int64) (remaining int64, err error) {
-	cfg := config.Get()
-
-	// Get the current period start time
-	periodStart := utils.GetCurrentPeriodStart(cfg.DailyLimitResetHour)
-
-	// Get total risk amount for the current period
-	dailyRisk, err := s.GetDailyRiskAmount(ctx, discordID, periodStart)
-	if err != nil {
-		return 0, fmt.Errorf("failed to check daily risk amount: %w", err)
-	}
-
-	// Calculate remaining limit
-	remaining = cfg.DailyGambleLimit - dailyRisk
-
-	// Check if adding this bet would exceed the limit
-	if dailyRisk+betAmount > cfg.DailyGambleLimit {
-		if remaining <= 0 {
-			return 0, fmt.Errorf("daily gambling limit of %s bits reached", utils.FormatShortNotation(cfg.DailyGambleLimit))
-		}
-		return remaining, fmt.Errorf("bet amount of %s would exceed daily limit", utils.FormatShortNotation(betAmount))
-	}
-
-	return remaining, nil
-}

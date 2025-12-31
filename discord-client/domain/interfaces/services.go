@@ -23,13 +23,6 @@ type UserService interface {
 type GamblingService interface {
 	// PlaceBet places a bet for a user with the given win probability and amount
 	PlaceBet(ctx context.Context, discordID int64, winProbability float64, betAmount int64) (*entities.BetResult, error)
-
-	// GetDailyRiskAmount returns the total amount risked by a user since a given time
-	GetDailyRiskAmount(ctx context.Context, discordID int64, since time.Time) (int64, error)
-
-	// CheckDailyLimit checks if a bet amount would exceed the user's daily limit
-	// Returns remaining amount and any error
-	CheckDailyLimit(ctx context.Context, discordID int64, betAmount int64) (remaining int64, err error)
 }
 
 // WagerService defines the interface for wager operations

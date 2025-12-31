@@ -10,10 +10,10 @@ import (
 )
 
 // buildInitialBetEmbed creates the initial betting interface embed
-func buildInitialBetEmbed(balance int64, remaining int64) *discordgo.MessageEmbed {
+func buildInitialBetEmbed(balance int64) *discordgo.MessageEmbed {
 	return &discordgo.MessageEmbed{
 		Title:       "🎰 **Place Your Bet** 🎰",
-		Description: fmt.Sprintf("Current Balance: **%s bits**\nRemaining Daily limit: **%s**", common.FormatBalance(balance), common.FormatBalance(remaining)),
+		Description: fmt.Sprintf("Current Balance: **%s bits**", common.FormatBalance(balance)),
 		Color:       common.ColorPrimary,
 		Footer: &discordgo.MessageEmbedFooter{
 			Text: "Select your win probability",

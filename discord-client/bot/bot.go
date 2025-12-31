@@ -68,7 +68,7 @@ type Bot struct {
 }
 
 // New creates a new bot instance with all features
-func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory application.UnitOfWorkFactory, summonerClient summoner_pb.SummonerTrackingServiceClient, eventPublisher interfaces.EventPublisher) (*Bot, error) {
+func New(config Config, uowFactory application.UnitOfWorkFactory, summonerClient summoner_pb.SummonerTrackingServiceClient, eventPublisher interfaces.EventPublisher) (*Bot, error) {
 	// Create Discord session
 	dg, err := discordgo.New("Bot " + config.Token)
 	if err != nil {
@@ -90,7 +90,7 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory appli
 	}
 
 	// Create feature modules
-	bot.betting = betting.New(gamblingConfig, uowFactory)
+	bot.betting = betting.New(uowFactory)
 	bot.wagers = wagers.NewFeature(dg, uowFactory, config.GuildID)
 	bot.groupWagers = groupwagers.NewFeature(dg, uowFactory)
 	bot.houseWagers = housewagers.NewFeature(dg, uowFactory)
