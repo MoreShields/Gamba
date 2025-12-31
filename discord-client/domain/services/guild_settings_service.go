@@ -141,3 +141,61 @@ func (s *guildSettingsService) GetHighRollerRoleID(ctx context.Context, guildID 
 
 	return settings.HighRollerRoleID, nil
 }
+
+// UpdateLottoChannel updates the lottery channel for a guild
+func (s *guildSettingsService) UpdateLottoChannel(ctx context.Context, guildID int64, channelID *int64) error {
+	settings, err := s.guildSettingsRepo.GetOrCreateGuildSettings(ctx, guildID)
+	if err != nil {
+		return fmt.Errorf("failed to get guild settings: %w", err)
+	}
+
+	settings.SetLottoChannel(channelID)
+
+	if err := s.guildSettingsRepo.UpdateGuildSettings(ctx, settings); err != nil {
+		return fmt.Errorf("failed to update guild settings: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateLottoTicketCost updates the lottery ticket cost for a guild
+func (s *guildSettingsService) UpdateLottoTicketCost(ctx context.Context, guildID int64, cost *int64) error {
+	if cost != nil && *cost <= 0 {
+		return fmt.Errorf("ticket cost must be positive")
+	}
+
+	settings, err := s.guildSettingsRepo.GetOrCreateGuildSettings(ctx, guildID)
+	if err != nil {
+		return fmt.Errorf("failed to get guild settings: %w", err)
+	}
+
+	settings.SetLottoTicketCost(cost)
+
+	if err := s.guildSettingsRepo.UpdateGuildSettings(ctx, settings); err != nil {
+		return fmt.Errorf("failed to update guild settings: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateLottoDifficulty updates the lottery difficulty for a guild
+func (s *guildSettingsService) UpdateLottoDifficulty(ctx context.Context, guildID int64, difficulty *int64) error {
+	if difficulty != nil {
+		if *difficulty < entities.MinLottoDifficulty || *difficulty > entities.MaxLottoDifficulty {
+			return fmt.Errorf("difficulty must be between %d and %d", entities.MinLottoDifficulty, entities.MaxLottoDifficulty)
+		}
+	}
+
+	settings, err := s.guildSettingsRepo.GetOrCreateGuildSettings(ctx, guildID)
+	if err != nil {
+		return fmt.Errorf("failed to get guild settings: %w", err)
+	}
+
+	settings.SetLottoDifficulty(difficulty)
+
+	if err := s.guildSettingsRepo.UpdateGuildSettings(ctx, settings); err != nil {
+		return fmt.Errorf("failed to update guild settings: %w", err)
+	}
+
+	return nil
+}

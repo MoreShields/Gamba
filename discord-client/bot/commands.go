@@ -214,6 +214,47 @@ func (b *Bot) registerCommands() error {
 						},
 					},
 				},
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "lotto-channel",
+					Description: "Set the channel for lottery messages",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionChannel,
+							Name:        "channel",
+							Description: "The channel for lottery activities (leave empty to disable)",
+							Required:    false,
+						},
+					},
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "lotto-cost",
+					Description: "Set the cost per lottery ticket",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionInteger,
+							Name:        "cost",
+							Description: "Cost per ticket in bits (default: 1000)",
+							Required:    true,
+						},
+					},
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "lotto-difficulty",
+					Description: "Set the lottery difficulty (number of bits for ticket numbers)",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionInteger,
+							Name:        "difficulty",
+							Description: "Number of bits (4-20, default: 8 = 256 numbers)",
+							Required:    true,
+							MinValue:    func() *float64 { v := 4.0; return &v }(),
+							MaxValue:    20.0,
+						},
+					},
+				},
 			},
 		},
 		{

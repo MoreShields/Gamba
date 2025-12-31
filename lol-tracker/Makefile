@@ -44,7 +44,7 @@ test-unit: ## Run unit tests only
 	PYTHONPATH=. $(PYTHON) -m pytest tests/ -v -m "not integration"
 
 test-integration: ## Run integration tests only
-	PYTHONPATH=. $(PYTHON) -m pytest tests/ -v -m "integration"
+	PYTHONPATH=. $(PYTHON) -m pytest tests/ -v -m "integration" || [ $$? -eq 5 ]
 
 test-cov: ## Run tests with coverage
 	PYTHONPATH=. $(PYTHON) -m pytest tests/ --cov=lol_tracker --cov-report=html --cov-report=term

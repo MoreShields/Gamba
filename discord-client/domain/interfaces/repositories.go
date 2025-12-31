@@ -206,6 +206,66 @@ type SummonerWatchRepository interface {
 }
 
 
+// LotteryDrawRepository defines the interface for lottery draw data access
+type LotteryDrawRepository interface {
+	// GetOrCreateCurrentDraw gets the current open draw or creates a new one
+	GetOrCreateCurrentDraw(ctx context.Context, guildID int64, nextDrawTime time.Time, difficulty, ticketCost int64) (*entities.LotteryDraw, error)
+
+	// GetByID retrieves a draw by its ID
+	GetByID(ctx context.Context, id int64) (*entities.LotteryDraw, error)
+
+	// Update updates a draw record
+	Update(ctx context.Context, draw *entities.LotteryDraw) error
+
+	// GetPendingDrawsForTime returns all draws that are due for processing
+	GetPendingDrawsForTime(ctx context.Context, beforeTime time.Time) ([]*entities.LotteryDraw, error)
+
+	// IncrementPot atomically increments the pot amount with row locking
+	IncrementPot(ctx context.Context, drawID, amount int64) error
+
+	// GetCurrentOpenDraw returns the current open draw for a guild if one exists
+	GetCurrentOpenDraw(ctx context.Context, guildID int64) (*entities.LotteryDraw, error)
+
+	// GetByIDForUpdate retrieves a draw by ID with row lock for update
+	GetByIDForUpdate(ctx context.Context, id int64) (*entities.LotteryDraw, error)
+
+	// GetNextPendingDrawTime returns the earliest draw_time of pending draws
+	GetNextPendingDrawTime(ctx context.Context) (*time.Time, error)
+}
+
+// LotteryTicketRepository defines the interface for lottery ticket data access
+type LotteryTicketRepository interface {
+	// CreateBatch creates multiple lottery tickets in a single batch operation
+	CreateBatch(ctx context.Context, tickets []*entities.LotteryTicket) error
+
+	// GetByUserForDraw returns all tickets for a user in a specific draw
+	GetByUserForDraw(ctx context.Context, drawID, discordID int64) ([]*entities.LotteryTicket, error)
+
+	// GetWinningTickets returns all tickets matching the winning number
+	GetWinningTickets(ctx context.Context, drawID, winningNumber int64) ([]*entities.LotteryTicket, error)
+
+	// CountTicketsForDraw returns the total number of tickets for a draw
+	CountTicketsForDraw(ctx context.Context, drawID int64) (int64, error)
+
+	// GetParticipantSummary returns a summary of participants and their ticket counts
+	GetParticipantSummary(ctx context.Context, drawID int64) ([]*entities.LotteryParticipantInfo, error)
+
+	// GetUsedNumbersByUser returns ticket numbers already used by a specific user in a draw
+	GetUsedNumbersByUser(ctx context.Context, drawID, discordID int64) ([]int64, error)
+}
+
+// LotteryWinnerRepository defines the interface for lottery winner data access
+type LotteryWinnerRepository interface {
+	// Create creates a new lottery winner record
+	Create(ctx context.Context, winner *entities.LotteryWinner) error
+
+	// GetByDrawID returns all winners for a specific draw
+	GetByDrawID(ctx context.Context, drawID int64) ([]*entities.LotteryWinner, error)
+
+	// GetByUserID returns all wins for a specific user
+	GetByUserID(ctx context.Context, discordID int64) ([]*entities.LotteryWinner, error)
+}
+
 // EventPublisher defines the interface for publishing events
 type EventPublisher interface {
 	Publish(event events.Event) error

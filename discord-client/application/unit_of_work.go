@@ -28,6 +28,9 @@ type UnitOfWork interface {
 	SummonerWatchRepository() interfaces.SummonerWatchRepository
 	WordleCompletionRepo() interfaces.WordleCompletionRepository
 	HighRollerPurchaseRepository() interfaces.HighRollerPurchaseRepository
+	LotteryDrawRepository() interfaces.LotteryDrawRepository
+	LotteryTicketRepository() interfaces.LotteryTicketRepository
+	LotteryWinnerRepository() interfaces.LotteryWinnerRepository
 	EventBus() interfaces.EventPublisher
 }
 

@@ -26,7 +26,7 @@ test-unit: ## Run unit tests only (excluding integration tests)
 	go test -short ./...
 
 test-integration: ## Run integration tests with testcontainers
-	go test ./repository/...
+	go test -v -count=1 ./repository/... ./domain/services/... -run ".*_Integration"
 
 # Development testing tools
 test-events: ## Test LoL event publishing (dry run)

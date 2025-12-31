@@ -17,6 +17,10 @@ const (
 	TransactionTypeTransferIn  TransactionType = "transfer_in"
 	TransactionTypeTransferOut TransactionType = "transfer_out"
 
+	// Lottery transactions
+	TransactionTypeLottoTicket TransactionType = "lotto_ticket"
+	TransactionTypeLottoWin    TransactionType = "lotto_win"
+
 	// System transactions
 	TransactionTypeInitial            TransactionType = "initial"
 	TransactionTypeWordleReward       TransactionType = "wordle_reward"

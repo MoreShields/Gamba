@@ -118,6 +118,15 @@ type GuildSettingsService interface {
 
 	// GetHighRollerRoleID returns the high roller role ID for a guild
 	GetHighRollerRoleID(ctx context.Context, guildID int64) (*int64, error)
+
+	// UpdateLottoChannel updates the lottery channel for a guild
+	UpdateLottoChannel(ctx context.Context, guildID int64, channelID *int64) error
+
+	// UpdateLottoTicketCost updates the lottery ticket cost for a guild
+	UpdateLottoTicketCost(ctx context.Context, guildID int64, cost *int64) error
+
+	// UpdateLottoDifficulty updates the lottery difficulty for a guild
+	UpdateLottoDifficulty(ctx context.Context, guildID int64, difficulty *int64) error
 }
 
 // HighRollerService defines the interface for high roller operations
@@ -147,6 +156,55 @@ type SummonerWatchService interface {
 
 	// ListWatches returns all summoner watches for a specific guild
 	ListWatches(ctx context.Context, guildID int64) ([]*entities.SummonerWatchDetail, error)
+}
+
+// LotteryService defines the interface for lottery operations
+type LotteryService interface {
+	// PurchaseTickets buys lottery tickets for a user
+	PurchaseTickets(ctx context.Context, discordID, guildID int64, quantity int) (*LotteryPurchaseResult, error)
+
+	// GetOrCreateCurrentDraw gets the current open draw or creates one
+	GetOrCreateCurrentDraw(ctx context.Context, guildID int64) (*entities.LotteryDraw, error)
+
+	// GetUserTickets returns user's tickets for the current draw
+	GetUserTickets(ctx context.Context, discordID, guildID int64) ([]*entities.LotteryTicket, error)
+
+	// GetDrawInfo returns full draw info for display
+	GetDrawInfo(ctx context.Context, guildID int64) (*LotteryDrawInfo, error)
+
+	// ConductDraw processes the draw - selects winner, transfers pot
+	ConductDraw(ctx context.Context, draw *entities.LotteryDraw) (*LotteryDrawResult, error)
+
+	// SetDrawMessage updates draw with Discord message/channel IDs
+	SetDrawMessage(ctx context.Context, drawID, channelID, messageID int64) error
+
+	// CalculateNextDrawTime calculates the next Friday 2pm UTC draw time
+	CalculateNextDrawTime() time.Time
+}
+
+// LotteryPurchaseResult represents the result of a ticket purchase
+type LotteryPurchaseResult struct {
+	Tickets    []*entities.LotteryTicket
+	TotalCost  int64
+	NewBalance int64
+	Draw       *entities.LotteryDraw
+}
+
+// LotteryDrawInfo contains information about a lottery draw for display
+type LotteryDrawInfo struct {
+	Draw         *entities.LotteryDraw
+	TicketCount  int64
+	Participants []*entities.LotteryParticipantInfo
+	TicketCost   int64
+}
+
+// LotteryDrawResult represents the result of conducting a draw
+type LotteryDrawResult struct {
+	WinningNumber int64
+	Winners       []*entities.User
+	PotAmount     int64
+	RolledOver    bool
+	NextDraw      *entities.LotteryDraw
 }
 
 // UserMetricsService consolidates user statistics and analytics operations

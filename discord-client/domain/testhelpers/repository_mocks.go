@@ -510,3 +510,139 @@ func (m *MockHighRollerPurchaseRepository) GetUserTotalDurationSince(ctx context
 	args := m.Called(ctx, guildID, discordID, startTime)
 	return args.Get(0).(time.Duration), args.Error(1)
 }
+
+// MockLotteryDrawRepository is a mock implementation of LotteryDrawRepository
+type MockLotteryDrawRepository struct {
+	mock.Mock
+}
+
+func (m *MockLotteryDrawRepository) GetOrCreateCurrentDraw(ctx context.Context, guildID int64, nextDrawTime time.Time, difficulty, ticketCost int64) (*entities.LotteryDraw, error) {
+	args := m.Called(ctx, guildID, nextDrawTime, difficulty, ticketCost)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*entities.LotteryDraw), args.Error(1)
+}
+
+func (m *MockLotteryDrawRepository) GetByID(ctx context.Context, id int64) (*entities.LotteryDraw, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*entities.LotteryDraw), args.Error(1)
+}
+
+func (m *MockLotteryDrawRepository) Update(ctx context.Context, draw *entities.LotteryDraw) error {
+	args := m.Called(ctx, draw)
+	return args.Error(0)
+}
+
+func (m *MockLotteryDrawRepository) GetPendingDrawsForTime(ctx context.Context, beforeTime time.Time) ([]*entities.LotteryDraw, error) {
+	args := m.Called(ctx, beforeTime)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*entities.LotteryDraw), args.Error(1)
+}
+
+func (m *MockLotteryDrawRepository) IncrementPot(ctx context.Context, drawID, amount int64) error {
+	args := m.Called(ctx, drawID, amount)
+	return args.Error(0)
+}
+
+func (m *MockLotteryDrawRepository) GetCurrentOpenDraw(ctx context.Context, guildID int64) (*entities.LotteryDraw, error) {
+	args := m.Called(ctx, guildID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*entities.LotteryDraw), args.Error(1)
+}
+
+func (m *MockLotteryDrawRepository) GetByIDForUpdate(ctx context.Context, id int64) (*entities.LotteryDraw, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*entities.LotteryDraw), args.Error(1)
+}
+
+func (m *MockLotteryDrawRepository) GetNextPendingDrawTime(ctx context.Context) (*time.Time, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*time.Time), args.Error(1)
+}
+
+// MockLotteryTicketRepository is a mock implementation of LotteryTicketRepository
+type MockLotteryTicketRepository struct {
+	mock.Mock
+}
+
+func (m *MockLotteryTicketRepository) CreateBatch(ctx context.Context, tickets []*entities.LotteryTicket) error {
+	args := m.Called(ctx, tickets)
+	return args.Error(0)
+}
+
+func (m *MockLotteryTicketRepository) GetByUserForDraw(ctx context.Context, drawID, discordID int64) ([]*entities.LotteryTicket, error) {
+	args := m.Called(ctx, drawID, discordID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*entities.LotteryTicket), args.Error(1)
+}
+
+func (m *MockLotteryTicketRepository) GetWinningTickets(ctx context.Context, drawID, winningNumber int64) ([]*entities.LotteryTicket, error) {
+	args := m.Called(ctx, drawID, winningNumber)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*entities.LotteryTicket), args.Error(1)
+}
+
+func (m *MockLotteryTicketRepository) CountTicketsForDraw(ctx context.Context, drawID int64) (int64, error) {
+	args := m.Called(ctx, drawID)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockLotteryTicketRepository) GetParticipantSummary(ctx context.Context, drawID int64) ([]*entities.LotteryParticipantInfo, error) {
+	args := m.Called(ctx, drawID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*entities.LotteryParticipantInfo), args.Error(1)
+}
+
+func (m *MockLotteryTicketRepository) GetUsedNumbersByUser(ctx context.Context, drawID, discordID int64) ([]int64, error) {
+	args := m.Called(ctx, drawID, discordID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]int64), args.Error(1)
+}
+
+// MockLotteryWinnerRepository is a mock implementation of LotteryWinnerRepository
+type MockLotteryWinnerRepository struct {
+	mock.Mock
+}
+
+func (m *MockLotteryWinnerRepository) Create(ctx context.Context, winner *entities.LotteryWinner) error {
+	args := m.Called(ctx, winner)
+	return args.Error(0)
+}
+
+func (m *MockLotteryWinnerRepository) GetByDrawID(ctx context.Context, drawID int64) ([]*entities.LotteryWinner, error) {
+	args := m.Called(ctx, drawID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*entities.LotteryWinner), args.Error(1)
+}
+
+func (m *MockLotteryWinnerRepository) GetByUserID(ctx context.Context, discordID int64) ([]*entities.LotteryWinner, error) {
+	args := m.Called(ctx, discordID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*entities.LotteryWinner), args.Error(1)
+}

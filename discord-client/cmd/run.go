@@ -80,7 +80,7 @@ func Run(ctx context.Context) error {
 	lolHandler, tftHandler := initializeApplicationHandlers(uowFactory, discordBot)
 
 	// Initialize application workers
-	dailyAwardsWorker := initializeApplicationWorkers(uowFactory, discordBot)
+	dailyAwardsWorker, lotteryDrawWorker := initializeApplicationWorkers(uowFactory, discordBot)
 
 	// Setup event subscriptions
 	if err := setupEventSubscriptions(natsClient, subjectMapper, uowFactory, discordBot, cfg); err != nil {
@@ -88,7 +88,7 @@ func Run(ctx context.Context) error {
 	}
 
 	// Start background services
-	messageConsumer, cleanupFuncs := startBackgroundServices(ctx, cfg, lolHandler, tftHandler, dailyAwardsWorker, discordBot)
+	messageConsumer, cleanupFuncs := startBackgroundServices(ctx, cfg, lolHandler, tftHandler, dailyAwardsWorker, lotteryDrawWorker, discordBot)
 
 	// Wait for shutdown signal
 	log.Printf("Bot is running in %s mode...", cfg.Environment)
@@ -190,12 +190,17 @@ func initializeApplicationHandlers(uowFactory application.UnitOfWorkFactory, dis
 }
 
 // creates application-level workers
-func initializeApplicationWorkers(uowFactory application.UnitOfWorkFactory, discordBot *bot.Bot) *application.DailyAwardsWorkerImpl {
+func initializeApplicationWorkers(uowFactory application.UnitOfWorkFactory, discordBot *bot.Bot) (*application.DailyAwardsWorkerImpl, *application.LotteryDrawWorker) {
 	log.Println("Initializing daily awards worker...")
 	guildDiscovery := bot.NewGuildDiscoveryService(discordBot.GetSession(), uowFactory)
 	dailyAwardsWorker := application.NewDailyAwardsWorker(uowFactory, guildDiscovery, discordBot.GetDiscordPoster())
 	log.Println("Daily awards worker initialized successfully")
-	return dailyAwardsWorker
+
+	log.Println("Initializing lottery draw worker...")
+	lotteryDrawWorker := application.NewLotteryDrawWorker(uowFactory, discordBot.GetLotteryPoster())
+	log.Println("Lottery draw worker initialized successfully")
+
+	return dailyAwardsWorker, lotteryDrawWorker
 }
 
 // registers all event subscriptions
@@ -228,7 +233,7 @@ func setupEventSubscriptions(natsClient *infrastructure.NATSClient, subjectMappe
 }
 
 // starts all background services
-func startBackgroundServices(ctx context.Context, cfg *config.Config, lolHandler *application.LoLHandlerImpl, tftHandler *application.TFTHandlerImpl, dailyAwardsWorker *application.DailyAwardsWorkerImpl, discordBot *bot.Bot) (*infrastructure.MessageConsumer, []func()) {
+func startBackgroundServices(ctx context.Context, cfg *config.Config, lolHandler *application.LoLHandlerImpl, tftHandler *application.TFTHandlerImpl, dailyAwardsWorker *application.DailyAwardsWorkerImpl, lotteryDrawWorker *application.LotteryDrawWorker, discordBot *bot.Bot) (*infrastructure.MessageConsumer, []func()) {
 	var cleanupFuncs []func()
 
 	log.Printf("Initializing message consumer with NATS servers: %s...", cfg.NATSServers)
@@ -255,6 +260,11 @@ func startBackgroundServices(ctx context.Context, cfg *config.Config, lolHandler
 	cleanupFuncs = append(cleanupFuncs, dailyAwardsCleanup)
 	discordBot.SetDailyAwardsWorkerCleanup(dailyAwardsCleanup)
 	log.Printf("Daily awards worker started (notification at %02d:00 UTC)", cfg.DailyAwardsHour)
+
+	// Start lottery draw worker
+	lotteryCleanup := lotteryDrawWorker.Start(ctx)
+	cleanupFuncs = append(cleanupFuncs, lotteryCleanup)
+	log.Println("Lottery draw worker started (draws on Friday 2pm UTC)")
 
 	return messageConsumer, cleanupFuncs
 }

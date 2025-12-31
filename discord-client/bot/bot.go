@@ -14,6 +14,7 @@ import (
 	"gambler/discord-client/bot/features/groupwagers"
 	"gambler/discord-client/bot/features/highroller"
 	"gambler/discord-client/bot/features/housewagers"
+	"gambler/discord-client/bot/features/lottery"
 	"gambler/discord-client/bot/features/settings"
 	"gambler/discord-client/bot/features/stats"
 	"gambler/discord-client/bot/features/summoner"
@@ -59,6 +60,7 @@ type Bot struct {
 	summoner    *summoner.Feature
 	dailyAwards *dailyawards.Feature
 	highroller  *highroller.Feature
+	lottery     *lottery.Feature
 
 	// Worker cleanup functions
 	stopGroupWagerWorker  func()
@@ -95,10 +97,12 @@ func New(config Config, gamblingConfig *betting.GamblingConfig, uowFactory appli
 	bot.stats = stats.NewFeature(dg, uowFactory, config.GuildID, userResolver)
 	bot.balance = balance.New(uowFactory)
 	bot.transfer = transfer.New(uowFactory)
-	bot.settings = settings.NewFeature(dg, uowFactory)
 	bot.summoner = summoner.NewFeature(dg, uowFactory, summonerClient, config.GuildID)
 	bot.dailyAwards = dailyawards.NewFeature(dg, uowFactory)
 	bot.highroller = highroller.NewFeature(dg, uowFactory)
+	bot.lottery = lottery.NewFeature(dg, uowFactory)
+	// Settings depends on lottery for posting lottery messages when channel is configured
+	bot.settings = settings.NewFeature(dg, uowFactory, bot.lottery)
 
 	// Register handlers
 	dg.AddHandler(bot.handleCommands)
@@ -160,7 +164,6 @@ func (b *Bot) GetSession() *discordgo.Session {
 	return b.session
 }
 
-
 // SetDailyAwardsWorkerCleanup sets the cleanup function for the daily awards worker
 func (b *Bot) SetDailyAwardsWorkerCleanup(cleanup func()) {
 	b.stopDailyAwardsWorker = cleanup
@@ -171,6 +174,10 @@ func (b *Bot) GetConfig() Config {
 	return b.config
 }
 
+// GetLotteryPoster returns the lottery feature as a LotteryPoster
+func (b *Bot) GetLotteryPoster() application.LotteryPoster {
+	return b.lottery
+}
 
 // handleCommands routes slash commands to appropriate handlers
 func (b *Bot) handleCommands(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -230,6 +237,9 @@ func (b *Bot) routeComponentInteraction(s *discordgo.Session, i *discordgo.Inter
 
 	case strings.HasPrefix(customID, "stats_"):
 		b.stats.HandleInteraction(s, i)
+
+	case strings.HasPrefix(customID, "lotto_"):
+		b.lottery.HandleInteraction(s, i)
 	}
 }
 
@@ -247,6 +257,9 @@ func (b *Bot) routeModalInteraction(s *discordgo.Session, i *discordgo.Interacti
 
 	case customID == "bet_amount_modal":
 		b.betting.HandleInteraction(s, i)
+
+	case strings.HasPrefix(customID, "lotto_"):
+		b.lottery.HandleInteraction(s, i)
 	}
 }
 

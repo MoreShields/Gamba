@@ -1,0 +1,263 @@
+{
+  "guild_id": "244487034545111050",
+  "year": 2025,
+  "generated_at": "2025-12-28T16:12:11Z",
+  "date_range": {
+    "start": "2025-01-01",
+    "end": "2026-01-01"
+  },
+  "thresholds": {
+    "min_bets": 10,
+    "min_wagers": 3,
+    "min_wordle": 10,
+    "min_games": 5
+  },
+  "total_server_activity": {
+    "total_volume": 1142047086
+  },
+  "gambling": {
+    "top_bits_wagered": [
+      {
+        "discord_id": 133008606202167296,
+        "bet_count": 152,
+        "total_wagered": 11504428
+      },
+      {
+        "discord_id": 217883936964083713,
+        "bet_count": 156,
+        "total_wagered": 10280500
+      },
+      {
+        "discord_id": 232153861941362688,
+        "bet_count": 145,
+        "total_wagered": 8372501
+      }
+    ],
+    "most_h2h_wager_wins": {
+      "discord_id": 232153861941362688,
+      "win_count": 17
+    },
+    "total_bets_placed": {
+      "count": 1047
+    },
+    "total_amount_wagered": {
+      "amount": 59021523
+    },
+    "top_10_percent_hits": [
+      {
+        "discord_id": 141402190152597504,
+        "hit_count": 15
+      },
+      {
+        "discord_id": 133008606202167296,
+        "hit_count": 13
+      },
+      {
+        "discord_id": 232153861941362688,
+        "hit_count": 10
+      }
+    ],
+    "top_winners": [
+      {
+        "discord_id": 146847430531350528,
+        "bet_count": 26,
+        "total_wagered": 781693,
+        "net_profit": 545959
+      },
+      {
+        "discord_id": 217883936964083713,
+        "bet_count": 156,
+        "total_wagered": 10280500,
+        "net_profit": 62216
+      },
+      {
+        "discord_id": 141402203066728448,
+        "bet_count": 32,
+        "total_wagered": 2100000,
+        "net_profit": 40303
+      }
+    ],
+    "top_losers": [
+      {
+        "discord_id": 133008606202167296,
+        "bet_count": 152,
+        "total_wagered": 11504428,
+        "net_profit": -3904428
+      },
+      {
+        "discord_id": 141402190152597504,
+        "bet_count": 181,
+        "total_wagered": 6800000,
+        "net_profit": -3138070
+      },
+      {
+        "discord_id": 256990797709180929,
+        "bet_count": 145,
+        "total_wagered": 6976001,
+        "net_profit": -2574139
+      }
+    ]
+  },
+  "group_wagers": {
+    "most_created": {
+      "discord_id": 217883936964083713,
+      "created_count": 15
+    },
+    "most_wins": {
+      "discord_id": 232153861941362688,
+      "win_count": 6,
+      "total_profit": 51947
+    },
+    "most_participation": {
+      "discord_id": 232153861941362688,
+      "participation_count": 28
+    },
+    "total_group_wagers": {
+      "count": 39
+    },
+    "total_amount_wagered": {
+      "amount": 7239335
+    }
+  },
+  "wordle_stats": {
+    "longest_streak": {
+      "discord_id": 256990797709180929,
+      "streak_length": 73,
+      "streak_start": "2025-08-30",
+      "streak_end": "2025-11-10"
+    },
+    "most_completions": {
+      "discord_id": 113154745291509760,
+      "completion_count": 148
+    },
+    "best_avg_guesses": {
+      "discord_id": 233264723175407627,
+      "completion_count": 42,
+      "avg_guesses": 3.98
+    },
+    "most_rewards": {
+      "discord_id": 113154745291509760,
+      "reward_count": 148,
+      "total_rewards": 4586000
+    }
+  },
+  "high_roller": {
+    "top_spenders": [
+      {
+        "discord_id": 232153861941362688,
+        "purchase_count": 9,
+        "total_spent": 3759925
+      },
+      {
+        "discord_id": 237748526715502592,
+        "purchase_count": 5,
+        "total_spent": 2454001
+      },
+      {
+        "discord_id": 256990797709180929,
+        "purchase_count": 1,
+        "total_spent": 2000001
+      }
+    ]
+  },
+  "lol": {
+    "most_profitable_summoners": [
+      {
+        "summoner": "Dad",
+        "wager_count": 35,
+        "total_wagered": 24850000,
+        "net_profit": 7850000
+      },
+      {
+        "summoner": "EIZacho",
+        "wager_count": 123,
+        "total_wagered": 64006094,
+        "net_profit": 7685906
+      },
+      {
+        "summoner": "Weenie",
+        "wager_count": 92,
+        "total_wagered": 33577401,
+        "net_profit": 5498243
+      }
+    ],
+    "least_profitable_summoners": [
+      {
+        "summoner": "Regdor",
+        "wager_count": 106,
+        "total_wagered": 65435411,
+        "net_profit": -8526033
+      },
+      {
+        "summoner": "MansNotTop",
+        "wager_count": 43,
+        "total_wagered": 25066239,
+        "net_profit": -2198227
+      },
+      {
+        "summoner": "Yeetloaf",
+        "wager_count": 42,
+        "total_wagered": 31560000,
+        "net_profit": -1460000
+      }
+    ],
+    "most_bet_on_summoner": {
+      "summoner": "Pow",
+      "wager_count": 174,
+      "total_wagered": 78931292
+    },
+    "total_amount_wagered": {
+      "amount": 469609318
+    }
+  },
+  "tft": {
+    "most_profitable_summoners": [
+      {
+        "summoner": "Yeetloaf",
+        "wager_count": 129,
+        "total_wagered": 75251500,
+        "net_profit": 36010500
+      },
+      {
+        "summoner": "Trusttheprocess",
+        "wager_count": 34,
+        "total_wagered": 21300000,
+        "net_profit": 13900000
+      },
+      {
+        "summoner": "RitoTorchic",
+        "wager_count": 66,
+        "total_wagered": 40550183,
+        "net_profit": 9449817
+      }
+    ],
+    "least_profitable_summoners": [
+      {
+        "summoner": "Regdor",
+        "wager_count": 73,
+        "total_wagered": 47280000,
+        "net_profit": -14080000
+      },
+      {
+        "summoner": "Piplup",
+        "wager_count": 137,
+        "total_wagered": 69433962,
+        "net_profit": -2786390
+      },
+      {
+        "summoner": "RiotAripanda",
+        "wager_count": 47,
+        "total_wagered": 20977393,
+        "net_profit": -309393
+      }
+    ],
+    "most_bet_on_summoner": {
+      "summoner": "Yeetloaf",
+      "wager_count": 129,
+      "total_wagered": 75251500
+    },
+    "total_amount_wagered": {
+      "amount": 283628038
+    }
+  }
+}

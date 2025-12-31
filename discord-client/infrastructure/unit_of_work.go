@@ -15,22 +15,25 @@ import (
 
 // unitOfWork implements the UnitOfWork interface with integrated event publishing
 type unitOfWork struct {
-	db                       *database.DB
-	tx                       pgx.Tx
-	ctx                      context.Context
-	guildID                  int64
-	eventPublisher           interfaces.EventPublisher
-	pendingEvents            []events.Event
-	userRepo                 interfaces.UserRepository
-	balanceHistoryRepo       interfaces.BalanceHistoryRepository
-	betRepo                  interfaces.BetRepository
-	wagerRepo                interfaces.WagerRepository
-	wagerVoteRepo            interfaces.WagerVoteRepository
-	groupWagerRepo           interfaces.GroupWagerRepository
-	guildSettingsRepo        interfaces.GuildSettingsRepository
-	summonerWatchRepo        interfaces.SummonerWatchRepository
-	wordleCompletionRepo     interfaces.WordleCompletionRepository
-	highRollerPurchaseRepo   interfaces.HighRollerPurchaseRepository
+	db                     *database.DB
+	tx                     pgx.Tx
+	ctx                    context.Context
+	guildID                int64
+	eventPublisher         interfaces.EventPublisher
+	pendingEvents          []events.Event
+	userRepo               interfaces.UserRepository
+	balanceHistoryRepo     interfaces.BalanceHistoryRepository
+	betRepo                interfaces.BetRepository
+	wagerRepo              interfaces.WagerRepository
+	wagerVoteRepo          interfaces.WagerVoteRepository
+	groupWagerRepo         interfaces.GroupWagerRepository
+	guildSettingsRepo      interfaces.GuildSettingsRepository
+	summonerWatchRepo      interfaces.SummonerWatchRepository
+	wordleCompletionRepo   interfaces.WordleCompletionRepository
+	highRollerPurchaseRepo interfaces.HighRollerPurchaseRepository
+	lotteryDrawRepo        interfaces.LotteryDrawRepository
+	lotteryTicketRepo      interfaces.LotteryTicketRepository
+	lotteryWinnerRepo      interfaces.LotteryWinnerRepository
 }
 
 // transactionalEventBus wraps the unit of work to buffer events
@@ -75,6 +78,9 @@ func (u *unitOfWork) Begin(ctx context.Context) error {
 	u.summonerWatchRepo = repository.NewSummonerWatchRepositoryScoped(tx, u.guildID)
 	u.wordleCompletionRepo = repository.NewWordleCompletionRepositoryScoped(tx, u.guildID)
 	u.highRollerPurchaseRepo = repository.NewHighRollerPurchaseRepositoryScoped(tx, u.guildID)
+	u.lotteryDrawRepo = repository.NewLotteryDrawRepositoryScoped(tx, u.guildID)
+	u.lotteryTicketRepo = repository.NewLotteryTicketRepositoryScoped(tx, u.guildID)
+	u.lotteryWinnerRepo = repository.NewLotteryWinnerRepositoryScoped(tx, u.guildID)
 
 	return nil
 }
@@ -218,6 +224,27 @@ func (u *unitOfWork) HighRollerPurchaseRepository() interfaces.HighRollerPurchas
 		panic("unit of work not started - call Begin() first")
 	}
 	return u.highRollerPurchaseRepo
+}
+
+func (u *unitOfWork) LotteryDrawRepository() interfaces.LotteryDrawRepository {
+	if u.lotteryDrawRepo == nil {
+		panic("unit of work not started - call Begin() first")
+	}
+	return u.lotteryDrawRepo
+}
+
+func (u *unitOfWork) LotteryTicketRepository() interfaces.LotteryTicketRepository {
+	if u.lotteryTicketRepo == nil {
+		panic("unit of work not started - call Begin() first")
+	}
+	return u.lotteryTicketRepo
+}
+
+func (u *unitOfWork) LotteryWinnerRepository() interfaces.LotteryWinnerRepository {
+	if u.lotteryWinnerRepo == nil {
+		panic("unit of work not started - call Begin() first")
+	}
+	return u.lotteryWinnerRepo
 }
 
 // EventBus returns the transactional event publisher
