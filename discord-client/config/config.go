@@ -36,8 +36,7 @@ type Config struct {
 	NATSServers string // NATS server addresses (comma-separated)
 
 	// Wordle configuration
-	WordleBotID        string // Discord ID of the Wordle bot to monitor
-	WordleRewardAmount int64  // Amount of bits to award for daily Wordle completion
+	WordleBotID string // Discord ID of the Wordle bot to monitor
 
 	// Daily Awards configuration
 	DailyAwardsHour int // Hour in UTC when daily awards summary is posted (0-23)
@@ -95,7 +94,7 @@ func load() (*Config, error) {
 		DatabaseName: os.Getenv("DATABASE_NAME"),
 
 		// Bot settings with defaults
-		StartingBalance: 100000,
+		StartingBalance: 1,
 
 		// High Roller Role
 		GambaChannelID: os.Getenv("GAMBA_CHANNEL_ID"),
@@ -107,8 +106,7 @@ func load() (*Config, error) {
 		NATSServers: getEnvWithDefault("NATS_SERVERS", "nats://nats:4222"),
 
 		// Wordle
-		WordleBotID:        os.Getenv("WORDLE_BOT_ID"),
-		WordleRewardAmount: 10000,
+		WordleBotID: os.Getenv("WORDLE_BOT_ID"),
 
 		// Daily Awards
 		DailyAwardsHour: 14, // 2pm UTC / 9am CST
@@ -123,12 +121,6 @@ func load() (*Config, error) {
 			config.StartingBalance = parsedBalance
 		}
 	}
-	if reward := os.Getenv("WORDLE_REWARD_AMOUNT"); reward != "" {
-		if parsedReward, err := strconv.ParseInt(reward, 10, 64); err == nil {
-			config.WordleRewardAmount = parsedReward
-		}
-	}
-
 	// Parse resolver Discord IDs
 	if resolverIDs := os.Getenv("RESOLVER_DISCORD_IDS"); resolverIDs != "" {
 		idStrings := strings.Split(resolverIDs, ",")

@@ -140,11 +140,11 @@ func TestWordleHandler_EndToEndFlow(t *testing.T) {
 		// New users get InitialBalance (100k) + wordle reward
 		const initialBalance = int64(100000)
 		expectedRewards := map[int64]int64{
-			133008606202167296: 7000, // 3/6
-			135678825894903808: 7000, // 3/6 (Shid)
-			232153861941362688: 7000, // 4/6
-			141402190152597504: 7000, // 4/6 (Piplup)
-			217883936964083713: 5000, // 5/6
+			133008606202167296: 2, // 3/6
+			135678825894903808: 2, // 3/6 (Shid)
+			232153861941362688: 2, // 4/6
+			141402190152597504: 2, // 4/6 (Piplup)
+			217883936964083713: 1, // 5/6
 		}
 
 		for userID, expectedReward := range expectedRewards {
@@ -235,18 +235,18 @@ func TestWordleHandler_NicknameResolution(t *testing.T) {
 		require.NoError(t, uow.Begin(ctx))
 		defer uow.Rollback()
 
-		// Both users with PopularNick should get InitialBalance (100k) + 3/6 reward (7000) = 107000
+		// Both users with PopularNick should get InitialBalance (100k) + 3/6 reward (2) = 100002
 		const initialBalance = int64(100000)
 		for _, userID := range []int64{111111111, 222222222} {
 			user, err := uow.UserRepository().GetByDiscordID(ctx, userID)
 			require.NoError(t, err)
-			assert.Equal(t, initialBalance+7000, user.Balance)
+			assert.Equal(t, initialBalance+2, user.Balance)
 		}
 
-		// UniqueNick user should get InitialBalance (100k) + 4/6 reward (7000) = 107000
+		// UniqueNick user should get InitialBalance (100k) + 4/6 reward (2) = 100002
 		user, err := uow.UserRepository().GetByDiscordID(ctx, 333333333)
 		require.NoError(t, err)
-		assert.Equal(t, initialBalance+7000, user.Balance)
+		assert.Equal(t, initialBalance+2, user.Balance)
 
 		// UnknownNick should be ignored (no error)
 	})
@@ -310,9 +310,9 @@ func TestWordleHandler_DuplicatePrevention(t *testing.T) {
 
 	user, err := uow.UserRepository().GetByDiscordID(ctx, 777777777)
 	require.NoError(t, err)
-	// InitialBalance (100k) + 3/6 reward (7000) = 107000, not 2/6 reward
+	// InitialBalance (100k) + 3/6 reward (2) = 100002, not 2/6 reward
 	const initialBalance = int64(100000)
-	assert.Equal(t, initialBalance+7000, user.Balance)
+	assert.Equal(t, initialBalance+2, user.Balance)
 
 	// Verify 2 entries: initial + wordle_reward (duplicate was prevented)
 	history, err := uow.BalanceHistoryRepository().GetByUser(ctx, 777777777, 10)
@@ -364,9 +364,9 @@ func TestWordleHandler_ChannelFiltering(t *testing.T) {
 
 		user, err := uow.UserRepository().GetByDiscordID(ctx, 999999999)
 		require.NoError(t, err)
-		// InitialBalance (100k) + 3/6 reward (7000) = 107000
+		// InitialBalance (100k) + 3/6 reward (2) = 100002
 		const initialBalance = int64(100000)
-		assert.Equal(t, initialBalance+7000, user.Balance)
+		assert.Equal(t, initialBalance+2, user.Balance)
 	})
 
 	t.Run("Message From Different Channel", func(t *testing.T) {

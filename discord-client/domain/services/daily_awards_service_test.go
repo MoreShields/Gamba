@@ -8,7 +8,7 @@ func TestWordleDailyAwardStreak(t *testing.T) {
 	award := WordleDailyAward{
 		DiscordID:  123456789,
 		GuessCount: 3,
-		Reward:     35000, // 7000 base * 5 streak
+		Reward:     10, // 2 base * 5 streak
 		Streak:     5,
 	}
 
@@ -23,7 +23,7 @@ func TestWordleDailyAwardStreak(t *testing.T) {
 	}
 
 	// Test GetReward method
-	if award.GetReward() != 35000 {
-		t.Errorf("GetReward() = %d, want %d", award.GetReward(), 35000)
+	if award.GetReward() != 10 {
+		t.Errorf("GetReward() = %d, want %d", award.GetReward(), 10)
 	}
 }

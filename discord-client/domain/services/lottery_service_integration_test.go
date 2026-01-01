@@ -729,7 +729,7 @@ func TestLotteryEdgeCases_Integration(t *testing.T) {
 		result, err := tc.lotteryService.PurchaseTickets(ctx, user.DiscordID, guildID, 1)
 		assert.Error(t, err)
 		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "you already have 4 tickets")
+		assert.Contains(t, err.Error(), "only 0 more unique numbers available")
 	})
 
 	t.Run("balance_history_metadata_correct", func(t *testing.T) {

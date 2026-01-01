@@ -315,7 +315,7 @@ func TestLotteryService_PurchaseTickets_Validation(t *testing.T) {
 				ticketRepo.On("GetUsedNumbersByUser", mock.Anything, int64(1), int64(123456)).Return(usedNumbers, nil)
 			},
 			wantErr:     true,
-			errContains: "you already have 10 tickets",
+			errContains: "only 6 more unique numbers available",
 		},
 	}
 
