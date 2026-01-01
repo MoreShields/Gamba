@@ -23,6 +23,12 @@ func (s *Shell) addAdminCommands() {
 			Usage:       "admin-transfer [guild_id] <from_user_id> <to_user_id> <amount>",
 			Category:    "admin",
 		},
+		"reset-all-2026": {
+			Handler:     s.handleResetAll2026,
+			Description: "Reset all guild balances to 1 bit for 2026",
+			Usage:       "reset-all-2026 [guild_id]",
+			Category:    "admin",
+		},
 	}
 
 	// Merge admin commands into main commands map
@@ -485,5 +491,121 @@ func (s *Shell) handleAdminTransfer(shell *Shell, args []string) error {
 	})
 
 	s.printSuccess(fmt.Sprintf("Transfer of %s bits completed successfully", formatNumber(amount)))
+	return nil
+}
+
+// handleResetAll2026 resets all user balances in a guild to 1 bit for the new year
+func (s *Shell) handleResetAll2026(shell *Shell, args []string) error {
+	var guildID int64
+	var err error
+
+	// Check if we have a default guild or explicit guild_id
+	if len(args) >= 1 {
+		guildID, err = strconv.ParseInt(args[0], 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid guild ID: %w", err)
+		}
+	} else if s.currentGuild != 0 {
+		guildID = s.currentGuild
+	} else {
+		return fmt.Errorf("usage: reset-all-2026 <guild_id>\nOr set a guild with 'guild <id>' first")
+	}
+
+	const newBalance int64 = 1
+
+	ctx := context.Background()
+	uow := s.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(ctx); err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer uow.Rollback()
+
+	// Get all users in the guild
+	users, err := uow.UserRepository().GetAll(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get users: %w", err)
+	}
+
+	if len(users) == 0 {
+		s.printWarning("No users found in this guild")
+		return nil
+	}
+
+	// Calculate total bits being reset
+	var totalBits int64
+	usersToReset := 0
+	for _, user := range users {
+		if user.Balance != newBalance {
+			totalBits += user.Balance
+			usersToReset++
+		}
+	}
+
+	// Show summary
+	fmt.Printf("\n🎆 2026 New Year Balance Reset:\n")
+	fmt.Printf("   Guild:         %d\n", guildID)
+	fmt.Printf("   Total users:   %d\n", len(users))
+	fmt.Printf("   Users to reset: %d\n", usersToReset)
+	fmt.Printf("   Total bits:    %s → %d bits\n", formatNumber(totalBits), usersToReset)
+
+	if usersToReset == 0 {
+		s.printWarning("All users already have balance of 1 bit")
+		return nil
+	}
+
+	// Confirm action
+	if !s.confirmAction("Reset ALL user balances to 1 bit?") {
+		return nil
+	}
+
+	// Reset each user
+	resetCount := 0
+	for _, user := range users {
+		if user.Balance == newBalance {
+			continue // Skip users already at 1 bit
+		}
+
+		changeAmount := newBalance - user.Balance
+
+		// Update balance
+		if err := uow.UserRepository().UpdateBalance(ctx, user.DiscordID, newBalance); err != nil {
+			return fmt.Errorf("failed to update balance for user %d: %w", user.DiscordID, err)
+		}
+
+		// Record balance history
+		history := &entities.BalanceHistory{
+			DiscordID:       user.DiscordID,
+			GuildID:         guildID,
+			BalanceBefore:   user.Balance,
+			BalanceAfter:    newBalance,
+			ChangeAmount:    changeAmount,
+			TransactionType: entities.TransactionTypeTransferOut,
+			TransactionMetadata: map[string]any{
+				"admin":  "true",
+				"source": "debug_shell",
+				"reason": "2026_new_year_reset",
+			},
+		}
+
+		if err := uow.BalanceHistoryRepository().Record(ctx, history); err != nil {
+			return fmt.Errorf("failed to record balance history for user %d: %w", user.DiscordID, err)
+		}
+
+		resetCount++
+	}
+
+	// Commit transaction
+	if err := uow.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Log admin action
+	s.logAdminAction("reset_all_2026", map[string]interface{}{
+		"guild_id":    guildID,
+		"users_reset": resetCount,
+		"total_bits":  totalBits,
+	})
+
+	s.printSuccess(fmt.Sprintf("Reset %d users to 1 bit for 2026", resetCount))
 	return nil
 }
