@@ -188,6 +188,6 @@ func NewTestConfig() *Config {
 	return &Config{
 		Environment:        "test",
 		ResolverDiscordIDs: []int64{999999, 999991, 999998}, // Default test resolver IDs
-		StartingBalance:    100000,
+		StartingBalance:    1,
 	}
 }
