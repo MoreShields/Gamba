@@ -371,7 +371,12 @@ func (s *lotteryService) ConductDraw(ctx context.Context, draw *entities.Lottery
 		lockedDraw.Complete(winningNumber)
 	}
 
-	// Always create next draw
+	// Update draw record BEFORE creating next draw, so GetCurrentOpenDraw excludes this draw
+	if err := s.lotteryDrawRepo.Update(ctx, lockedDraw); err != nil {
+		return nil, fmt.Errorf("failed to update draw: %w", err)
+	}
+
+	// Create next draw (now that current draw is marked complete in DB)
 	guildSettings, err := s.guildSettingsRepo.GetOrCreateGuildSettings(ctx, draw.GuildID)
 	if err != nil {
 		log.WithError(err).WithField("guildID", draw.GuildID).Error("failed to get guild settings for next draw")
@@ -403,11 +408,6 @@ func (s *lotteryService) ConductDraw(ctx context.Context, draw *entities.Lottery
 			}
 			result.NextDraw = nextDraw
 		}
-	}
-
-	// Update draw record
-	if err := s.lotteryDrawRepo.Update(ctx, lockedDraw); err != nil {
-		return nil, fmt.Errorf("failed to update draw: %w", err)
 	}
 
 	return result, nil
