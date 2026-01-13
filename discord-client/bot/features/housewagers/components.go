@@ -130,8 +130,29 @@ func (f *Feature) handleHouseWagerBetButton(s *discordgo.Session, i *discordgo.I
 		return
 	}
 
+	// Get user balance to display in modal
+	userID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
+	if err != nil {
+		log.Errorf("Invalid user ID: %s", i.Member.User.ID)
+		common.RespondWithError(s, i, "Invalid user ID")
+		return
+	}
+
+	userService := services.NewUserService(
+		uow.UserRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
+	user, err := userService.GetOrCreateUser(context.Background(), userID, i.Member.User.Username)
+	if err != nil {
+		log.Errorf("Failed to get user for balance display: %v", err)
+		common.RespondWithError(s, i, "Failed to get user balance")
+		return
+	}
+
 	// Create betting modal
-	modal := f.createHouseWagerBetModal(wagerID, optionID, selectedOption.OptionText, selectedOption.OddsMultiplier, wagerDetail.Wager.Condition)
+	modal := f.createHouseWagerBetModal(wagerID, optionID, selectedOption.OptionText, selectedOption.OddsMultiplier, wagerDetail.Wager.Condition, user.AvailableBalance)
 
 	// Respond with modal
 	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -148,7 +169,7 @@ func (f *Feature) handleHouseWagerBetButton(s *discordgo.Session, i *discordgo.I
 }
 
 // createHouseWagerBetModal creates a modal for betting on a house wager option
-func (f *Feature) createHouseWagerBetModal(wagerID, optionID int64, optionText string, multiplier float64, condition string) *discordgo.InteractionResponseData {
+func (f *Feature) createHouseWagerBetModal(wagerID, optionID int64, optionText string, multiplier float64, condition string, balance int64) *discordgo.InteractionResponseData {
 	// Extract the first line of the condition for context (summoner name and game type)
 	var wagerContext string
 	if idx := strings.Index(condition, "\n"); idx > 0 {
@@ -175,7 +196,7 @@ func (f *Feature) createHouseWagerBetModal(wagerID, optionID int64, optionText s
 				Components: []discordgo.MessageComponent{
 					discordgo.TextInput{
 						CustomID:    "amount",
-						Label:       fmt.Sprintf("Bet Amount (%.2fx payout)", multiplier),
+						Label:       fmt.Sprintf("Bet Amount (Balance: %s bits | %.2fx payout)", common.FormatBalance(balance), multiplier),
 						Style:       discordgo.TextInputShort,
 						Placeholder: "Enter amount in bits (e.g., 1000)",
 						Required:    true,

@@ -11,7 +11,8 @@ import (
 // buildBetAmountModal creates the modal for entering bet amount
 func buildBetAmountModal(odds float64, balance int64) *discordgo.InteractionResponseData {
 	percentage := int(odds * 100)
-	label := fmt.Sprintf("Bet Amount (Balance: %s bits)", common.FormatBalance(balance))
+	multiplier := 1.0 / odds
+	label := fmt.Sprintf("Bet Amount (Balance: %s bits | %.2fx payout)", common.FormatBalance(balance), multiplier)
 
 	return &discordgo.InteractionResponseData{
 		CustomID: "bet_amount_modal",
