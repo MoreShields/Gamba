@@ -196,9 +196,9 @@ func (f *Feature) createHouseWagerBetModal(wagerID, optionID int64, optionText s
 				Components: []discordgo.MessageComponent{
 					discordgo.TextInput{
 						CustomID:    "amount",
-						Label:       fmt.Sprintf("Bet Amount (Balance: %s bits | %.2fx payout)", common.FormatBalance(balance), multiplier),
+						Label:       "Bet Amount",
 						Style:       discordgo.TextInputShort,
-						Placeholder: "Enter amount in bits (e.g., 1000)",
+						Placeholder: fmt.Sprintf("Balance: %s | %.2fx payout", common.FormatBalance(balance), multiplier),
 						Required:    true,
 						MinLength:   1,
 						MaxLength:   20,

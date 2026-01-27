@@ -122,8 +122,6 @@ class TFTMatchInfo:
     queue_id: int
     tft_game_type: Optional[str]
     tft_set_number: Optional[int]
-
-    # Note: get_placement(puuid) removed - use get_placement_by_name instead
     
     def is_double_up_queue(self) -> bool:
         """Check if this is a Double Up game mode.
@@ -183,8 +181,6 @@ class MatchInfo:
             1700: "ARENA",
         }
         return queue_map.get(self.queue_id, f"QUEUE_{self.queue_id}")
-
-    # Note: get_participant_result(puuid) removed - use get_participant_result_by_name instead
     
     def get_participant_result_by_name(self, game_name: str, tag_line: str) -> Optional[Dict[str, Any]]:
         """Get the match result for a specific participant by Riot ID.
