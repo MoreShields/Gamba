@@ -185,16 +185,16 @@ func (s *DailyAwardsService) CalculateWordleReward(ctx context.Context, repo int
 
 	// Special case: single guess always pays 5 bits regardless of streak
 	if score.Guesses == 1 {
-		return 5, nil
+		return 50, nil
 	}
 
 	// Calculate base reward based on guesses
 	var baseReward int64
 	switch score.Guesses {
 	case 2, 3, 4:
-		baseReward = 2
+		baseReward = 30
 	case 5, 6:
-		baseReward = 1
+		baseReward = 25
 	default:
 		return 0, nil // Should not happen with valid WordleScore
 	}

@@ -12,7 +12,7 @@ import (
 func buildBetAmountModal(odds float64, balance int64) *discordgo.InteractionResponseData {
 	percentage := int(odds * 100)
 	multiplier := 1.0 / odds
-	label := fmt.Sprintf("Bet Amount (Balance: %s bits | %.2fx payout)", common.FormatBalance(balance), multiplier)
+	placeholder := fmt.Sprintf("Balance: %s | %.2fx payout", common.FormatBalance(balance), multiplier)
 
 	return &discordgo.InteractionResponseData{
 		CustomID: "bet_amount_modal",
@@ -22,9 +22,9 @@ func buildBetAmountModal(odds float64, balance int64) *discordgo.InteractionResp
 				Components: []discordgo.MessageComponent{
 					discordgo.TextInput{
 						CustomID:    "bet_amount_input",
-						Label:       label,
+						Label:       "Bet Amount",
 						Style:       discordgo.TextInputShort,
-						Placeholder: "Enter amount to bet",
+						Placeholder: placeholder,
 						Required:    true,
 						MaxLength:   20,
 					},
