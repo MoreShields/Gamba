@@ -120,6 +120,9 @@ type GuildSettingsService interface {
 
 	// UpdateLottoDifficulty updates the lottery difficulty for a guild
 	UpdateLottoDifficulty(ctx context.Context, guildID int64, difficulty *int64) error
+
+	// UpdateWordleRewards updates the wordle reward rates for a guild
+	UpdateWordleRewards(ctx context.Context, guildID int64, score1, score2to4, score5to6 *int64) error
 }
 
 // HighRollerService defines the interface for high roller operations

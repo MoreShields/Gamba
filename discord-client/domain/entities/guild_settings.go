@@ -10,6 +10,13 @@ const (
 	MaxLottoDifficulty     = 20
 )
 
+// Wordle reward defaults
+const (
+	DefaultWordleRewardScore1   = 50
+	DefaultWordleRewardScore2to4 = 30
+	DefaultWordleRewardScore5to6 = 25
+)
+
 // GuildSettings represents per-guild configuration settings
 type GuildSettings struct {
 	GuildID                     int64      `db:"guild_id"`
@@ -22,6 +29,9 @@ type GuildSettings struct {
 	LottoChannelID              *int64     `db:"lotto_channel_id"`                // Nullable - channel for lottery messages
 	LottoTicketCost             *int64     `db:"lotto_ticket_cost"`               // Nullable - ticket cost in bits (default: 1000)
 	LottoDifficulty             *int64     `db:"lotto_difficulty"`                // Nullable - number of bits for ticket numbers (default: 8)
+	WordleRewardScore1          *int64     `db:"wordle_reward_score_1"`           // Nullable - reward for 1-guess wordle (default: 50)
+	WordleRewardScore2to4       *int64     `db:"wordle_reward_score_2_4"`         // Nullable - reward for 2-4 guess wordle (default: 30)
+	WordleRewardScore5to6       *int64     `db:"wordle_reward_score_5_6"`         // Nullable - reward for 5-6 guess wordle (default: 25)
 }
 
 // HasPrimaryChannel checks if a primary channel is configured
@@ -131,4 +141,35 @@ func (gs *GuildSettings) SetLottoDifficulty(difficulty *int64) {
 // IsLottoEnabled returns true if lottery is configured (channel is set)
 func (gs *GuildSettings) IsLottoEnabled() bool {
 	return gs.HasLottoChannel()
+}
+
+// GetWordleRewardScore1 returns the reward for a 1-guess wordle or default if not set
+func (gs *GuildSettings) GetWordleRewardScore1() int64 {
+	if gs.WordleRewardScore1 != nil {
+		return *gs.WordleRewardScore1
+	}
+	return DefaultWordleRewardScore1
+}
+
+// GetWordleRewardScore2to4 returns the reward for a 2-4 guess wordle or default if not set
+func (gs *GuildSettings) GetWordleRewardScore2to4() int64 {
+	if gs.WordleRewardScore2to4 != nil {
+		return *gs.WordleRewardScore2to4
+	}
+	return DefaultWordleRewardScore2to4
+}
+
+// GetWordleRewardScore5to6 returns the reward for a 5-6 guess wordle or default if not set
+func (gs *GuildSettings) GetWordleRewardScore5to6() int64 {
+	if gs.WordleRewardScore5to6 != nil {
+		return *gs.WordleRewardScore5to6
+	}
+	return DefaultWordleRewardScore5to6
+}
+
+// SetWordleRewards sets the wordle reward values
+func (gs *GuildSettings) SetWordleRewards(score1, score2to4, score5to6 *int64) {
+	gs.WordleRewardScore1 = score1
+	gs.WordleRewardScore2to4 = score2to4
+	gs.WordleRewardScore5to6 = score5to6
 }

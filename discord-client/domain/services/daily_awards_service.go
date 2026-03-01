@@ -66,11 +66,12 @@ type DailyAwardsSummary struct {
 
 // DailyAwardsService handles aggregating and formatting daily awards
 type DailyAwardsService struct {
-	wordleRepo     interfaces.WordleCompletionRepository
-	userRepo       interfaces.UserRepository
-	wagerRepo      interfaces.WagerRepository
-	betRepo        interfaces.BetRepository
-	groupWagerRepo interfaces.GroupWagerRepository
+	wordleRepo        interfaces.WordleCompletionRepository
+	userRepo          interfaces.UserRepository
+	wagerRepo         interfaces.WagerRepository
+	betRepo           interfaces.BetRepository
+	groupWagerRepo    interfaces.GroupWagerRepository
+	guildSettingsRepo interfaces.GuildSettingsRepository
 }
 
 // NewDailyAwardsService creates a new DailyAwardsService
@@ -80,13 +81,15 @@ func NewDailyAwardsService(
 	wagerRepo interfaces.WagerRepository,
 	betRepo interfaces.BetRepository,
 	groupWagerRepo interfaces.GroupWagerRepository,
+	guildSettingsRepo interfaces.GuildSettingsRepository,
 ) *DailyAwardsService {
 	return &DailyAwardsService{
-		wordleRepo:     wordleRepo,
-		userRepo:       userRepo,
-		wagerRepo:      wagerRepo,
-		betRepo:        betRepo,
-		groupWagerRepo: groupWagerRepo,
+		wordleRepo:        wordleRepo,
+		userRepo:          userRepo,
+		wagerRepo:         wagerRepo,
+		betRepo:           betRepo,
+		groupWagerRepo:    groupWagerRepo,
+		guildSettingsRepo: guildSettingsRepo,
 	}
 }
 
@@ -183,18 +186,24 @@ func (s *DailyAwardsService) CalculateWordleReward(ctx context.Context, repo int
 		return 0, err
 	}
 
-	// Special case: single guess always pays 5 bits regardless of streak
-	if score.Guesses == 1 {
-		return 50, nil
+	// Fetch guild-specific reward rates (falls back to defaults if not configured)
+	settings, err := s.guildSettingsRepo.GetOrCreateGuildSettings(ctx, guildID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get guild settings: %w", err)
 	}
 
-	// Calculate base reward based on guesses
+	// Special case: single guess always pays the score-1 reward regardless of streak
+	if score.Guesses == 1 {
+		return settings.GetWordleRewardScore1(), nil
+	}
+
+	// Calculate base reward based on guesses using guild-configured rates
 	var baseReward int64
 	switch score.Guesses {
 	case 2, 3, 4:
-		baseReward = 30
+		baseReward = settings.GetWordleRewardScore2to4()
 	case 5, 6:
-		baseReward = 25
+		baseReward = settings.GetWordleRewardScore5to6()
 	default:
 		return 0, nil // Should not happen with valid WordleScore
 	}

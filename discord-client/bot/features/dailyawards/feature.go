@@ -148,6 +148,7 @@ func (f *Feature) PostDailyAwardsForGuild(ctx context.Context, guildID int64) er
 		uow.WagerRepository(),
 		uow.BetRepository(),
 		uow.GroupWagerRepository(),
+		uow.GuildSettingsRepository(),
 	)
 
 	// Get daily awards summary

@@ -255,6 +255,34 @@ func (b *Bot) registerCommands() error {
 						},
 					},
 				},
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "wordle-rewards",
+					Description: "Set the reward rates for Wordle completions",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionInteger,
+							Name:        "score-1",
+							Description: "Reward for 1-guess completion (default: 50)",
+							Required:    true,
+							MinValue:    func() *float64 { v := 1.0; return &v }(),
+						},
+						{
+							Type:        discordgo.ApplicationCommandOptionInteger,
+							Name:        "score-2-to-4",
+							Description: "Base reward for 2-4 guess completion (default: 30)",
+							Required:    true,
+							MinValue:    func() *float64 { v := 1.0; return &v }(),
+						},
+						{
+							Type:        discordgo.ApplicationCommandOptionInteger,
+							Name:        "score-5-to-6",
+							Description: "Base reward for 5-6 guess completion (default: 25)",
+							Required:    true,
+							MinValue:    func() *float64 { v := 1.0; return &v }(),
+						},
+					},
+				},
 			},
 		},
 		{

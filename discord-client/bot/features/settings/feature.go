@@ -46,5 +46,7 @@ func (f *Feature) HandleCommand(s *discordgo.Session, i *discordgo.InteractionCr
 		f.handleLottoTicketCost(s, i)
 	case "lotto-difficulty":
 		f.handleLottoDifficulty(s, i)
+	case "wordle-rewards":
+		f.handleWordleRewards(s, i)
 	}
 }

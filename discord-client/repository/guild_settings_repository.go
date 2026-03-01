@@ -29,7 +29,8 @@ func (r *GuildSettingsRepository) GetOrCreateGuildSettings(ctx context.Context, 
 	// First try to get existing settings
 	query := `
 		SELECT guild_id, primary_channel_id, lol_channel_id, high_roller_role_id, wordle_channel_id, tft_channel_id,
-		       high_roller_tracking_start_time, lotto_channel_id, lotto_ticket_cost, lotto_difficulty
+		       high_roller_tracking_start_time, lotto_channel_id, lotto_ticket_cost, lotto_difficulty,
+		       wordle_reward_score_1, wordle_reward_score_2_4, wordle_reward_score_5_6
 		FROM guild_settings
 		WHERE guild_id = $1
 	`
@@ -46,6 +47,9 @@ func (r *GuildSettingsRepository) GetOrCreateGuildSettings(ctx context.Context, 
 		&settings.LottoChannelID,
 		&settings.LottoTicketCost,
 		&settings.LottoDifficulty,
+		&settings.WordleRewardScore1,
+		&settings.WordleRewardScore2to4,
+		&settings.WordleRewardScore5to6,
 	)
 
 	if err == nil {
@@ -59,10 +63,12 @@ func (r *GuildSettingsRepository) GetOrCreateGuildSettings(ctx context.Context, 
 	// If not found, create default settings
 	insertQuery := `
 		INSERT INTO guild_settings (guild_id, primary_channel_id, lol_channel_id, high_roller_role_id, wordle_channel_id, tft_channel_id,
-		                            high_roller_tracking_start_time, lotto_channel_id, lotto_ticket_cost, lotto_difficulty)
-		VALUES ($1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+		                            high_roller_tracking_start_time, lotto_channel_id, lotto_ticket_cost, lotto_difficulty,
+		                            wordle_reward_score_1, wordle_reward_score_2_4, wordle_reward_score_5_6)
+		VALUES ($1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
 		RETURNING guild_id, primary_channel_id, lol_channel_id, high_roller_role_id, wordle_channel_id, tft_channel_id,
-		          high_roller_tracking_start_time, lotto_channel_id, lotto_ticket_cost, lotto_difficulty
+		          high_roller_tracking_start_time, lotto_channel_id, lotto_ticket_cost, lotto_difficulty,
+		          wordle_reward_score_1, wordle_reward_score_2_4, wordle_reward_score_5_6
 	`
 
 	err = r.q.QueryRow(ctx, insertQuery, guildID).Scan(
@@ -76,6 +82,9 @@ func (r *GuildSettingsRepository) GetOrCreateGuildSettings(ctx context.Context, 
 		&settings.LottoChannelID,
 		&settings.LottoTicketCost,
 		&settings.LottoDifficulty,
+		&settings.WordleRewardScore1,
+		&settings.WordleRewardScore2to4,
+		&settings.WordleRewardScore5to6,
 	)
 
 	if err != nil {
@@ -97,7 +106,10 @@ func (r *GuildSettingsRepository) UpdateGuildSettings(ctx context.Context, setti
 		    high_roller_tracking_start_time = $7,
 		    lotto_channel_id = $8,
 		    lotto_ticket_cost = $9,
-		    lotto_difficulty = $10
+		    lotto_difficulty = $10,
+		    wordle_reward_score_1 = $11,
+		    wordle_reward_score_2_4 = $12,
+		    wordle_reward_score_5_6 = $13
 		WHERE guild_id = $1
 	`
 
@@ -112,6 +124,9 @@ func (r *GuildSettingsRepository) UpdateGuildSettings(ctx context.Context, setti
 		settings.LottoChannelID,
 		settings.LottoTicketCost,
 		settings.LottoDifficulty,
+		settings.WordleRewardScore1,
+		settings.WordleRewardScore2to4,
+		settings.WordleRewardScore5to6,
 	)
 
 	if err != nil {

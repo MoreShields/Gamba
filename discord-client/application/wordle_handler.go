@@ -195,6 +195,7 @@ func (h *wordleHandler) processWordleResult(ctx context.Context, result WordleRe
 		uow.WagerRepository(),
 		uow.BetRepository(),
 		uow.GroupWagerRepository(),
+		uow.GuildSettingsRepository(),
 	)
 
 	// Calculate reward including streak bonus

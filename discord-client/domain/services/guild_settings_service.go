@@ -178,6 +178,29 @@ func (s *guildSettingsService) UpdateLottoTicketCost(ctx context.Context, guildI
 	return nil
 }
 
+// UpdateWordleRewards updates the wordle reward rates for a guild
+func (s *guildSettingsService) UpdateWordleRewards(ctx context.Context, guildID int64, score1, score2to4, score5to6 *int64) error {
+	// Validate all provided values are positive
+	for _, v := range []*int64{score1, score2to4, score5to6} {
+		if v != nil && *v <= 0 {
+			return fmt.Errorf("wordle reward values must be positive")
+		}
+	}
+
+	settings, err := s.guildSettingsRepo.GetOrCreateGuildSettings(ctx, guildID)
+	if err != nil {
+		return fmt.Errorf("failed to get guild settings: %w", err)
+	}
+
+	settings.SetWordleRewards(score1, score2to4, score5to6)
+
+	if err := s.guildSettingsRepo.UpdateGuildSettings(ctx, settings); err != nil {
+		return fmt.Errorf("failed to update guild settings: %w", err)
+	}
+
+	return nil
+}
+
 // UpdateLottoDifficulty updates the lottery difficulty for a guild
 func (s *guildSettingsService) UpdateLottoDifficulty(ctx context.Context, guildID int64, difficulty *int64) error {
 	if difficulty != nil {

@@ -138,6 +138,7 @@ func (w *DailyAwardsWorkerImpl) processGuildAwards(ctx context.Context, guild dt
 		uow.WagerRepository(),
 		uow.BetRepository(),
 		uow.GroupWagerRepository(),
+		uow.GuildSettingsRepository(),
 	)
 
 	// Get daily awards summary

@@ -654,6 +654,89 @@ func (f *Feature) handleLottoTicketCost(s *discordgo.Session, i *discordgo.Inter
 	}
 }
 
+// handleWordleRewards handles the /settings wordle-rewards command
+func (f *Feature) handleWordleRewards(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	// Check if user has admin permissions
+	if !common.IsUserAdmin(s, i.GuildID, i.Member.User.ID) {
+		common.RespondWithError(s, i, "You need administrator permissions to use this command")
+		return
+	}
+
+	// Parse guild ID
+	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
+	if err != nil {
+		log.Errorf("Failed to parse guild ID: %v", err)
+		common.RespondWithError(s, i, "Failed to process command")
+		return
+	}
+
+	// Get the options
+	options := i.ApplicationCommandData().Options[0].Options
+	if len(options) < 3 {
+		common.RespondWithError(s, i, "Please provide all three reward values")
+		return
+	}
+
+	// Parse option values by name
+	var score1, score2to4, score5to6 int64
+	for _, opt := range options {
+		switch opt.Name {
+		case "score-1":
+			score1 = opt.IntValue()
+		case "score-2-to-4":
+			score2to4 = opt.IntValue()
+		case "score-5-to-6":
+			score5to6 = opt.IntValue()
+		}
+	}
+
+	ctx := context.Background()
+
+	// Create guild-scoped unit of work
+	uow := f.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(ctx); err != nil {
+		log.Errorf("Error beginning transaction: %v", err)
+		common.RespondWithError(s, i, "Failed to update settings")
+		return
+	}
+	defer uow.Rollback()
+
+	// Instantiate guild settings service with repositories from UnitOfWork
+	guildSettingsService := services.NewGuildSettingsService(
+		uow.GuildSettingsRepository(),
+	)
+
+	// Update wordle reward settings
+	if err := guildSettingsService.UpdateWordleRewards(ctx, guildID, &score1, &score2to4, &score5to6); err != nil {
+		log.Errorf("Failed to update wordle rewards: %v", err)
+		common.RespondWithError(s, i, fmt.Sprintf("Failed to update settings: %v", err))
+		return
+	}
+
+	// Commit the transaction
+	if err := uow.Commit(); err != nil {
+		log.Errorf("Error committing transaction: %v", err)
+		common.RespondWithError(s, i, "Failed to update settings")
+		return
+	}
+
+	// Respond with success
+	message := fmt.Sprintf("Wordle rewards updated: 1-guess = %s, 2-4 guesses = %s, 5-6 guesses = %s",
+		common.FormatBalance(score1), common.FormatBalance(score2to4), common.FormatBalance(score5to6))
+
+	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: message,
+			Flags:   discordgo.MessageFlagsEphemeral,
+		},
+	})
+
+	if err != nil {
+		log.Errorf("Failed to respond to interaction: %v", err)
+	}
+}
+
 // handleLottoDifficulty handles the /settings lotto-difficulty command
 func (f *Feature) handleLottoDifficulty(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	// Check if user has admin permissions
