@@ -266,6 +266,21 @@ type LotteryWinnerRepository interface {
 	GetByUserID(ctx context.Context, discordID int64) ([]*entities.LotteryWinner, error)
 }
 
+// StagedBetRepository defines the interface for staged bet data access
+type StagedBetRepository interface {
+	// Upsert creates or updates a staged bet for a user/summoner/guild combination
+	Upsert(ctx context.Context, stagedBet *entities.StagedBet) error
+
+	// GetByGuildAndSummoner returns all staged bets for a guild+summoner pair
+	GetByGuildAndSummoner(ctx context.Context, guildID int64, summonerID int64) ([]*entities.StagedBet, error)
+
+	// Delete removes a staged bet by ID
+	Delete(ctx context.Context, id int64) error
+
+	// GetByUserAndSummoner returns a staged bet for a specific user/summoner/guild if one exists
+	GetByUserAndSummoner(ctx context.Context, guildID, discordID, summonerID int64) (*entities.StagedBet, error)
+}
+
 // EventPublisher defines the interface for publishing events
 type EventPublisher interface {
 	Publish(event events.Event) error

@@ -110,6 +110,61 @@ func (h *BaseHouseWagerHandler) CreateHouseWagerForGuild(
 		return fmt.Errorf("failed to update wager with external reference: %w", err)
 	}
 
+	// Auto-place staged bets on the first option (Win for LoL, best placement for TFT)
+	if len(wagerDetail.Options) > 0 {
+		firstOptionID := wagerDetail.Options[0].ID
+		stagedBets, err := uow.StagedBetRepository().GetByGuildAndSummoner(ctx, guild.GuildID, guild.SummonerID)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"guild":      guild.GuildID,
+				"summonerID": guild.SummonerID,
+				"error":      err,
+			}).Warn("Failed to fetch staged bets, continuing without auto-placement")
+		} else if len(stagedBets) > 0 {
+			for _, sb := range stagedBets {
+				// Delete the staged bet first to free the locked funds in the SQL calc
+				if err := uow.StagedBetRepository().Delete(ctx, sb.ID); err != nil {
+					log.WithFields(log.Fields{
+						"stagedBetID": sb.ID,
+						"discordID":   sb.DiscordID,
+						"error":       err,
+					}).Warn("Failed to delete staged bet, skipping")
+					continue
+				}
+
+				// Place the bet on the first option
+				_, err := groupWagerService.PlaceBet(ctx, wagerDetail.Wager.ID, sb.DiscordID, firstOptionID, sb.Amount)
+				if err != nil {
+					log.WithFields(log.Fields{
+						"wagerID":   wagerDetail.Wager.ID,
+						"discordID": sb.DiscordID,
+						"amount":    sb.Amount,
+						"error":     err,
+					}).Warn("Failed to auto-place staged bet, funds returned to user")
+					continue
+				}
+
+				log.WithFields(log.Fields{
+					"wagerID":   wagerDetail.Wager.ID,
+					"discordID": sb.DiscordID,
+					"amount":    sb.Amount,
+					"optionID":  firstOptionID,
+				}).Info("Auto-placed staged bet on house wager")
+			}
+
+			// Refresh wager detail so the Discord embed shows auto-placed participants
+			refreshedDetail, err := uow.GroupWagerRepository().GetDetailByID(ctx, wagerDetail.Wager.ID)
+			if err != nil {
+				log.WithFields(log.Fields{
+					"wagerID": wagerDetail.Wager.ID,
+					"error":   err,
+				}).Warn("Failed to refresh wager detail after auto-placement")
+			} else {
+				wagerDetail = refreshedDetail
+			}
+		}
+	}
+
 	// Build DTO for Discord posting
 	channelID := int64(0)
 	channelIDPtr := config.ChannelIDGetter(guildSettings)

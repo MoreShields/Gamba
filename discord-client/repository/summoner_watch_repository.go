@@ -6,6 +6,8 @@ import (
 
 	"gambler/discord-client/database"
 	"gambler/discord-client/domain/entities"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // SummonerWatchRepository implements the SummonerWatchRepository interface
@@ -67,6 +69,7 @@ func (r *SummonerWatchRepository) CreateWatch(ctx context.Context, guildID int64
 	return &entities.SummonerWatchDetail{
 		GuildID:      watch.GuildID,
 		WatchedAt:    watch.CreatedAt,
+		SummonerID:   summoner.ID,
 		SummonerName: summoner.SummonerName,
 		TagLine:      summoner.TagLine,
 		CreatedAt:    summoner.CreatedAt,
@@ -77,9 +80,10 @@ func (r *SummonerWatchRepository) CreateWatch(ctx context.Context, guildID int64
 // GetWatchesByGuild returns all summoner watches for a specific guild
 func (r *SummonerWatchRepository) GetWatchesByGuild(ctx context.Context, guildID int64) ([]*entities.SummonerWatchDetail, error) {
 	query := `
-		SELECT 
+		SELECT
 			gsw.guild_id,
 			gsw.created_at as watched_at,
+			s.id,
 			s.game_name,
 			s.tag_line,
 			s.created_at,
@@ -100,7 +104,7 @@ func (r *SummonerWatchRepository) GetWatchesByGuild(ctx context.Context, guildID
 		var watch entities.SummonerWatchDetail
 		err := rows.Scan(
 			&watch.GuildID, &watch.WatchedAt,
-			&watch.SummonerName, &watch.TagLine,
+			&watch.SummonerID, &watch.SummonerName, &watch.TagLine,
 			&watch.CreatedAt, &watch.UpdatedAt,
 		)
 		if err != nil {
@@ -173,9 +177,10 @@ func (r *SummonerWatchRepository) DeleteWatch(ctx context.Context, guildID int64
 // GetWatch retrieves a specific summoner watch for a guild
 func (r *SummonerWatchRepository) GetWatch(ctx context.Context, guildID int64, summonerName, tagLine string) (*entities.SummonerWatchDetail, error) {
 	query := `
-		SELECT 
+		SELECT
 			gsw.guild_id,
 			gsw.created_at as watched_at,
+			s.id,
 			s.game_name,
 			s.tag_line,
 			s.created_at,
@@ -187,13 +192,13 @@ func (r *SummonerWatchRepository) GetWatch(ctx context.Context, guildID int64, s
 	var watch entities.SummonerWatchDetail
 	err := r.q.QueryRow(ctx, query, guildID, summonerName, tagLine).Scan(
 		&watch.GuildID, &watch.WatchedAt,
-		&watch.SummonerName, &watch.TagLine,
+		&watch.SummonerID, &watch.SummonerName, &watch.TagLine,
 		&watch.CreatedAt, &watch.UpdatedAt,
 	)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
 	if err != nil {
-		if err.Error() == "no rows in result set" {
-			return nil, nil
-		}
 		return nil, fmt.Errorf("failed to get watch for guild %d, summoner %s#%s: %w", guildID, summonerName, tagLine, err)
 	}
 

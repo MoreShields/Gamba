@@ -34,6 +34,7 @@ type unitOfWork struct {
 	lotteryDrawRepo        interfaces.LotteryDrawRepository
 	lotteryTicketRepo      interfaces.LotteryTicketRepository
 	lotteryWinnerRepo      interfaces.LotteryWinnerRepository
+	stagedBetRepo          interfaces.StagedBetRepository
 }
 
 // transactionalEventBus wraps the unit of work to buffer events
@@ -81,6 +82,7 @@ func (u *unitOfWork) Begin(ctx context.Context) error {
 	u.lotteryDrawRepo = repository.NewLotteryDrawRepositoryScoped(tx, u.guildID)
 	u.lotteryTicketRepo = repository.NewLotteryTicketRepositoryScoped(tx, u.guildID)
 	u.lotteryWinnerRepo = repository.NewLotteryWinnerRepositoryScoped(tx, u.guildID)
+	u.stagedBetRepo = repository.NewStagedBetRepositoryScoped(tx, u.guildID)
 
 	return nil
 }
@@ -245,6 +247,13 @@ func (u *unitOfWork) LotteryWinnerRepository() interfaces.LotteryWinnerRepositor
 		panic("unit of work not started - call Begin() first")
 	}
 	return u.lotteryWinnerRepo
+}
+
+func (u *unitOfWork) StagedBetRepository() interfaces.StagedBetRepository {
+	if u.stagedBetRepo == nil {
+		panic("unit of work not started - call Begin() first")
+	}
+	return u.stagedBetRepo
 }
 
 // EventBus returns the transactional event publisher

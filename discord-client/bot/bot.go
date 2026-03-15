@@ -10,6 +10,7 @@ import (
 	"gambler/discord-client/application/dto"
 	"gambler/discord-client/bot/features/balance"
 	"gambler/discord-client/bot/features/betting"
+	"gambler/discord-client/bot/features/betwin"
 	"gambler/discord-client/bot/features/dailyawards"
 	"gambler/discord-client/bot/features/groupwagers"
 	"gambler/discord-client/bot/features/highroller"
@@ -49,6 +50,7 @@ type Bot struct {
 	eventPublisher interfaces.EventPublisher
 
 	// Feature modules
+	betwin      *betwin.Feature
 	betting     *betting.Feature
 	wagers      *wagers.Feature
 	groupWagers *groupwagers.Feature
@@ -90,6 +92,7 @@ func New(config Config, uowFactory application.UnitOfWorkFactory, summonerClient
 	}
 
 	// Create feature modules
+	bot.betwin = betwin.New(uowFactory)
 	bot.betting = betting.New(uowFactory)
 	bot.wagers = wagers.NewFeature(dg, uowFactory, config.GuildID)
 	bot.groupWagers = groupwagers.NewFeature(dg, uowFactory)
@@ -202,6 +205,8 @@ func (b *Bot) handleCommands(s *discordgo.Session, i *discordgo.InteractionCreat
 		b.settings.HandleCommand(s, i)
 	case "summoner":
 		b.summoner.HandleCommand(s, i)
+	case "betwin":
+		b.betwin.HandleCommand(s, i)
 	case "highroller":
 		b.highroller.HandleCommand(s, i)
 	}
@@ -217,6 +222,17 @@ func (b *Bot) handleInteractions(s *discordgo.Session, i *discordgo.InteractionC
 	case discordgo.InteractionModalSubmit:
 		customID := i.ModalSubmitData().CustomID
 		b.routeModalInteraction(s, i, customID)
+
+	case discordgo.InteractionApplicationCommandAutocomplete:
+		b.routeAutocomplete(s, i)
+	}
+}
+
+// routeAutocomplete routes autocomplete interactions to the appropriate feature
+func (b *Bot) routeAutocomplete(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	switch i.ApplicationCommandData().Name {
+	case "betwin":
+		b.betwin.HandleAutocomplete(s, i)
 	}
 }
 

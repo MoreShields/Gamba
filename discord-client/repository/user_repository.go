@@ -14,11 +14,11 @@ import (
 // availableBalanceSQL is a reusable SQL fragment that calculates available balance
 // by subtracting locked amounts in active wagers and group wagers from total balance
 const availableBalanceSQL = `uga.balance - COALESCE(
-	(SELECT SUM(w.amount) 
-	 FROM wagers w 
+	(SELECT SUM(w.amount)
+	 FROM wagers w
 	 WHERE (w.proposer_discord_id = uga.discord_id OR w.target_discord_id = uga.discord_id)
 	   AND w.guild_id = uga.guild_id
-	   AND w.state = 'voting'), 
+	   AND w.state = 'voting'),
 	0
 ) - COALESCE(
 	(SELECT SUM(gwp.amount)
@@ -27,6 +27,12 @@ const availableBalanceSQL = `uga.balance - COALESCE(
 	 WHERE gwp.discord_id = uga.discord_id
 	   AND gw.guild_id = uga.guild_id
 	   AND gw.state IN ('active', 'pending_resolution')),
+	0
+) - COALESCE(
+	(SELECT SUM(sb.amount)
+	 FROM staged_bets sb
+	 WHERE sb.discord_id = uga.discord_id
+	   AND sb.guild_id = uga.guild_id),
 	0
 )`
 

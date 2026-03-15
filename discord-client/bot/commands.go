@@ -24,7 +24,7 @@ func (b *Bot) registerCommands() error {
 				{
 					Type:        discordgo.ApplicationCommandOptionInteger,
 					Name:        "amount",
-					Description: "Amount to donate in bits",
+					Description: "Amount to donate",
 					Required:    true,
 				},
 				{
@@ -53,7 +53,7 @@ func (b *Bot) registerCommands() error {
 						{
 							Type:        discordgo.ApplicationCommandOptionInteger,
 							Name:        "amount",
-							Description: "Amount to wager in bits",
+							Description: "Amount to wager",
 							Required:    true,
 						},
 					},
@@ -235,7 +235,7 @@ func (b *Bot) registerCommands() error {
 						{
 							Type:        discordgo.ApplicationCommandOptionInteger,
 							Name:        "cost",
-							Description: "Cost per ticket in bits (default: 1000)",
+							Description: "Cost per ticket (default: 1000)",
 							Required:    true,
 						},
 					},
@@ -326,6 +326,26 @@ func (b *Bot) registerCommands() error {
 							Required:    true,
 						},
 					},
+				},
+			},
+		},
+		{
+			Name:        "betwin",
+			Description: "Bet win on a summoner's next game",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:         discordgo.ApplicationCommandOptionString,
+					Name:         "summoner",
+					Description:  "summoner name and tagline",
+					Required:     true,
+					Autocomplete: true,
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionInteger,
+					Name:        "amount",
+					Description: "amount",
+					Required:    true,
+					MinValue:    func() *float64 { v := 1.0; return &v }(),
 				},
 			},
 		},

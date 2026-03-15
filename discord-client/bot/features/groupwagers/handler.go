@@ -586,7 +586,7 @@ func (f *Feature) handleGroupWagerButtonInteraction(s *discordgo.Session, i *dis
 					Components: []discordgo.MessageComponent{
 						discordgo.TextInput{
 							CustomID:    "amount",
-							Label:       "Bet Amount (in bits)",
+							Label:       "Bet Amount",
 							Style:       discordgo.TextInputShort,
 							Placeholder: "1000",
 							Required:    true,

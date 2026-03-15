@@ -67,14 +67,14 @@ A CLI tool for publishing simulated LoL game state change events to NATS for rap
 #### Basic Game Events
 
 ```bash
-# Start a ranked game for Faker
+# Start a ranked game for Feviben
 go run scripts/publish_lol_events.go --event=start --summoner=Feviben --tag=NA1 --queue=RANKED_SOLO_5x5
 
 # End the game with a win (Azir, 30 minutes)
 go run scripts/publish_lol_events.go --event=end --summoner=Feviben --tag=NA1 --win=true --champion=Azir --duration=1800
 
 # Complete game cycle with 10 second delay
-go run scripts/publish_lol_events.go --event=cycle --summoner=Doublelift --tag=NA1 --delay=10s
+go run scripts/publish_lol_events.go --event=cycle --summoner=Feviben --tag=NA1 --delay=10s
 ```
 
 #### Batch Testing

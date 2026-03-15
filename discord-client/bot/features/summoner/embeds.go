@@ -19,7 +19,7 @@ func createSuccessEmbed(watchDetail *entities.SummonerWatchDetail, summonerDetai
 		Fields: []*discordgo.MessageEmbedField{
 			{
 				Name:   "Summoner",
-				Value:  fmt.Sprintf("%s#%s", watchDetail.SummonerName, watchDetail.TagLine),
+				Value:  fmt.Sprintf("%s #%s", watchDetail.SummonerName, watchDetail.TagLine),
 				Inline: true,
 			},
 		},
@@ -69,7 +69,7 @@ func createAlreadyWatchingEmbed(summonerName, tagLine string) *discordgo.Message
 func createUnwatchSuccessEmbed(summonerName, tagLine string) *discordgo.MessageEmbed {
 	return &discordgo.MessageEmbed{
 		Title:       "✅ Summoner Tracking Stopped",
-		Description: fmt.Sprintf("No longer tracking **%s#%s** for this server.", summonerName, tagLine),
+		Description: fmt.Sprintf("No longer tracking **%s #%s** for this server.", summonerName, tagLine),
 		Color:       common.ColorSuccess,
 		Fields: []*discordgo.MessageEmbedField{
 			{
@@ -89,7 +89,7 @@ func createUnwatchSuccessEmbed(summonerName, tagLine string) *discordgo.MessageE
 func createNotWatchingEmbed(summonerName, tagLine string) *discordgo.MessageEmbed {
 	return &discordgo.MessageEmbed{
 		Title:       "ℹ️ Not Tracking Summoner",
-		Description: fmt.Sprintf("**%s#%s** is not being tracked for this server.", summonerName, tagLine),
+		Description: fmt.Sprintf("**%s #%s** is not being tracked for this server.", summonerName, tagLine),
 		Color:       common.ColorInfo,
 		Timestamp:   time.Now().Format(time.RFC3339),
 		Footer: &discordgo.MessageEmbedFooter{

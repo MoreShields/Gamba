@@ -31,6 +31,7 @@ type UnitOfWork interface {
 	LotteryDrawRepository() interfaces.LotteryDrawRepository
 	LotteryTicketRepository() interfaces.LotteryTicketRepository
 	LotteryWinnerRepository() interfaces.LotteryWinnerRepository
+	StagedBetRepository() interfaces.StagedBetRepository
 	EventBus() interfaces.EventPublisher
 }
 

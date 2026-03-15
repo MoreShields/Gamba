@@ -12,6 +12,7 @@ type SummonerWatchDetail struct {
 	WatchedAt time.Time `db:"watched_at"`
 
 	// Summoner information
+	SummonerID   int64     `db:"summoner_id"`
 	SummonerName string    `db:"summoner_name"`
 	TagLine      string    `db:"tag_line"`
 	CreatedAt    time.Time `db:"created_at"`
