@@ -58,6 +58,8 @@ services:
       ENVIRONMENT: production
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       
+    ports:
+      - "127.0.0.1:8899:8899"  # Debug API (localhost only)
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
