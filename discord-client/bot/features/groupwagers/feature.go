@@ -41,6 +41,8 @@ func (f *Feature) HandleCommand(s *discordgo.Session, i *discordgo.InteractionCr
 		f.handleGroupWagerCreate(s, i)
 	case "resolve":
 		f.handleGroupWagerResolve(s, i)
+	case "override":
+		f.handleGroupWagerOverride(s, i)
 	case "cancel":
 		f.handleGroupWagerCancel(s, i)
 	default:

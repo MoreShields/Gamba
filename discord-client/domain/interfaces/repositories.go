@@ -47,6 +47,9 @@ type BalanceHistoryRepository interface {
 
 	// GetTotalDonationsByUser returns the total amount donated (transfer_out) by a user
 	GetTotalDonationsByUser(ctx context.Context, discordID int64) (int64, error)
+
+	// GetByRelated returns balance history entries for a related entity in the repository's guild
+	GetByRelated(ctx context.Context, relatedType entities.RelatedType, relatedID int64) ([]*entities.BalanceHistory, error)
 }
 
 // BetRepository defines the interface for bet data access
@@ -204,7 +207,6 @@ type SummonerWatchRepository interface {
 	// GetWatch retrieves a specific summoner watch for a guild
 	GetWatch(ctx context.Context, guildID int64, summonerName, tagLine string) (*entities.SummonerWatchDetail, error)
 }
-
 
 // LotteryDrawRepository defines the interface for lottery draw data access
 type LotteryDrawRepository interface {

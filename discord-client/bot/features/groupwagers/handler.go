@@ -432,6 +432,124 @@ func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Int
 	}
 }
 
+// handleGroupWagerOverride handles the /groupwager override subcommand.
+func (f *Feature) handleGroupWagerOverride(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	ctx := context.Background()
+	options := i.ApplicationCommandData().Options[0].Options
+
+	if !common.IsUserAdmin(s, i.GuildID, i.Member.User.ID) {
+		common.RespondWithError(s, i, "❌ You need administrator permissions to override wager results")
+		return
+	}
+
+	var groupWagerID int64
+	var winningOptionText string
+	for _, opt := range options {
+		switch opt.Name {
+		case "id":
+			groupWagerID = opt.IntValue()
+		case "winning_option":
+			winningOptionText = opt.StringValue()
+		}
+	}
+
+	adminID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
+	if err != nil {
+		log.Printf("Error parsing admin ID: %v", err)
+		common.RespondWithError(s, i, "Unable to process request.")
+		return
+	}
+
+	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+	}); err != nil {
+		log.Printf("Error deferring override response: %v", err)
+		return
+	}
+
+	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
+	if err != nil {
+		log.Printf("Error parsing guild ID: %v", err)
+		common.FollowUpWithError(s, i, "Unable to process request.")
+		return
+	}
+
+	uow := f.uowFactory.CreateForGuild(guildID)
+	if err := uow.Begin(ctx); err != nil {
+		log.Printf("Error beginning transaction: %v", err)
+		common.FollowUpWithError(s, i, "Unable to process request.")
+		return
+	}
+	defer uow.Rollback()
+
+	groupWagerService := services.NewGroupWagerService(
+		uow.GroupWagerRepository(),
+		uow.UserRepository(),
+		uow.BalanceHistoryRepository(),
+		uow.EventBus(),
+	)
+
+	wagerDetail, err := groupWagerService.GetGroupWagerDetail(ctx, groupWagerID)
+	if err != nil {
+		log.Printf("Error getting group wager detail: %v", err)
+		common.FollowUpWithError(s, i, "Failed to get wager details.")
+		return
+	}
+	if wagerDetail == nil || wagerDetail.Wager == nil {
+		common.FollowUpWithError(s, i, "Group wager not found.")
+		return
+	}
+
+	var winningOptionID int64
+	found := false
+	for _, option := range wagerDetail.Options {
+		if option.OptionText == winningOptionText {
+			winningOptionID = option.ID
+			found = true
+			break
+		}
+	}
+	if !found {
+		common.FollowUpWithError(s, i, fmt.Sprintf("No option found with text: %s", winningOptionText))
+		return
+	}
+
+	previousState := wagerDetail.Wager.State
+	result, err := groupWagerService.OverrideGroupWagerResult(ctx, groupWagerID, &adminID, winningOptionID)
+	if err != nil {
+		log.Printf("Error overriding group wager: %v", err)
+		common.FollowUpWithError(s, i, fmt.Sprintf("Failed to override wager: %v", err))
+		return
+	}
+
+	if err := uow.Commit(); err != nil {
+		log.Printf("Error committing override transaction: %v", err)
+		common.FollowUpWithError(s, i, "Failed to save override.")
+		return
+	}
+
+	var winnerList []string
+	for _, winner := range result.Winners {
+		payout := result.PayoutDetails[winner.DiscordID]
+		winnerList = append(winnerList, fmt.Sprintf("<@%d> payout set to %s bits", winner.DiscordID, common.FormatBalance(payout)))
+	}
+	if len(winnerList) == 0 {
+		winnerList = append(winnerList, "No participants backed the corrected winning option.")
+	}
+
+	message := fmt.Sprintf(
+		"**Group Wager Result Overridden**\n\nWager ID: `%d`\nPrevious State: `%s`\nCorrected Winning Option: **%s**\n\n**Winners:**\n%s\n\nThe original wager message will update from the saved result.",
+		result.GroupWager.ID,
+		previousState,
+		result.WinningOption.OptionText,
+		strings.Join(winnerList, "\n"),
+	)
+
+	if _, err := s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{Content: message}); err != nil {
+		log.Printf("Error sending override message: %v", err)
+	}
+}
+
 // handleGroupWagerCancel handles the /groupwager cancel subcommand
 func (f *Feature) handleGroupWagerCancel(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	ctx := context.Background()

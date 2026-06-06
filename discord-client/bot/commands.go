@@ -119,6 +119,25 @@ func (b *Bot) registerCommands() error {
 						},
 					},
 				},
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "override",
+					Description: "Override a closed group wager result (admin only)",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionInteger,
+							Name:        "id",
+							Description: "Group wager ID to override",
+							Required:    true,
+						},
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "winning_option",
+							Description: "Exact text of the corrected winning option",
+							Required:    true,
+						},
+					},
+				},
 			},
 		},
 		{

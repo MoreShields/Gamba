@@ -371,6 +371,123 @@ func (s *groupWagerService) processParticipantBalanceChange(
 	return history, nil
 }
 
+func (s *groupWagerService) processOverrideBalanceAdjustment(
+	ctx context.Context,
+	participant *entities.GroupWagerParticipant,
+	adjustment int64,
+	transactionType entities.TransactionType,
+	groupWagerID int64,
+	groupWager *entities.GroupWager,
+	previousState entities.GroupWagerState,
+	previousWinningOptionID *int64,
+	desiredNetChange int64,
+	currentNetChange int64,
+) (*entities.BalanceHistory, error) {
+	user, err := s.userRepo.GetByDiscordID(ctx, participant.DiscordID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+	if user == nil {
+		return nil, fmt.Errorf("user %d not found", participant.DiscordID)
+	}
+
+	newBalance := user.Balance + adjustment
+	if err := s.userRepo.UpdateBalance(ctx, participant.DiscordID, newBalance); err != nil {
+		return nil, fmt.Errorf("failed to update balance: %w", err)
+	}
+
+	metadata := map[string]any{
+		"group_wager_id":             groupWagerID,
+		"bet_amount":                 participant.Amount,
+		"condition":                  groupWager.Condition,
+		"wager_type":                 string(groupWager.WagerType),
+		"override":                   true,
+		"previous_state":             string(previousState),
+		"desired_net_change":         desiredNetChange,
+		"current_net_change":         currentNetChange,
+		"override_adjustment_amount": adjustment,
+	}
+	if previousWinningOptionID != nil {
+		metadata["previous_winning_option_id"] = *previousWinningOptionID
+	}
+	if participant.PayoutAmount != nil {
+		metadata["payout_amount"] = *participant.PayoutAmount
+	}
+
+	history := &entities.BalanceHistory{
+		DiscordID:           participant.DiscordID,
+		BalanceBefore:       user.Balance,
+		BalanceAfter:        newBalance,
+		ChangeAmount:        adjustment,
+		TransactionType:     transactionType,
+		TransactionMetadata: metadata,
+		RelatedID:           &groupWagerID,
+		RelatedType:         relatedTypePtr(entities.RelatedTypeGroupWager),
+	}
+
+	if err := utils.RecordBalanceChange(ctx, s.balanceHistoryRepo, s.eventPublisher, history); err != nil {
+		return nil, fmt.Errorf("failed to record override balance adjustment: %w", err)
+	}
+
+	return history, nil
+}
+
+func calculateGroupWagerOutcome(
+	groupWager *entities.GroupWager,
+	participants []*entities.GroupWagerParticipant,
+	winningOption *entities.GroupWagerOption,
+) ([]*entities.GroupWagerParticipant, []*entities.GroupWagerParticipant, map[int64]int64, int64) {
+	var winners []*entities.GroupWagerParticipant
+	var losers []*entities.GroupWagerParticipant
+	desiredNetChanges := make(map[int64]int64)
+	maxWinnerBet := int64(0)
+
+	for _, participant := range participants {
+		if participant.OptionID == winningOption.ID {
+			winners = append(winners, participant)
+		} else {
+			losers = append(losers, participant)
+		}
+	}
+
+	if groupWager.IsPoolWager() {
+		maxWinnerBet = calculateMaxWinnerBet(winners)
+		effectivePrizePool := int64(0)
+		for _, loser := range losers {
+			effectivePrizePool += calculateEffectiveLoss(loser.Amount, maxWinnerBet)
+		}
+		for _, winner := range winners {
+			effectivePrizePool += winner.Amount
+		}
+		for _, winner := range winners {
+			payout := int64(0)
+			if winningOption.TotalAmount > 0 {
+				payout = (winner.Amount * effectivePrizePool) / winningOption.TotalAmount
+			}
+			winner.PayoutAmount = &payout
+			desiredNetChanges[winner.DiscordID] = payout - winner.Amount
+		}
+		for _, loser := range losers {
+			zero := int64(0)
+			loser.PayoutAmount = &zero
+			desiredNetChanges[loser.DiscordID] = -calculateEffectiveLoss(loser.Amount, maxWinnerBet)
+		}
+	} else {
+		for _, winner := range winners {
+			payout := int64(float64(winner.Amount) * winningOption.OddsMultiplier)
+			winner.PayoutAmount = &payout
+			desiredNetChanges[winner.DiscordID] = payout - winner.Amount
+		}
+		for _, loser := range losers {
+			zero := int64(0)
+			loser.PayoutAmount = &zero
+			desiredNetChanges[loser.DiscordID] = -loser.Amount
+		}
+	}
+
+	return winners, losers, desiredNetChanges, maxWinnerBet
+}
+
 // ResolveGroupWager resolves a group wager with the winning option
 func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID int64, resolverID *int64, winningOptionID int64) (*entities.GroupWagerResult, error) {
 	// Check if user is a resolver (skip check for system resolution when resolverID is nil)
@@ -568,6 +685,118 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 		Winners:       winners,
 		Losers:        losers,
 		TotalPot:      totalPot,
+		PayoutDetails: payoutDetails,
+	}, nil
+}
+
+// OverrideGroupWagerResult changes the winning option for a closed wager and applies net balance adjustments.
+// This is intended for privileged admin flows that need to correct an already-closed wager.
+func (s *groupWagerService) OverrideGroupWagerResult(ctx context.Context, groupWagerID int64, resolverID *int64, winningOptionID int64) (*entities.GroupWagerResult, error) {
+	detail, err := s.groupWagerRepo.GetDetailByID(ctx, groupWagerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get group wager detail: %w", err)
+	}
+	if detail == nil || detail.Wager == nil {
+		return nil, fmt.Errorf("group wager not found")
+	}
+
+	groupWager := detail.Wager
+	if groupWager.IsActive() {
+		return nil, fmt.Errorf("cannot override an active group wager; wait for it to close first")
+	}
+
+	var winningOption *entities.GroupWagerOption
+	for _, opt := range detail.Options {
+		if opt.ID == winningOptionID {
+			winningOption = opt
+			break
+		}
+	}
+	if winningOption == nil {
+		return nil, fmt.Errorf("no option found with ID: %d", winningOptionID)
+	}
+
+	previousState := groupWager.State
+	previousWinningOptionID := groupWager.WinningOptionID
+	priorHistory, err := s.balanceHistoryRepo.GetByRelated(ctx, entities.RelatedTypeGroupWager, groupWagerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get existing balance history: %w", err)
+	}
+
+	currentNetChanges := make(map[int64]int64)
+	for _, history := range priorHistory {
+		currentNetChanges[history.DiscordID] += history.ChangeAmount
+	}
+
+	winners, losers, desiredNetChanges, _ := calculateGroupWagerOutcome(groupWager, detail.Participants, winningOption)
+	payoutDetails := make(map[int64]int64)
+	allParticipants := append(winners, losers...)
+
+	for _, participant := range allParticipants {
+		desiredNetChange := desiredNetChanges[participant.DiscordID]
+		currentNetChange := currentNetChanges[participant.DiscordID]
+		adjustment := desiredNetChange - currentNetChange
+
+		transactionType := entities.TransactionTypeGroupWagerLoss
+		if participant.OptionID == winningOption.ID {
+			transactionType = entities.TransactionTypeGroupWagerWin
+		}
+
+		// Always record a history entry so resolved participants satisfy the payout/balance-history invariant,
+		// even in rare cases where the override's net adjustment is zero.
+		history, err := s.processOverrideBalanceAdjustment(
+			ctx,
+			participant,
+			adjustment,
+			transactionType,
+			groupWagerID,
+			groupWager,
+			previousState,
+			previousWinningOptionID,
+			desiredNetChange,
+			currentNetChange,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process override adjustment for participant %d: %w", participant.DiscordID, err)
+		}
+
+		participant.BalanceHistoryID = &history.ID
+		if participant.PayoutAmount != nil {
+			payoutDetails[participant.DiscordID] = *participant.PayoutAmount
+		}
+	}
+
+	if err := s.groupWagerRepo.UpdateParticipantPayouts(ctx, allParticipants); err != nil {
+		return nil, fmt.Errorf("failed to update participant payouts: %w", err)
+	}
+
+	now := time.Now()
+	groupWager.State = entities.GroupWagerStateResolved
+	groupWager.ResolverDiscordID = resolverID
+	groupWager.WinningOptionID = &winningOptionID
+	groupWager.ResolvedAt = &now
+
+	if err := s.groupWagerRepo.Update(ctx, groupWager); err != nil {
+		return nil, fmt.Errorf("failed to update overridden group wager: %w", err)
+	}
+
+	if err := s.eventPublisher.Publish(events.GroupWagerStateChangeEvent{
+		GroupWagerID: groupWager.ID,
+		GuildID:      groupWager.GuildID,
+		OldState:     string(previousState),
+		NewState:     string(groupWager.State),
+		MessageID:    groupWager.MessageID,
+		ChannelID:    groupWager.ChannelID,
+	}); err != nil {
+		log.WithError(err).Error("Failed to publish group wager override state change event")
+	}
+
+	return &entities.GroupWagerResult{
+		GroupWager:    groupWager,
+		WinningOption: winningOption,
+		Winners:       winners,
+		Losers:        losers,
+		TotalPot:      groupWager.TotalPot,
 		PayoutDetails: payoutDetails,
 	}, nil
 }
