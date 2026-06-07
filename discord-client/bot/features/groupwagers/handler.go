@@ -3,6 +3,8 @@ package groupwagers
 import (
 	"context"
 	"fmt"
+
+	"gambler/discord-client/application/dto"
 	"gambler/discord-client/bot/common"
 	"gambler/discord-client/domain/entities"
 	"gambler/discord-client/domain/services"
@@ -460,6 +462,13 @@ func (f *Feature) handleGroupWagerOverride(s *discordgo.Session, i *discordgo.In
 		return
 	}
 
+	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
+	if err != nil {
+		log.Printf("Error parsing guild ID: %v", err)
+		common.RespondWithError(s, i, "Unable to process request.")
+		return
+	}
+
 	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
 	}); err != nil {
@@ -467,71 +476,29 @@ func (f *Feature) handleGroupWagerOverride(s *discordgo.Session, i *discordgo.In
 		return
 	}
 
-	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
+	req := dto.OverrideGroupWagerResultRequest{
+		GuildID:           guildID,
+		AdminDiscordID:    adminID,
+		GroupWagerID:      groupWagerID,
+		WinningOptionText: winningOptionText,
+	}
+
+	resp, err := f.groupWagerAdminHandler.OverrideResult(ctx, req)
 	if err != nil {
-		log.Printf("Error parsing guild ID: %v", err)
-		common.FollowUpWithError(s, i, "Unable to process request.")
-		return
-	}
-
-	uow := f.uowFactory.CreateForGuild(guildID)
-	if err := uow.Begin(ctx); err != nil {
-		log.Printf("Error beginning transaction: %v", err)
-		common.FollowUpWithError(s, i, "Unable to process request.")
-		return
-	}
-	defer uow.Rollback()
-
-	groupWagerService := services.NewGroupWagerService(
-		uow.GroupWagerRepository(),
-		uow.UserRepository(),
-		uow.BalanceHistoryRepository(),
-		uow.EventBus(),
-	)
-
-	wagerDetail, err := groupWagerService.GetGroupWagerDetail(ctx, groupWagerID)
-	if err != nil {
-		log.Printf("Error getting group wager detail: %v", err)
-		common.FollowUpWithError(s, i, "Failed to get wager details.")
-		return
-	}
-	if wagerDetail == nil || wagerDetail.Wager == nil {
-		common.FollowUpWithError(s, i, "Group wager not found.")
-		return
-	}
-
-	var winningOptionID int64
-	found := false
-	for _, option := range wagerDetail.Options {
-		if option.OptionText == winningOptionText {
-			winningOptionID = option.ID
-			found = true
-			break
-		}
-	}
-	if !found {
-		common.FollowUpWithError(s, i, fmt.Sprintf("No option found with text: %s", winningOptionText))
-		return
-	}
-
-	previousState := wagerDetail.Wager.State
-	result, err := groupWagerService.OverrideGroupWagerResult(ctx, groupWagerID, &adminID, winningOptionID)
-	if err != nil {
-		log.Printf("Error overriding group wager: %v", err)
-		common.FollowUpWithError(s, i, fmt.Sprintf("Failed to override wager: %v", err))
-		return
-	}
-
-	if err := uow.Commit(); err != nil {
-		log.Printf("Error committing override transaction: %v", err)
-		common.FollowUpWithError(s, i, "Failed to save override.")
+		log.WithFields(log.Fields{
+			"guildID":       guildID,
+			"adminID":       adminID,
+			"groupWagerID":  groupWagerID,
+			"winningOption": winningOptionText,
+			"error":         err,
+		}).Warn("Failed to override group wager result")
+		common.FollowUpWithError(s, i, err.Error())
 		return
 	}
 
 	var winnerList []string
-	for _, winner := range result.Winners {
-		payout := result.PayoutDetails[winner.DiscordID]
-		winnerList = append(winnerList, fmt.Sprintf("<@%d> payout set to %s bits", winner.DiscordID, common.FormatBalance(payout)))
+	for _, winner := range resp.Winners {
+		winnerList = append(winnerList, fmt.Sprintf("<@%d> payout set to %s bits", winner.DiscordID, common.FormatBalance(winner.PayoutAmount)))
 	}
 	if len(winnerList) == 0 {
 		winnerList = append(winnerList, "No participants backed the corrected winning option.")
@@ -539,9 +506,9 @@ func (f *Feature) handleGroupWagerOverride(s *discordgo.Session, i *discordgo.In
 
 	message := fmt.Sprintf(
 		"**Group Wager Result Overridden**\n\nWager ID: `%d`\nPrevious State: `%s`\nCorrected Winning Option: **%s**\n\n**Winners:**\n%s\n\nThe original wager message will update from the saved result.",
-		result.GroupWager.ID,
-		previousState,
-		result.WinningOption.OptionText,
+		resp.GroupWagerID,
+		resp.PreviousState,
+		resp.WinningOption,
 		strings.Join(winnerList, "\n"),
 	)
 
