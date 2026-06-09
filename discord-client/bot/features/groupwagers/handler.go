@@ -434,7 +434,6 @@ func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Int
 	}
 }
 
-// handleGroupWagerOverride handles the /groupwager override subcommand.
 func (f *Feature) handleGroupWagerOverride(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	ctx := context.Background()
 	options := i.ApplicationCommandData().Options[0].Options
@@ -496,20 +495,22 @@ func (f *Feature) handleGroupWagerOverride(s *discordgo.Session, i *discordgo.In
 		return
 	}
 
-	var winnerList []string
+	var payoutList []string
 	for _, winner := range resp.Winners {
-		winnerList = append(winnerList, fmt.Sprintf("<@%d> payout set to %s bits", winner.DiscordID, common.FormatBalance(winner.PayoutAmount)))
+		payoutList = append(payoutList, fmt.Sprintf("<@%d>: %s bits", winner.DiscordID, common.FormatBalance(winner.PayoutAmount)))
 	}
-	if len(winnerList) == 0 {
-		winnerList = append(winnerList, "No participants backed the corrected winning option.")
+	if len(payoutList) == 0 {
+		payoutList = append(payoutList, "No payouts.")
 	}
 
 	message := fmt.Sprintf(
-		"**Group Wager Result Overridden**\n\nWager ID: `%d`\nPrevious State: `%s`\nCorrected Winning Option: **%s**\n\n**Winners:**\n%s\n\nThe original wager message will update from the saved result.",
+		"**Group Wager Result Overridden**\n\nWager ID: `%d`\nBefore: `%s` • `%s`\nAfter: `%s` • `%s`\n\n**Payouts:**\n%s",
 		resp.GroupWagerID,
 		resp.PreviousState,
+		resp.PreviousWinningOption,
+		resp.CorrectedState,
 		resp.WinningOption,
-		strings.Join(winnerList, "\n"),
+		strings.Join(payoutList, "\n"),
 	)
 
 	if _, err := s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{Content: message}); err != nil {

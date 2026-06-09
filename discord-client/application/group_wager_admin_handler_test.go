@@ -89,6 +89,7 @@ func TestGroupWagerAdminHandler_OverrideResult(t *testing.T) {
 	require.NotNil(t, resp)
 	assert.Equal(t, wagerID, resp.GroupWagerID)
 	assert.Equal(t, "cancelled", resp.PreviousState)
+	assert.Equal(t, "No winning option", resp.PreviousWinningOption)
 	assert.Equal(t, "resolved", resp.CorrectedState)
 	assert.Equal(t, "Win", resp.WinningOption)
 	assert.Equal(t, winOptionID, resp.WinningOptionID)
