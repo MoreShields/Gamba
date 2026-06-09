@@ -15,15 +15,17 @@ import (
 
 // Feature represents the group wagers feature
 type Feature struct {
-	session    *discordgo.Session
-	uowFactory application.UnitOfWorkFactory
+	session                *discordgo.Session
+	uowFactory             application.UnitOfWorkFactory
+	groupWagerAdminHandler *application.GroupWagerAdminHandler
 }
 
 // NewFeature creates a new group wagers feature instance
 func NewFeature(session *discordgo.Session, uowFactory application.UnitOfWorkFactory) *Feature {
 	return &Feature{
-		session:    session,
-		uowFactory: uowFactory,
+		session:                session,
+		uowFactory:             uowFactory,
+		groupWagerAdminHandler: application.NewGroupWagerAdminHandler(uowFactory),
 	}
 }
 
@@ -41,6 +43,8 @@ func (f *Feature) HandleCommand(s *discordgo.Session, i *discordgo.InteractionCr
 		f.handleGroupWagerCreate(s, i)
 	case "resolve":
 		f.handleGroupWagerResolve(s, i)
+	case "override":
+		f.handleGroupWagerOverride(s, i)
 	case "cancel":
 		f.handleGroupWagerCancel(s, i)
 	default:

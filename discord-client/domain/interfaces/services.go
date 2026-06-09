@@ -67,6 +67,9 @@ type GroupWagerService interface {
 	// ResolveGroupWager resolves a group wager with the winning option
 	ResolveGroupWager(ctx context.Context, groupWagerID int64, resolverID *int64, winningOptionID int64) (*entities.GroupWagerResult, error)
 
+	// OverrideGroupWagerResult changes the winning option for a closed wager and applies net balance adjustments
+	OverrideGroupWagerResult(ctx context.Context, groupWagerID int64, resolverID *int64, winningOptionID int64) (*entities.GroupWagerResult, error)
+
 	// GetGroupWagerDetail retrieves full details of a group wager
 	GetGroupWagerDetail(ctx context.Context, groupWagerID int64) (*entities.GroupWagerDetail, error)
 
@@ -136,9 +139,9 @@ type HighRollerService interface {
 
 // HighRollerInfo contains information about the current high roller
 type HighRollerInfo struct {
-	CurrentHolder        *entities.User
-	CurrentPrice         int64
-	LastPurchasedAt      *time.Time
+	CurrentHolder         *entities.User
+	CurrentPrice          int64
+	LastPurchasedAt       *time.Time
 	CurrentHolderDuration time.Duration // How long the current holder has held the role
 }
 

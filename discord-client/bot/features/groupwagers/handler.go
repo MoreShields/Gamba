@@ -3,6 +3,8 @@ package groupwagers
 import (
 	"context"
 	"fmt"
+
+	"gambler/discord-client/application/dto"
 	"gambler/discord-client/bot/common"
 	"gambler/discord-client/domain/entities"
 	"gambler/discord-client/domain/services"
@@ -429,6 +431,89 @@ func (f *Feature) handleGroupWagerResolve(s *discordgo.Session, i *discordgo.Int
 				log.Printf("Error updating resolved group wager message: %v", err)
 			}
 		}
+	}
+}
+
+// handleGroupWagerOverride handles the /groupwager override subcommand.
+func (f *Feature) handleGroupWagerOverride(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	ctx := context.Background()
+	options := i.ApplicationCommandData().Options[0].Options
+
+	if !common.IsUserAdmin(s, i.GuildID, i.Member.User.ID) {
+		common.RespondWithError(s, i, "❌ You need administrator permissions to override wager results")
+		return
+	}
+
+	var groupWagerID int64
+	var winningOptionText string
+	for _, opt := range options {
+		switch opt.Name {
+		case "id":
+			groupWagerID = opt.IntValue()
+		case "winning_option":
+			winningOptionText = opt.StringValue()
+		}
+	}
+
+	adminID, err := strconv.ParseInt(i.Member.User.ID, 10, 64)
+	if err != nil {
+		log.Printf("Error parsing admin ID: %v", err)
+		common.RespondWithError(s, i, "Unable to process request.")
+		return
+	}
+
+	guildID, err := strconv.ParseInt(i.GuildID, 10, 64)
+	if err != nil {
+		log.Printf("Error parsing guild ID: %v", err)
+		common.RespondWithError(s, i, "Unable to process request.")
+		return
+	}
+
+	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+	}); err != nil {
+		log.Printf("Error deferring override response: %v", err)
+		return
+	}
+
+	req := dto.OverrideGroupWagerResultRequest{
+		GuildID:           guildID,
+		AdminDiscordID:    adminID,
+		GroupWagerID:      groupWagerID,
+		WinningOptionText: winningOptionText,
+	}
+
+	resp, err := f.groupWagerAdminHandler.OverrideResult(ctx, req)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"guildID":       guildID,
+			"adminID":       adminID,
+			"groupWagerID":  groupWagerID,
+			"winningOption": winningOptionText,
+			"error":         err,
+		}).Warn("Failed to override group wager result")
+		common.FollowUpWithError(s, i, err.Error())
+		return
+	}
+
+	var winnerList []string
+	for _, winner := range resp.Winners {
+		winnerList = append(winnerList, fmt.Sprintf("<@%d> payout set to %s bits", winner.DiscordID, common.FormatBalance(winner.PayoutAmount)))
+	}
+	if len(winnerList) == 0 {
+		winnerList = append(winnerList, "No participants backed the corrected winning option.")
+	}
+
+	message := fmt.Sprintf(
+		"**Group Wager Result Overridden**\n\nWager ID: `%d`\nPrevious State: `%s`\nCorrected Winning Option: **%s**\n\n**Winners:**\n%s\n\nThe original wager message will update from the saved result.",
+		resp.GroupWagerID,
+		resp.PreviousState,
+		resp.WinningOption,
+		strings.Join(winnerList, "\n"),
+	)
+
+	if _, err := s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{Content: message}); err != nil {
+		log.Printf("Error sending override message: %v", err)
 	}
 }
 

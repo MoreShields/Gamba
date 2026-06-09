@@ -206,3 +206,57 @@ func (r *BalanceHistoryRepository) GetTotalDonationsByUser(ctx context.Context, 
 
 	return totalDonations, nil
 }
+
+// GetByRelated returns all balance history entries for a related entity in this guild.
+func (r *BalanceHistoryRepository) GetByRelated(ctx context.Context, relatedType entities.RelatedType, relatedID int64) ([]*entities.BalanceHistory, error) {
+	query := `
+		SELECT id, discord_id, guild_id, balance_before, balance_after, change_amount,
+		       transaction_type, transaction_metadata, related_id, related_type, created_at
+		FROM balance_history
+		WHERE guild_id = $1 AND related_type = $2 AND related_id = $3
+		ORDER BY id ASC
+	`
+
+	rows, err := r.q.Query(ctx, query, r.guildID, relatedType, relatedID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get balance history for %s %d: %w", relatedType, relatedID, err)
+	}
+	defer rows.Close()
+
+	var histories []*entities.BalanceHistory
+	for rows.Next() {
+		var history entities.BalanceHistory
+		var metadataJSON []byte
+
+		err := rows.Scan(
+			&history.ID,
+			&history.DiscordID,
+			&history.GuildID,
+			&history.BalanceBefore,
+			&history.BalanceAfter,
+			&history.ChangeAmount,
+			&history.TransactionType,
+			&metadataJSON,
+			&history.RelatedID,
+			&history.RelatedType,
+			&history.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan balance history: %w", err)
+		}
+
+		if len(metadataJSON) > 0 {
+			if err := json.Unmarshal(metadataJSON, &history.TransactionMetadata); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal transaction metadata: %w", err)
+			}
+		}
+
+		histories = append(histories, &history)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate balance history: %w", err)
+	}
+
+	return histories, nil
+}

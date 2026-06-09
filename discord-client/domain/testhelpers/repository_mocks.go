@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"gambler/discord-client/domain/events"
 	"gambler/discord-client/domain/entities"
+	"gambler/discord-client/domain/events"
 
 	"github.com/stretchr/testify/mock"
 )
@@ -94,6 +94,14 @@ func (m *MockBalanceHistoryRepository) GetTotalVolumeByUser(ctx context.Context,
 func (m *MockBalanceHistoryRepository) GetTotalDonationsByUser(ctx context.Context, discordID int64) (int64, error) {
 	args := m.Called(ctx, discordID)
 	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockBalanceHistoryRepository) GetByRelated(ctx context.Context, relatedType entities.RelatedType, relatedID int64) ([]*entities.BalanceHistory, error) {
+	args := m.Called(ctx, relatedType, relatedID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*entities.BalanceHistory), args.Error(1)
 }
 
 // MockBetRepository is a mock implementation of BetRepository
