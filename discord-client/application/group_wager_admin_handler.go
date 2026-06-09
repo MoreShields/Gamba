@@ -8,17 +8,14 @@ import (
 	"gambler/discord-client/domain/services"
 )
 
-// GroupWagerAdminHandler orchestrates privileged group wager administration workflows.
 type GroupWagerAdminHandler struct {
 	uowFactory UnitOfWorkFactory
 }
 
-// NewGroupWagerAdminHandler creates a new group wager admin handler.
 func NewGroupWagerAdminHandler(uowFactory UnitOfWorkFactory) *GroupWagerAdminHandler {
 	return &GroupWagerAdminHandler{uowFactory: uowFactory}
 }
 
-// OverrideResult corrects the winning option for a closed group wager and applies net accounting changes.
 func (h *GroupWagerAdminHandler) OverrideResult(ctx context.Context, req dto.OverrideGroupWagerResultRequest) (*dto.OverrideGroupWagerResultResponse, error) {
 	if req.GuildID == 0 {
 		return nil, fmt.Errorf("guild ID is required")
@@ -68,6 +65,16 @@ func (h *GroupWagerAdminHandler) OverrideResult(ctx context.Context, req dto.Ove
 	}
 
 	previousState := wagerDetail.Wager.State
+	previousWinningOption := "No winning option"
+	if wagerDetail.Wager.WinningOptionID != nil {
+		for _, option := range wagerDetail.Options {
+			if option.ID == *wagerDetail.Wager.WinningOptionID {
+				previousWinningOption = option.OptionText
+				break
+			}
+		}
+	}
+
 	result, err := groupWagerService.OverrideGroupWagerResult(ctx, req.GroupWagerID, &req.AdminDiscordID, winningOptionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to override wager: %w", err)
@@ -90,13 +97,14 @@ func (h *GroupWagerAdminHandler) OverrideResult(ctx context.Context, req dto.Ove
 	}
 
 	return &dto.OverrideGroupWagerResultResponse{
-		GroupWagerID:      result.GroupWager.ID,
-		PreviousState:     string(previousState),
-		CorrectedState:    string(result.GroupWager.State),
-		WinningOption:     result.WinningOption.OptionText,
-		WinningOptionID:   result.WinningOption.ID,
-		Winners:           winners,
-		OriginalMessageID: result.GroupWager.MessageID,
-		OriginalChannelID: result.GroupWager.ChannelID,
+		GroupWagerID:          result.GroupWager.ID,
+		PreviousState:         string(previousState),
+		PreviousWinningOption: previousWinningOption,
+		CorrectedState:        string(result.GroupWager.State),
+		WinningOption:         result.WinningOption.OptionText,
+		WinningOptionID:       result.WinningOption.ID,
+		Winners:               winners,
+		OriginalMessageID:     result.GroupWager.MessageID,
+		OriginalChannelID:     result.GroupWager.ChannelID,
 	}, nil
 }

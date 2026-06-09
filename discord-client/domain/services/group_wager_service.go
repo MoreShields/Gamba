@@ -690,7 +690,6 @@ func (s *groupWagerService) ResolveGroupWager(ctx context.Context, groupWagerID 
 }
 
 // OverrideGroupWagerResult changes the winning option for a closed wager and applies net balance adjustments.
-// This is intended for privileged admin flows that need to correct an already-closed wager.
 func (s *groupWagerService) OverrideGroupWagerResult(ctx context.Context, groupWagerID int64, resolverID *int64, winningOptionID int64) (*entities.GroupWagerResult, error) {
 	detail, err := s.groupWagerRepo.GetDetailByID(ctx, groupWagerID)
 	if err != nil {
