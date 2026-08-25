@@ -238,16 +238,21 @@ class GameCentricPollingService:
             if not game_id:
                 logger.warning(f"No game ID in API response for {player.riot_id}")
                 return False
+
+            queue_id = game_data.get('gameQueueConfigId')
+            queue_type = QueueType.from_queue_id(queue_id) if queue_id else None
+            if queue_type is None or not queue_type.is_supported:
+                logger.info(
+                    f"Ignoring unsupported queue {queue_id} for game {game_id} "
+                    f"and player {player.riot_id}"
+                )
+                return False
             
             # Check if we're already tracking this game
             existing_game = await self.database.get_tracked_game(player.id, str(game_id))
             if existing_game:
                 logger.debug(f"Game {game_id} already tracked for {player.riot_id}")
                 return False
-            
-            # Create new tracked game entry
-            queue_id = game_data.get('gameQueueConfigId')
-            queue_type = QueueType.from_queue_id(queue_id) if queue_id else None
             
             # Extract game_type from API response
             game_type = game_data.get('game_type', 'LOL')  # Default to LOL if not specified

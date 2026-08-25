@@ -91,6 +91,16 @@ class QueueType(Enum):
     def value(self) -> str:
         """Get the string value of the queue type."""
         return self._value_
+
+    @property
+    def is_supported(self) -> bool:
+        """Whether the queue is supported by the Discord event handlers."""
+        return self in {
+            self.RANKED_SOLO_5X5,
+            self.RANKED_FLEX_SR,
+            self.TFT_RANKED,
+            self.TFT_RANKED_DOUBLE_UP,
+        }
     
     @classmethod
     def from_queue_id(cls, queue_id: int) -> Optional["QueueType"]:
